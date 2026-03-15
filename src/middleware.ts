@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  if (user && isAuthPage && pathname !== "/auth/reset-password") {
     const url = request.nextUrl.clone();
     url.pathname = "/feed";
     return NextResponse.redirect(url);

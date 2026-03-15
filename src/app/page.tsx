@@ -99,12 +99,7 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-3">
             <Link href="/auth/login">
-              <Button variant="ghost" size="sm" className="text-slate-600">Sign in</Button>
-            </Link>
-            <Link href="/auth/signup">
-              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                Get started free
-              </Button>
+              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">Sign in</Button>
             </Link>
           </div>
         </div>
@@ -128,18 +123,12 @@ export default function LandingPage() {
             Kudos is the simplest way for teams to recognise each other with points, shoutouts, and genuine appreciation — every single day.
           </p>
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/auth/signup">
+            <Link href="/auth/login">
               <Button size="lg" className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 h-12">
-                Start for free <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-            <Link href="/feed">
-              <Button size="lg" variant="outline" className="h-12 px-8 border-slate-200 text-slate-700 hover:bg-slate-50">
-                View demo feed
+                Sign in <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>
-          <p className="mt-4 text-xs text-slate-400">No credit card required · Free for teams up to 10</p>
         </div>
 
         {/* Mock feed preview */}
@@ -272,7 +261,7 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/auth/signup">
+                <Link href="/auth/login">
                   <Button
                     className={`w-full ${
                       plan.highlight
@@ -280,7 +269,7 @@ export default function LandingPage() {
                         : "bg-indigo-600 text-white hover:bg-indigo-700"
                     }`}
                   >
-                    {plan.cta}
+                    Sign in
                   </Button>
                 </Link>
               </div>
@@ -299,9 +288,9 @@ export default function LandingPage() {
           </div>
           <h2 className="mb-4 text-4xl font-extrabold text-slate-900">Ready to start recognising?</h2>
           <p className="mb-8 text-lg text-slate-500">Join thousands of teams building healthier, happier cultures with Kudos.</p>
-          <Link href="/auth/signup">
+          <Link href="/auth/login">
             <Button size="lg" className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-10 h-12">
-              Get started for free <ArrowRight className="h-4 w-4" />
+              Sign in <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
         </div>

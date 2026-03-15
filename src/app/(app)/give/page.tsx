@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { Heart, ArrowLeft, X, Coins } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,6 @@ import { toast } from "sonner";
 import type { Profile } from "@/types";
 import { cn } from "@/lib/utils";
 
-const POINT_OPTIONS = [5, 10, 20, 30, 50];
 const HASHTAG_SUGGESTIONS = [
   "teamwork", "innovation", "leadership", "shipping",
   "mentorship", "client-success", "above-and-beyond", "problem-solving",
@@ -72,14 +70,12 @@ function parseMessage(
 }
 
 export default function GiveKudosPage() {
-  const router = useRouter();
   const supabase = createClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
   const [teammates, setTeammates] = useState<Profile[]>([]);
   const [messageText, setMessageText] = useState("");
-  const [points, setPoints] = useState(10);
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -103,7 +99,7 @@ export default function GiveKudosPage() {
   }, []);
 
   const { recipients, pointsInText } = parseMessage(messageText, teammates);
-  const effectivePoints = pointsInText ?? points;
+  const effectivePoints = pointsInText ?? 0;
   const totalCost = effectivePoints * Math.max(recipients.length, 1);
   const balance = currentUser?.monthly_allowance ?? 0;
 
@@ -167,8 +163,8 @@ export default function GiveKudosPage() {
       toast.error("Each person needs a message of at least 5 characters before their @mention.");
       return;
     }
-    if (effectivePoints <= 0) {
-      toast.error("Points must be greater than 0.");
+    if (!pointsInText || pointsInText <= 0) {
+      toast.error("Add +number at the end of your message to set points (e.g. +20).");
       return;
     }
     if (totalCost > balance) {
@@ -195,13 +191,12 @@ export default function GiveKudosPage() {
     } else {
       const names = recipients.map((r) => r.profile.full_name.split(" ")[0]).join(" & ");
       toast.success(`🎉 Kudos sent to ${names}!`);
-      router.refresh();
-      router.push("/feed");
+      window.location.href = "/feed";
     }
     setSubmitting(false);
   }
 
-  const canSubmit = recipients.length > 0 && effectivePoints > 0 && totalCost <= balance;
+  const canSubmit = recipients.length > 0 && pointsInText !== null && pointsInText > 0 && totalCost <= balance;
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
@@ -224,10 +219,7 @@ export default function GiveKudosPage() {
             Your message *
           </Label>
           <p className="text-xs text-slate-400 mb-3">
-            Use{" "}
-            <span className="font-mono bg-slate-100 px-1 rounded">@name</span> to mention teammates.
-            Text before each <span className="font-mono bg-slate-100 px-1 rounded">@name</span> becomes their
-            personal message. Add{" "}
+            Use <span className="font-mono bg-slate-100 px-1 rounded">@name</span> to mention teammates and{" "}
             <span className="font-mono bg-slate-100 px-1 rounded">+20</span> at the end to set points.
           </p>
           <div className="relative">
@@ -241,7 +233,7 @@ export default function GiveKudosPage() {
                   setMentionResults([]);
                 }
               }}
-              placeholder={`Thanks @alice for shipping that critical fix! Thanks @bob for mentoring the team. +20`}
+              placeholder={`Thanks @alice for shipping that critical fix! Great work @bob on the new feature. +20`}
               rows={5}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none resize-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all placeholder:text-slate-400"
             />
@@ -311,43 +303,6 @@ export default function GiveKudosPage() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
-
-        {/* Points picker — hidden when +number is in the message */}
-        {pointsInText === null && (
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Points per person *
-              </Label>
-              {currentUser && (
-                <span className="text-xs text-slate-400">
-                  {balance} pts available
-                  {recipients.length > 1 && ` · ${effectivePoints * recipients.length} total`}
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {POINT_OPTIONS.map((opt) => (
-                <button
-                  type="button"
-                  key={opt}
-                  onClick={() => setPoints(opt)}
-                  className={cn(
-                    "rounded-xl border px-5 py-2.5 text-sm font-bold transition-all",
-                    points === opt
-                      ? "border-indigo-500 bg-indigo-600 text-white shadow-sm"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:bg-indigo-50"
-                  )}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-slate-400 mt-2">
-              Or write <span className="font-mono bg-slate-100 px-1 rounded">+20</span> at the end of your message to set custom points.
-            </p>
           </div>
         )}
 

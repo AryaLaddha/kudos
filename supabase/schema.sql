@@ -151,34 +151,7 @@ create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure handle_new_user();
 
--- Deduct from giver's giving budget + credit receiver's earned points when recognition is created
-create or replace function handle_recognition_points()
-returns trigger language plpgsql security definer
-as $$
-begin
-  -- Deduct from giver's monthly giving budget (points_balance is never touched by giving)
-  update profiles set monthly_allowance = monthly_allowance - new.points
-  where id = new.giver_id;
-
-  -- Credit receiver's earned points balance
-  update profiles set points_balance = points_balance + new.points
-  where id = new.receiver_id;
-
-  -- Audit log: debit
-  insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
-  values (new.org_id, new.giver_id, new.id, -new.points, 'given');
-
-  -- Audit log: credit
-  insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
-  values (new.org_id, new.receiver_id, new.id, new.points, 'received');
-
-  return new;
-end;
-$$;
-
-create or replace trigger on_recognition_created
-  after insert on recognitions
-  for each row execute procedure handle_recognition_points();
+-- No trigger needed — send_multi_recognition RPC handles all point logic directly.
 
 -- ============================================================
 -- MONTHLY ALLOWANCE RESET
@@ -204,8 +177,8 @@ select cron.schedule(
 
 -- ============================================================
 -- SEND MULTI RECOGNITION RPC
--- Validates allowance then inserts one recognition per receiver.
--- The on_recognition_created trigger handles all point deductions/credits.
+-- Handles everything: validates allowance, inserts recognitions,
+-- updates points, and writes audit log. No trigger dependency.
 -- ============================================================
 create or replace function send_multi_recognition(
   p_org_id    uuid,
@@ -217,8 +190,9 @@ create or replace function send_multi_recognition(
 returns void language plpgsql security definer
 as $$
 declare
-  total_cost int;
-  i          int;
+  total_cost   int;
+  rec_id       uuid;
+  i            int;
 begin
   total_cost := p_points * array_length(p_receivers, 1);
 
@@ -227,14 +201,29 @@ begin
     raise exception 'insufficient_points';
   end if;
 
-  -- Insert one recognition per receiver.
-  -- The on_recognition_created trigger fires for each insert and:
-  --   • deducts p_points from giver's monthly_allowance
-  --   • credits p_points to receiver's points_balance
-  --   • writes audit rows to point_transactions
+  -- Deduct full cost from giver's monthly giving budget in one shot
+  update profiles
+    set monthly_allowance = monthly_allowance - total_cost
+  where id = auth.uid();
+
   for i in 1 .. array_length(p_receivers, 1) loop
+    -- Insert recognition
     insert into recognitions (org_id, giver_id, receiver_id, message, points, hashtags)
-    values (p_org_id, auth.uid(), p_receivers[i], p_messages[i], p_points, p_hashtags);
+    values (p_org_id, auth.uid(), p_receivers[i], p_messages[i], p_points, p_hashtags)
+    returning id into rec_id;
+
+    -- Credit receiver's earned balance
+    update profiles
+      set points_balance = points_balance + p_points
+    where id = p_receivers[i];
+
+    -- Audit: given
+    insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
+    values (p_org_id, auth.uid(), rec_id, -p_points, 'given');
+
+    -- Audit: received
+    insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
+    values (p_org_id, p_receivers[i], rec_id, p_points, 'received');
   end loop;
 end;
 $$;

@@ -69,8 +69,8 @@ export default async function FeedPage({ searchParams }: Props) {
       points: 50,
       hashtags: ["shipping", "leadership"],
       created_at: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
-      giver: { id: "a", org_id: "demo", full_name: "Alex Morgan", avatar_url: null, department: "Product", job_title: "PM", monthly_allowance: 100, points_balance: 50, created_at: "" },
-      receiver: { id: "b", org_id: "demo", full_name: "Jordan Park", avatar_url: null, department: "Engineering", job_title: "Lead Engineer", monthly_allowance: 100, points_balance: 120, created_at: "" },
+      giver: { id: "a", org_id: "demo", full_name: "Alex Morgan", avatar_url: null, department: "Product", job_title: "PM", monthly_allowance: 100, points_balance: 50, is_admin: false, created_at: "" },
+      receiver: { id: "b", org_id: "demo", full_name: "Jordan Park", avatar_url: null, department: "Engineering", job_title: "Lead Engineer", monthly_allowance: 100, points_balance: 120, is_admin: false, created_at: "" },
       reactions: [{ id: "r1", recognition_id: "demo-1", user_id: "c", emoji: "🚀", created_at: "" }, { id: "r2", recognition_id: "demo-1", user_id: "d", emoji: "❤️", created_at: "" }],
     },
     {
@@ -82,8 +82,8 @@ export default async function FeedPage({ searchParams }: Props) {
       points: 30,
       hashtags: ["teamwork", "client-success"],
       created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-      giver: { id: "c", org_id: "demo", full_name: "Sam Liu", avatar_url: null, department: "Sales", job_title: "Account Executive", monthly_allowance: 100, points_balance: 70, created_at: "" },
-      receiver: { id: "d", org_id: "demo", full_name: "Riley Chen", avatar_url: null, department: "Support", job_title: "Customer Success", monthly_allowance: 100, points_balance: 85, created_at: "" },
+      giver: { id: "c", org_id: "demo", full_name: "Sam Liu", avatar_url: null, department: "Sales", job_title: "Account Executive", monthly_allowance: 100, points_balance: 70, is_admin: false, created_at: "" },
+      receiver: { id: "d", org_id: "demo", full_name: "Riley Chen", avatar_url: null, department: "Support", job_title: "Customer Success", monthly_allowance: 100, points_balance: 85, is_admin: false, created_at: "" },
       reactions: [{ id: "r3", recognition_id: "demo-2", user_id: "a", emoji: "🙌", created_at: "" }, { id: "r4", recognition_id: "demo-2", user_id: "b", emoji: "🎉", created_at: "" }, { id: "r5", recognition_id: "demo-2", user_id: "e", emoji: "🎉", created_at: "" }],
     },
     {
@@ -95,8 +95,8 @@ export default async function FeedPage({ searchParams }: Props) {
       points: 20,
       hashtags: ["mentorship", "code-quality"],
       created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-      giver: { id: "e", org_id: "demo", full_name: "Priya Sharma", avatar_url: null, department: "Engineering", job_title: "Junior Engineer", monthly_allowance: 100, points_balance: 40, created_at: "" },
-      receiver: { id: "a", org_id: "demo", full_name: "Alex Morgan", avatar_url: null, department: "Product", job_title: "PM", monthly_allowance: 100, points_balance: 50, created_at: "" },
+      giver: { id: "e", org_id: "demo", full_name: "Priya Sharma", avatar_url: null, department: "Engineering", job_title: "Junior Engineer", monthly_allowance: 100, points_balance: 40, is_admin: false, created_at: "" },
+      receiver: { id: "a", org_id: "demo", full_name: "Alex Morgan", avatar_url: null, department: "Product", job_title: "PM", monthly_allowance: 100, points_balance: 50, is_admin: false, created_at: "" },
       reactions: [],
     },
   ];

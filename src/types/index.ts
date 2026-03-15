@@ -3,6 +3,7 @@ export type Organization = {
   name: string;
   slug: string;
   monthly_allowance: number;
+  price_per_seat: number;
   created_at: string;
 };
 
@@ -15,6 +16,7 @@ export type Profile = {
   job_title: string | null;
   monthly_allowance: number;
   points_balance: number;
+  is_admin: boolean;
   created_at: string;
 };
 

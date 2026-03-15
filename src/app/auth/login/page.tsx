@@ -262,38 +262,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="my-6 flex items-center gap-3">
-            <div className="flex-1 h-px bg-slate-100" />
-            <span className="text-xs text-slate-400">or</span>
-            <div className="flex-1 h-px bg-slate-100" />
-          </div>
-
-          {/* Demo credentials hint */}
-          <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 p-4">
-            <p className="text-xs font-semibold text-indigo-700 mb-2 flex items-center gap-1.5">
-              <Sparkles className="h-3 w-3" />
-              Demo access
-            </p>
-            <p className="text-xs text-indigo-600/70 leading-relaxed">
-              Use any email you signed up with, or{" "}
-              <Link href="/auth/signup" className="font-semibold underline decoration-dotted hover:text-indigo-800">
-                create a free account
-              </Link>{" "}
-              to explore the full app with your team.
-            </p>
-          </div>
-
-          {/* Sign up link */}
-          <p className="mt-6 text-center text-[13px] text-slate-500">
-            New to Kudos?{" "}
-            <Link
-              href="/auth/signup"
-              className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-            >
-              Create a free account →
-            </Link>
-          </p>
         </div>
       </div>
     </div>

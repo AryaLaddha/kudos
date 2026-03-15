@@ -56,6 +56,7 @@ export default function LoginPage() {
       toast.error(error.message);
     } else {
       toast.success("Welcome back! 👋");
+      router.refresh();
       router.push("/feed");
     }
     setLoading(false);

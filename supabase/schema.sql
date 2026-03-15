@@ -151,16 +151,16 @@ create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure handle_new_user();
 
--- Deduct points from giver + credit receiver when recognition is created
+-- Deduct from giver's giving budget + credit receiver's earned points when recognition is created
 create or replace function handle_recognition_points()
 returns trigger language plpgsql security definer
 as $$
 begin
-  -- Deduct from giver
-  update profiles set points_balance = points_balance - new.points
+  -- Deduct from giver's monthly giving budget (points_balance is never touched by giving)
+  update profiles set monthly_allowance = monthly_allowance - new.points
   where id = new.giver_id;
 
-  -- Credit receiver
+  -- Credit receiver's earned points balance
   update profiles set points_balance = points_balance + new.points
   where id = new.receiver_id;
 
@@ -179,6 +179,28 @@ $$;
 create or replace trigger on_recognition_created
   after insert on recognitions
   for each row execute procedure handle_recognition_points();
+
+-- ============================================================
+-- MONTHLY ALLOWANCE RESET
+-- Resets every user's giving budget back to 200 on the 1st of each month.
+-- Earned points_balance is never touched — it accumulates forever.
+-- ============================================================
+create extension if not exists pg_cron;
+
+create or replace function reset_monthly_allowances()
+returns void language plpgsql security definer
+as $$
+begin
+  update profiles set monthly_allowance = 200;
+end;
+$$;
+
+-- Runs at midnight UTC on the 1st of every month
+select cron.schedule(
+  'reset-monthly-allowances',
+  '0 0 1 * *',
+  'select reset_monthly_allowances()'
+);
 
 -- ============================================================
 -- SEED DATA (demo org + users — optional for testing)

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins } from "lucide-react";
+import { useTransition, useState } from "react";
+import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -24,8 +25,21 @@ export default function AppSidebar({ user, profile }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [isPending, startTransition] = useTransition();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  function handleNav(href: string) {
+    if (href === pathname) return;
+    setPendingHref(href);
+    startTransition(() => {
+      router.push(href);
+    });
+  }
+
+  const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
+    setSigningOut(true);
     await supabase.auth.signOut();
     router.push("/");
   }
@@ -63,36 +77,43 @@ export default function AppSidebar({ user, profile }: Props) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-2 space-y-0.5">
         {navItems.map((item) => {
-          const active = pathname === item.href;
+          const active = pathname === item.href || pendingHref === item.href;
+          const loading = isPending && pendingHref === item.href;
           return (
-            <Link
+            <button
               key={item.href}
-              href={item.href}
+              onClick={() => handleNav(item.href)}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 active
                   ? "bg-indigo-50 text-indigo-700"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
-              <item.icon className={cn("h-4 w-4", active ? "text-indigo-600" : "text-slate-400")} />
+              {loading
+                ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
+                : <item.icon className={cn("h-4 w-4", active ? "text-indigo-600" : "text-slate-400")} />
+              }
               {item.label}
-            </Link>
+            </button>
           );
         })}
         <Separator className="my-2" />
-        <Link
-          href={`/profile/${user.id}`}
+        <button
+          onClick={() => handleNav(`/profile/${user.id}`)}
           className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-            pathname.startsWith("/profile")
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+            pathname.startsWith("/profile") || pendingHref?.startsWith("/profile")
               ? "bg-indigo-50 text-indigo-700"
               : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
           )}
         >
-          <User className={cn("h-4 w-4", pathname.startsWith("/profile") ? "text-indigo-600" : "text-slate-400")} />
+          {isPending && pendingHref?.startsWith("/profile")
+            ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
+            : <User className={cn("h-4 w-4", pathname.startsWith("/profile") ? "text-indigo-600" : "text-slate-400")} />
+          }
           My Profile
-        </Link>
+        </button>
       </nav>
 
       {/* User footer */}
@@ -106,8 +127,8 @@ export default function AppSidebar({ user, profile }: Props) {
             <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
             <p className="text-xs text-slate-400 truncate">{user.email}</p>
           </div>
-          <button onClick={handleSignOut} className="text-slate-400 hover:text-slate-600 transition-colors" title="Sign out">
-            <LogOut className="h-4 w-4" />
+          <button onClick={handleSignOut} disabled={signingOut} className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50" title="Sign out">
+            {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
           </button>
         </div>
       </div>

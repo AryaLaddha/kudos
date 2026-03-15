@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ function parseCommentTip(text: string): { message: string; tip: number } {
 }
 
 export default function RecognitionCard({ recognition, currentUserId }: Props) {
+  const router = useRouter();
   const [reactions, setReactions] = useState<Recognition["reactions"]>(recognition.reactions ?? []);
   const [comments, setComments] = useState<Comment[]>(
     [...(recognition.comments ?? [])].sort(
@@ -113,15 +115,20 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
       p_points_tip: tip,
     });
 
-    if (!error && data) {
+    if (error) {
+      if (error.message?.includes("insufficient_points")) {
+        alert("You don't have enough points to tip that amount.");
+      }
+    } else {
+      // Add comment to local state immediately — data is the returned JSON comment
       setComments((prev) => [...prev, data as Comment]);
       setCommentText("");
       setShowCommentBox(false);
       if (tip > 0) {
+        // Update local allowance display and refresh sidebar
         setUserAllowance((prev) => (prev !== null ? prev - tip : prev));
+        router.refresh();
       }
-    } else if (error?.message?.includes("insufficient_points")) {
-      alert("You don't have enough points to tip that amount.");
     }
     setSubmitting(false);
   }

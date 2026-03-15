@@ -47,6 +47,31 @@ create table if not exists recognitions (
 );
 
 -- ============================================================
+-- COMMENTS  (comments + optional point tips on recognitions)
+-- ============================================================
+create table if not exists comments (
+  id              uuid primary key default gen_random_uuid(),
+  recognition_id  uuid not null references recognitions(id) on delete cascade,
+  user_id         uuid not null references profiles(id) on delete cascade,
+  message         text not null,
+  points_tip      int not null default 0,
+  created_at      timestamptz not null default now()
+);
+
+alter table comments enable row level security;
+
+create policy "org members can read comments" on comments
+  for select using (
+    exists (
+      select 1 from recognitions r
+      where r.id = recognition_id and r.org_id = get_my_org_id()
+    )
+  );
+
+create policy "users can insert own comments" on comments
+  for insert with check (user_id = auth.uid());
+
+-- ============================================================
 -- REACTIONS  (emoji reactions on recognitions)
 -- ============================================================
 create table if not exists reactions (
@@ -225,6 +250,74 @@ begin
     insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
     values (p_org_id, p_receivers[i], rec_id, p_points, 'received');
   end loop;
+end;
+$$;
+
+-- ============================================================
+-- POST COMMENT RPC
+-- Inserts comment, handles optional point tip (same logic as recognitions),
+-- returns full comment row with user data so the UI can update immediately.
+-- ============================================================
+create or replace function post_comment(
+  p_recognition_id uuid,
+  p_message        text,
+  p_points_tip     int default 0
+)
+returns json language plpgsql security definer
+as $$
+declare
+  v_comment_id  uuid;
+  v_org_id      uuid;
+  v_receiver_id uuid;
+  v_result      json;
+begin
+  -- Get org and recognition receiver
+  select org_id, receiver_id into v_org_id, v_receiver_id
+  from recognitions where id = p_recognition_id;
+
+  -- Handle tip: deduct from commenter's monthly allowance, credit receiver
+  if p_points_tip > 0 then
+    if (select monthly_allowance from profiles where id = auth.uid()) < p_points_tip then
+      raise exception 'insufficient_points';
+    end if;
+
+    update profiles set monthly_allowance = monthly_allowance - p_points_tip
+    where id = auth.uid();
+
+    update profiles set points_balance = points_balance + p_points_tip
+    where id = v_receiver_id;
+
+    insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
+    values (v_org_id, auth.uid(), p_recognition_id, -p_points_tip, 'given');
+
+    insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
+    values (v_org_id, v_receiver_id, p_recognition_id, p_points_tip, 'received');
+  end if;
+
+  -- Insert the comment
+  insert into comments (recognition_id, user_id, message, points_tip)
+  values (p_recognition_id, auth.uid(), p_message, p_points_tip)
+  returning id into v_comment_id;
+
+  -- Return comment + author profile so UI updates immediately
+  select json_build_object(
+    'id',             c.id,
+    'recognition_id', c.recognition_id,
+    'user_id',        c.user_id,
+    'message',        c.message,
+    'points_tip',     c.points_tip,
+    'created_at',     c.created_at,
+    'user', json_build_object(
+      'id',         p.id,
+      'full_name',  p.full_name,
+      'avatar_url', p.avatar_url
+    )
+  ) into v_result
+  from comments c
+  join profiles p on p.id = c.user_id
+  where c.id = v_comment_id;
+
+  return v_result;
 end;
 $$;
 

@@ -195,6 +195,7 @@ export default function GiveKudosPage() {
     } else {
       const names = recipients.map((r) => r.profile.full_name.split(" ")[0]).join(" & ");
       toast.success(`🎉 Kudos sent to ${names}!`);
+      router.refresh();
       router.push("/feed");
     }
     setSubmitting(false);

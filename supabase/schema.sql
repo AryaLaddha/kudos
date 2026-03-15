@@ -203,6 +203,43 @@ select cron.schedule(
 );
 
 -- ============================================================
+-- SEND MULTI RECOGNITION RPC
+-- Validates allowance then inserts one recognition per receiver.
+-- The on_recognition_created trigger handles all point deductions/credits.
+-- ============================================================
+create or replace function send_multi_recognition(
+  p_org_id    uuid,
+  p_receivers uuid[],
+  p_messages  text[],
+  p_points    int,
+  p_hashtags  text[]
+)
+returns void language plpgsql security definer
+as $$
+declare
+  total_cost int;
+  i          int;
+begin
+  total_cost := p_points * array_length(p_receivers, 1);
+
+  -- Guard: giver must have enough monthly allowance
+  if (select monthly_allowance from profiles where id = auth.uid()) < total_cost then
+    raise exception 'insufficient_points';
+  end if;
+
+  -- Insert one recognition per receiver.
+  -- The on_recognition_created trigger fires for each insert and:
+  --   • deducts p_points from giver's monthly_allowance
+  --   • credits p_points to receiver's points_balance
+  --   • writes audit rows to point_transactions
+  for i in 1 .. array_length(p_receivers, 1) loop
+    insert into recognitions (org_id, giver_id, receiver_id, message, points, hashtags)
+    values (p_org_id, auth.uid(), p_receivers[i], p_messages[i], p_points, p_hashtags);
+  end loop;
+end;
+$$;
+
+-- ============================================================
 -- SEED DATA (demo org + users — optional for testing)
 -- ============================================================
 -- INSERT INTO organizations (name, slug) VALUES ('Acme Corp', 'acme-corp');

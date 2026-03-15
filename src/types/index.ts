@@ -30,6 +30,7 @@ export type Recognition = {
   giver?: Profile;
   receiver?: Profile;
   reactions?: Reaction[];
+  comments?: Comment[];
 };
 
 export type Reaction = {
@@ -38,6 +39,16 @@ export type Reaction = {
   user_id: string;
   emoji: string;
   created_at: string;
+};
+
+export type Comment = {
+  id: string;
+  recognition_id: string;
+  user_id: string;
+  message: string;
+  points_tip: number;
+  created_at: string;
+  user?: Pick<Profile, "id" | "full_name" | "avatar_url">;
 };
 
 export type PointTransaction = {

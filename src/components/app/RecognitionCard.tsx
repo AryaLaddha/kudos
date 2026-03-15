@@ -6,10 +6,12 @@ import { formatDistanceToNow } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
-import type { Recognition } from "@/types";
+import type { Recognition, Comment } from "@/types";
 import { cn } from "@/lib/utils";
+import { MessageCircle, Send, Coins } from "lucide-react";
 
 const EMOJI_OPTIONS = ["❤️", "🙌", "🚀", "🎉", "💯"];
+const TIP_OPTIONS = [0, 5, 10, 20];
 
 interface Props {
   recognition: Recognition;
@@ -18,6 +20,15 @@ interface Props {
 
 export default function RecognitionCard({ recognition, currentUserId }: Props) {
   const [reactions, setReactions] = useState<Recognition["reactions"]>(recognition.reactions ?? []);
+  const [comments, setComments] = useState<Comment[]>(
+    [...(recognition.comments ?? [])].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  );
+  const [showCommentBox, setShowCommentBox] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [tipPoints, setTipPoints] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const supabase = createClient();
 
   const giver = recognition.giver;
@@ -58,101 +69,235 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
     }
   }
 
+  async function handleCommentSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!commentText.trim() || submitting) return;
+    setSubmitting(true);
+
+    const { data, error } = await supabase.rpc("post_comment", {
+      p_recognition_id: recognition.id,
+      p_message: commentText.trim(),
+      p_points_tip: tipPoints,
+    });
+
+    if (!error && data) {
+      setComments((prev) => [...prev, data as Comment]);
+      setCommentText("");
+      setTipPoints(0);
+      setShowCommentBox(false);
+    }
+    setSubmitting(false);
+  }
+
   const timeAgo = formatDistanceToNow(new Date(recognition.created_at));
+  const isDemo = recognition.id.startsWith("demo-");
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          {/* Giver */}
-          <Link href={`/profile/${recognition.giver_id}`}>
+    <div className="rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-shadow">
+      <div className="p-6">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <Link href={isDemo ? "#" : `/profile/${recognition.giver_id}`}>
+              <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+                <AvatarImage src={giver?.avatar_url ?? undefined} />
+                <AvatarFallback className="bg-violet-100 text-violet-700 text-xs font-bold">
+                  {getInitials(giver?.full_name || "?")}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+            <div className="flex items-center gap-1.5 text-sm">
+              <Link href={isDemo ? "#" : `/profile/${recognition.giver_id}`} className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors">
+                {giver?.full_name || "Someone"}
+              </Link>
+              <span className="text-slate-400">recognised</span>
+              <Link href={isDemo ? "#" : `/profile/${recognition.receiver_id}`} className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors">
+                {receiver?.full_name || "Someone"}
+              </Link>
+            </div>
+          </div>
+          <div className="flex-shrink-0">
+            <div className="rounded-full bg-indigo-50 px-3.5 py-1.5 text-sm font-bold text-indigo-600">
+              +{recognition.points} pts
+            </div>
+          </div>
+        </div>
+
+        {/* Receiver avatar + message */}
+        <div className="flex gap-3 mb-4">
+          <Link href={isDemo ? "#" : `/profile/${recognition.receiver_id}`}>
             <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
-              <AvatarImage src={giver?.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-violet-100 text-violet-700 text-xs font-bold">
-                {getInitials(giver?.full_name || "?")}
+              <AvatarImage src={receiver?.avatar_url ?? undefined} />
+              <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
+                {getInitials(receiver?.full_name || "?")}
               </AvatarFallback>
             </Avatar>
           </Link>
-          <div className="flex items-center gap-1.5 text-sm">
-            <Link href={`/profile/${recognition.giver_id}`} className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors">
-              {giver?.full_name || "Someone"}
-            </Link>
-            <span className="text-slate-400">recognised</span>
-            <Link href={`/profile/${recognition.receiver_id}`} className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors">
-              {receiver?.full_name || "Someone"}
-            </Link>
+          <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
+            <p className="text-sm text-slate-700 leading-relaxed">{recognition.message}</p>
           </div>
         </div>
-        {/* Points badge */}
-        <div className="flex-shrink-0">
-          <div className="rounded-full bg-indigo-50 px-3.5 py-1.5 text-sm font-bold text-indigo-600">
-            +{recognition.points} pts
-          </div>
+
+        {/* Hashtags + time */}
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          {recognition.hashtags.map((tag) => (
+            <Badge key={tag} variant="secondary" className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-0 text-xs">
+              #{tag}
+            </Badge>
+          ))}
+          <span className="ml-auto text-xs text-slate-400">{timeAgo}</span>
         </div>
-      </div>
 
-      {/* Receiver avatar + message */}
-      <div className="flex gap-3 mb-4">
-        <Link href={`/profile/${recognition.receiver_id}`}>
-          <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
-            <AvatarImage src={receiver?.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
-              {getInitials(receiver?.full_name || "?")}
-            </AvatarFallback>
-          </Avatar>
-        </Link>
-        <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
-          <p className="text-sm text-slate-700 leading-relaxed">{recognition.message}</p>
-        </div>
-      </div>
+        {/* Reactions + Comment button */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {EMOJI_OPTIONS.map((emoji) => {
+            const count = getReactionCount(emoji);
+            const reacted = hasReacted(emoji);
+            if (count === 0 && !reacted) return null;
+            return (
+              <button
+                key={emoji}
+                onClick={() => toggleReaction(emoji)}
+                className={cn(
+                  "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                  reacted
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                )}
+              >
+                {emoji} <span className="font-medium">{count}</span>
+              </button>
+            );
+          })}
+          {EMOJI_OPTIONS.map((emoji) => {
+            const count = getReactionCount(emoji);
+            const reacted = hasReacted(emoji);
+            if (count > 0 || reacted) return null;
+            return (
+              <button
+                key={`add-${emoji}`}
+                onClick={() => toggleReaction(emoji)}
+                className="flex items-center gap-1 rounded-full border border-dashed border-slate-200 px-2.5 py-1 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-600 transition-colors"
+              >
+                {emoji}
+              </button>
+            );
+          })}
 
-      {/* Hashtags + time */}
-      <div className="flex items-center gap-2 flex-wrap mb-4">
-        {recognition.hashtags.map((tag) => (
-          <Badge key={tag} variant="secondary" className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-0 text-xs">
-            #{tag}
-          </Badge>
-        ))}
-        <span className="ml-auto text-xs text-slate-400">{timeAgo}</span>
-      </div>
-
-      {/* Reactions */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {EMOJI_OPTIONS.map((emoji) => {
-          const count = getReactionCount(emoji);
-          const reacted = hasReacted(emoji);
-          if (count === 0 && !reacted) return null;
-          return (
+          {/* Comment toggle */}
+          {!isDemo && (
             <button
-              key={emoji}
-              onClick={() => toggleReaction(emoji)}
+              onClick={() => setShowCommentBox((v) => !v)}
               className={cn(
-                "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                reacted
-                  ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                "ml-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                showCommentBox
+                  ? "border-indigo-200 bg-indigo-50 text-indigo-600"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
               )}
             >
-              {emoji} <span className="font-medium">{count}</span>
+              <MessageCircle className="h-3.5 w-3.5" />
+              {comments.length > 0 ? comments.length : ""}
+              {comments.length === 0 ? "Comment" : comments.length === 1 ? " comment" : " comments"}
             </button>
-          );
-        })}
-        {EMOJI_OPTIONS.map((emoji) => {
-          const count = getReactionCount(emoji);
-          const reacted = hasReacted(emoji);
-          if (count > 0 || reacted) return null;
-          return (
-            <button
-              key={`add-${emoji}`}
-              onClick={() => toggleReaction(emoji)}
-              className="flex items-center gap-1 rounded-full border border-dashed border-slate-200 px-2.5 py-1 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-600 transition-colors"
-            >
-              {emoji}
-            </button>
-          );
-        })}
+          )}
+        </div>
       </div>
+
+      {/* Comments section */}
+      {!isDemo && (comments.length > 0 || showCommentBox) && (
+        <div className="border-t border-slate-100 px-6 py-4 space-y-3">
+          {/* Existing comments */}
+          {comments.map((comment) => (
+            <div key={comment.id} className="flex gap-2.5">
+              <Avatar className="h-7 w-7 flex-shrink-0 mt-0.5">
+                <AvatarImage src={comment.user?.avatar_url ?? undefined} />
+                <AvatarFallback className="bg-slate-100 text-slate-600 text-[10px] font-bold">
+                  {getInitials(comment.user?.full_name || "?")}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs font-semibold text-slate-800">
+                      {comment.user?.full_name || "Someone"}
+                    </span>
+                    {comment.points_tip > 0 && (
+                      <span className="flex items-center gap-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">
+                        <Coins className="h-2.5 w-2.5" />
+                        +{comment.points_tip} pts
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">{comment.message}</p>
+                </div>
+                <span className="text-[10px] text-slate-400 ml-1">
+                  {formatDistanceToNow(new Date(comment.created_at))}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {/* New comment form */}
+          {showCommentBox && (
+            <form onSubmit={handleCommentSubmit} className="flex gap-2.5 pt-1">
+              <Avatar className="h-7 w-7 flex-shrink-0 mt-1.5">
+                <AvatarFallback className="bg-indigo-100 text-indigo-700 text-[10px] font-bold">
+                  {getInitials("You")}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 space-y-2">
+                <div className="relative">
+                  <textarea
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleCommentSubmit(e as unknown as React.FormEvent);
+                      }
+                    }}
+                    placeholder={`Say something to ${receiver?.full_name || "them"}…`}
+                    rows={2}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-xs text-slate-800 outline-none resize-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all placeholder:text-slate-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!commentText.trim() || submitting}
+                    className="absolute right-2 bottom-2 rounded-lg bg-indigo-600 p-1.5 text-white disabled:opacity-30 hover:bg-indigo-700 transition-colors"
+                  >
+                    <Send className="h-3 w-3" />
+                  </button>
+                </div>
+
+                {/* Optional tip points */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <Coins className="h-3 w-3" />
+                    Tip {receiver?.full_name?.split(" ")[0] || "them"}:
+                  </span>
+                  <div className="flex gap-1">
+                    {TIP_OPTIONS.map((pts) => (
+                      <button
+                        type="button"
+                        key={pts}
+                        onClick={() => setTipPoints(pts)}
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-semibold border transition-colors",
+                          tipPoints === pts
+                            ? "bg-amber-500 border-amber-500 text-white"
+                            : "bg-white border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-600"
+                        )}
+                      >
+                        {pts === 0 ? "None" : `+${pts}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
     </div>
   );
 }

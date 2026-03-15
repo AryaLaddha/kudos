@@ -35,7 +35,8 @@ export default async function ProfilePage({ params }: Props) {
       *,
       giver:profiles!recognitions_giver_id_fkey(*),
       receiver:profiles!recognitions_receiver_id_fkey(*),
-      reactions(*)
+      reactions(*),
+      comments(*, user:profiles(*))
     `)
     .eq("receiver_id", id)
     .order("created_at", { ascending: false })
@@ -44,7 +45,7 @@ export default async function ProfilePage({ params }: Props) {
   // Recognitions given
   const { data: given } = await supabase
     .from("recognitions")
-    .select(`*, giver:profiles!recognitions_giver_id_fkey(*), receiver:profiles!recognitions_receiver_id_fkey(*), reactions(*)`)
+    .select(`*, giver:profiles!recognitions_giver_id_fkey(*), receiver:profiles!recognitions_receiver_id_fkey(*), reactions(*), comments(*, user:profiles(*))`)
     .eq("giver_id", id)
     .order("created_at", { ascending: false })
     .limit(10);

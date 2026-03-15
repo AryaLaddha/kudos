@@ -27,7 +27,8 @@ export default async function FeedPage() {
       *,
       giver:profiles!recognitions_giver_id_fkey(*),
       receiver:profiles!recognitions_receiver_id_fkey(*),
-      reactions(*)
+      reactions(*),
+      comments(*, user:profiles(*))
     `)
     .order("created_at", { ascending: false })
     .limit(50);

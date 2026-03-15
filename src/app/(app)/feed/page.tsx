@@ -3,11 +3,23 @@ import Link from "next/link";
 import { Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RecognitionCard from "@/components/app/RecognitionCard";
+import Pagination from "@/components/app/Pagination";
 import type { Recognition } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function FeedPage() {
+const PER_PAGE = 20;
+
+interface Props {
+  searchParams: Promise<{ page?: string }>;
+}
+
+export default async function FeedPage({ searchParams }: Props) {
+  const { page = "1" } = await searchParams;
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const from = (pageNum - 1) * PER_PAGE;
+  const to = from + PER_PAGE - 1;
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -20,7 +32,14 @@ export default async function FeedPage() {
     .eq("id", user.id)
     .single();
 
-  // Fetch recognitions for the org (or all if no org)
+  // Count total for pagination
+  let countQuery = supabase
+    .from("recognitions")
+    .select("*", { count: "exact", head: true });
+  if (profile?.org_id) countQuery = countQuery.eq("org_id", profile.org_id);
+  const { count: totalCount } = await countQuery;
+
+  // Fetch paginated recognitions
   let query = supabase
     .from("recognitions")
     .select(`
@@ -31,7 +50,7 @@ export default async function FeedPage() {
       comments(*, user:profiles(*))
     `)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .range(from, to);
 
   if (profile?.org_id) {
     query = query.eq("org_id", profile.org_id);
@@ -46,7 +65,7 @@ export default async function FeedPage() {
       org_id: "demo",
       giver_id: "a",
       receiver_id: "b",
-      message: "Absolutely crushed the Q1 product launch. Every detail was perfect and the team felt so supported throughout. You&apos;re a rockstar!",
+      message: "Absolutely crushed the Q1 product launch. Every detail was perfect and the team felt so supported throughout. You're a rockstar!",
       points: 50,
       hashtags: ["shipping", "leadership"],
       created_at: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
@@ -72,7 +91,7 @@ export default async function FeedPage() {
       org_id: "demo",
       giver_id: "e",
       receiver_id: "a",
-      message: "Your code review comments are always so thoughtful and constructive. I&apos;ve grown more as an engineer from your feedback than anything else.",
+      message: "Your code review comments are always so thoughtful and constructive. I've grown more as an engineer from your feedback than anything else.",
       points: 20,
       hashtags: ["mentorship", "code-quality"],
       created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
@@ -82,8 +101,9 @@ export default async function FeedPage() {
     },
   ];
 
-  const feed = (recognitions && recognitions.length > 0) ? recognitions as Recognition[] : demoRecognitions;
   const isEmpty = !recognitions || recognitions.length === 0;
+  const feed = !isEmpty ? recognitions as Recognition[] : demoRecognitions;
+  const totalPages = isEmpty ? 1 : Math.max(1, Math.ceil((totalCount ?? 0) / PER_PAGE));
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
@@ -121,6 +141,15 @@ export default async function FeedPage() {
           />
         ))}
       </div>
+
+      {/* Pagination */}
+      {!isEmpty && (
+        <Pagination
+          page={pageNum}
+          totalPages={totalPages}
+          buildHref={(p) => `/feed?page=${p}`}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,11 +11,20 @@ import { cn } from "@/lib/utils";
 import { MessageCircle, Send, Coins } from "lucide-react";
 
 const EMOJI_OPTIONS = ["❤️", "🙌", "🚀", "🎉", "💯"];
-const TIP_OPTIONS = [0, 5, 10, 20];
 
 interface Props {
   recognition: Recognition;
   currentUserId: string;
+}
+
+/** Parses trailing +number from comment text, returns { message, tip } */
+function parseCommentTip(text: string): { message: string; tip: number } {
+  const match = text.match(/\+(\d+)\s*$/);
+  if (!match) return { message: text, tip: 0 };
+  return {
+    message: text.replace(/\+\d+\s*$/, "").trim(),
+    tip: parseInt(match[1], 10),
+  };
 }
 
 export default function RecognitionCard({ recognition, currentUserId }: Props) {
@@ -27,12 +36,24 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
   );
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [commentText, setCommentText] = useState("");
-  const [tipPoints, setTipPoints] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [userAllowance, setUserAllowance] = useState<number | null>(null);
   const supabase = createClient();
 
   const giver = recognition.giver;
   const receiver = recognition.receiver;
+
+  // Fetch current user's allowance for tip validation
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("monthly_allowance")
+      .eq("id", currentUserId)
+      .single()
+      .then(({ data }) => {
+        if (data) setUserAllowance(data.monthly_allowance);
+      });
+  }, [currentUserId]);
 
   function getInitials(name: string) {
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -72,25 +93,44 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
   async function handleCommentSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!commentText.trim() || submitting) return;
-    setSubmitting(true);
 
+    const { message, tip } = parseCommentTip(commentText);
+
+    if (!message) {
+      return; // only had a +number, no actual text
+    }
+
+    // Validate tip against balance
+    if (tip > 0 && userAllowance !== null && tip > userAllowance) {
+      alert(`You only have ${userAllowance} pts available.`);
+      return;
+    }
+
+    setSubmitting(true);
     const { data, error } = await supabase.rpc("post_comment", {
       p_recognition_id: recognition.id,
-      p_message: commentText.trim(),
-      p_points_tip: tipPoints,
+      p_message: message,
+      p_points_tip: tip,
     });
 
     if (!error && data) {
       setComments((prev) => [...prev, data as Comment]);
       setCommentText("");
-      setTipPoints(0);
       setShowCommentBox(false);
+      if (tip > 0) {
+        setUserAllowance((prev) => (prev !== null ? prev - tip : prev));
+      }
+    } else if (error?.message?.includes("insufficient_points")) {
+      alert("You don't have enough points to tip that amount.");
     }
     setSubmitting(false);
   }
 
   const timeAgo = formatDistanceToNow(new Date(recognition.created_at));
   const isDemo = recognition.id.startsWith("demo-");
+
+  // Parse tip from current comment input for live preview
+  const { message: previewMessage, tip: previewTip } = parseCommentTip(commentText);
 
   return (
     <div className="rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-shadow">
@@ -107,11 +147,17 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
               </Avatar>
             </Link>
             <div className="flex items-center gap-1.5 text-sm">
-              <Link href={isDemo ? "#" : `/profile/${recognition.giver_id}`} className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors">
+              <Link
+                href={isDemo ? "#" : `/profile/${recognition.giver_id}`}
+                className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
+              >
                 {giver?.full_name || "Someone"}
               </Link>
               <span className="text-slate-400">recognised</span>
-              <Link href={isDemo ? "#" : `/profile/${recognition.receiver_id}`} className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors">
+              <Link
+                href={isDemo ? "#" : `/profile/${recognition.receiver_id}`}
+                className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
+              >
                 {receiver?.full_name || "Someone"}
               </Link>
             </div>
@@ -141,7 +187,11 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
         {/* Hashtags + time */}
         <div className="flex items-center gap-2 flex-wrap mb-4">
           {recognition.hashtags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-0 text-xs">
+            <Badge
+              key={tag}
+              variant="secondary"
+              className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-0 text-xs"
+            >
               #{tag}
             </Badge>
           ))}
@@ -196,8 +246,11 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
               )}
             >
               <MessageCircle className="h-3.5 w-3.5" />
-              {comments.length > 0 ? comments.length : ""}
-              {comments.length === 0 ? "Comment" : comments.length === 1 ? " comment" : " comments"}
+              {comments.length === 0
+                ? "Comment"
+                : comments.length === 1
+                ? "1 comment"
+                : `${comments.length} comments`}
             </button>
           )}
         </div>
@@ -245,7 +298,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                   {getInitials("You")}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-1.5">
                 <div className="relative">
                   <textarea
                     value={commentText}
@@ -256,43 +309,31 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                         handleCommentSubmit(e as unknown as React.FormEvent);
                       }
                     }}
-                    placeholder={`Say something to ${receiver?.full_name || "them"}…`}
+                    placeholder={`Say something to ${receiver?.full_name || "them"}… add +10 to tip pts`}
                     rows={2}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-xs text-slate-800 outline-none resize-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all placeholder:text-slate-400"
                   />
                   <button
                     type="submit"
-                    disabled={!commentText.trim() || submitting}
+                    disabled={!previewMessage.trim() || submitting}
                     className="absolute right-2 bottom-2 rounded-lg bg-indigo-600 p-1.5 text-white disabled:opacity-30 hover:bg-indigo-700 transition-colors"
                   >
                     <Send className="h-3 w-3" />
                   </button>
                 </div>
-
-                {/* Optional tip points */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                {/* Live tip preview */}
+                {previewTip > 0 && (
+                  <p className="text-[10px] flex items-center gap-1 text-amber-600 font-medium pl-1">
                     <Coins className="h-3 w-3" />
-                    Tip {receiver?.full_name?.split(" ")[0] || "them"}:
-                  </span>
-                  <div className="flex gap-1">
-                    {TIP_OPTIONS.map((pts) => (
-                      <button
-                        type="button"
-                        key={pts}
-                        onClick={() => setTipPoints(pts)}
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-[10px] font-semibold border transition-colors",
-                          tipPoints === pts
-                            ? "bg-amber-500 border-amber-500 text-white"
-                            : "bg-white border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-600"
-                        )}
-                      >
-                        {pts === 0 ? "None" : `+${pts}`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                    Tipping {receiver?.full_name?.split(" ")[0] || "them"} {previewTip} pts
+                    {userAllowance !== null && previewTip > userAllowance && (
+                      <span className="text-red-500 ml-1">— exceeds your balance ({userAllowance} pts)</span>
+                    )}
+                  </p>
+                )}
+                <p className="text-[10px] text-slate-400 pl-1">
+                  Tip by adding <span className="font-mono bg-slate-100 px-0.5 rounded">+10</span> at the end
+                </p>
               </div>
             </form>
           )}

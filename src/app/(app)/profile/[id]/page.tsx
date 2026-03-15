@@ -6,16 +6,26 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import RecognitionCard from "@/components/app/RecognitionCard";
+import Pagination from "@/components/app/Pagination";
 import type { Recognition } from "@/types";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+const PER_PAGE = 10;
+
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; page?: string }>;
 }
 
-export default async function ProfilePage({ params }: Props) {
+export default async function ProfilePage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { tab = "received", page = "1" } = await searchParams;
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const from = (pageNum - 1) * PER_PAGE;
+  const to = from + PER_PAGE - 1;
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -28,8 +38,18 @@ export default async function ProfilePage({ params }: Props) {
 
   if (!profile) notFound();
 
-  // Recognitions received
-  const { data: received } = await supabase
+  // Count totals for tab labels and pagination
+  const [{ count: receivedCount }, { count: givenCount }] = await Promise.all([
+    supabase.from("recognitions").select("*", { count: "exact", head: true }).eq("receiver_id", id),
+    supabase.from("recognitions").select("*", { count: "exact", head: true }).eq("giver_id", id),
+  ]);
+
+  const activeTab = tab === "given" ? "given" : "received";
+  const totalItems = activeTab === "received" ? (receivedCount ?? 0) : (givenCount ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalItems / PER_PAGE));
+
+  // Fetch the paginated recognitions for the active tab
+  const recognitionQuery = supabase
     .from("recognitions")
     .select(`
       *,
@@ -38,30 +58,40 @@ export default async function ProfilePage({ params }: Props) {
       reactions(*),
       comments(*, user:profiles(*))
     `)
-    .eq("receiver_id", id)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .range(from, to);
 
-  // Recognitions given
-  const { data: given } = await supabase
-    .from("recognitions")
-    .select(`*, giver:profiles!recognitions_giver_id_fkey(*), receiver:profiles!recognitions_receiver_id_fkey(*), reactions(*), comments(*, user:profiles(*))`)
-    .eq("giver_id", id)
-    .order("created_at", { ascending: false })
-    .limit(10);
+  const { data: recognitions } = await (
+    activeTab === "received"
+      ? recognitionQuery.eq("receiver_id", id)
+      : recognitionQuery.eq("giver_id", id)
+  );
 
   const isOwn = user.id === id;
   const initials = profile.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
-  // Top hashtags from received recognitions
-  const allTags = (received ?? []).flatMap((r) => r.hashtags ?? []);
+  // Top hashtags from all received recognitions (not paginated — use count query approach)
+  const { data: allReceived } = await supabase
+    .from("recognitions")
+    .select("hashtags")
+    .eq("receiver_id", id)
+    .limit(100);
+
+  const allTags = (allReceived ?? []).flatMap((r) => r.hashtags ?? []);
   const tagCounts: Record<string, number> = {};
   allTags.forEach((t) => { tagCounts[t] = (tagCounts[t] ?? 0) + 1; });
   const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag]) => tag);
 
+  function buildHref(p: number) {
+    return `/profile/${id}?tab=${activeTab}&page=${p}`;
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
-      <Link href="/feed" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-6">
+      <Link
+        href="/feed"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-6"
+      >
         <ArrowLeft className="h-4 w-4" />
         Back to feed
       </Link>
@@ -108,14 +138,14 @@ export default async function ProfilePage({ params }: Props) {
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5 mb-1">
               <Star className="h-4 w-4 text-amber-400" />
-              <span className="text-xl font-extrabold text-slate-900">{received?.length ?? 0}</span>
+              <span className="text-xl font-extrabold text-slate-900">{receivedCount ?? 0}</span>
             </div>
             <p className="text-xs text-slate-400">Kudos received</p>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5 mb-1">
               <Heart className="h-4 w-4 text-rose-400" />
-              <span className="text-xl font-extrabold text-slate-900">{given?.length ?? 0}</span>
+              <span className="text-xl font-extrabold text-slate-900">{givenCount ?? 0}</span>
             </div>
             <p className="text-xs text-slate-400">Kudos given</p>
           </div>
@@ -136,23 +166,67 @@ export default async function ProfilePage({ params }: Props) {
         )}
       </div>
 
-      {/* Recognitions received */}
-      <h2 className="text-base font-bold text-slate-900 mb-4">Kudos received</h2>
-      {!received || received.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center mb-6">
-          <p className="text-sm text-slate-400">No recognitions yet — be the first to give kudos!</p>
-          {!isOwn && (
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 mb-6">
+        <Link
+          href={`/profile/${id}?tab=received&page=1`}
+          className={cn(
+            "flex-1 rounded-lg px-4 py-2 text-sm font-semibold text-center transition-colors",
+            activeTab === "received"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          )}
+        >
+          Kudos received
+          {receivedCount != null && receivedCount > 0 && (
+            <span className="ml-1.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs text-indigo-600 font-bold">
+              {receivedCount}
+            </span>
+          )}
+        </Link>
+        <Link
+          href={`/profile/${id}?tab=given&page=1`}
+          className={cn(
+            "flex-1 rounded-lg px-4 py-2 text-sm font-semibold text-center transition-colors",
+            activeTab === "given"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          )}
+        >
+          Kudos given
+          {givenCount != null && givenCount > 0 && (
+            <span className="ml-1.5 rounded-full bg-rose-100 px-1.5 py-0.5 text-xs text-rose-600 font-bold">
+              {givenCount}
+            </span>
+          )}
+        </Link>
+      </div>
+
+      {/* Recognition list */}
+      {!recognitions || recognitions.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+          <p className="text-sm text-slate-400">
+            {activeTab === "received"
+              ? "No recognitions yet — be the first to give kudos!"
+              : "No kudos given yet."}
+          </p>
+          {activeTab === "received" && !isOwn && (
             <Link href="/give" className="mt-3 inline-block">
-              <Button size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">Give Kudos</Button>
+              <Button size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
+                Give Kudos
+              </Button>
             </Link>
           )}
         </div>
       ) : (
-        <div className="space-y-4 mb-8">
-          {received.map((r) => (
-            <RecognitionCard key={r.id} recognition={r as Recognition} currentUserId={user.id} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-4">
+            {recognitions.map((r) => (
+              <RecognitionCard key={r.id} recognition={r as Recognition} currentUserId={user.id} />
+            ))}
+          </div>
+          <Pagination page={pageNum} totalPages={totalPages} buildHref={buildHref} />
+        </>
       )}
     </div>
   );

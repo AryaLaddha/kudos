@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import RecognitionCard from "@/components/app/RecognitionCard";
 import Pagination from "@/components/app/Pagination";
-import type { Recognition } from "@/types";
+import type { Recognition, Profile } from "@/types";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +66,30 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       ? recognitionQuery.eq("receiver_id", id)
       : recognitionQuery.eq("giver_id", id)
   );
+
+  // Fetch receiver profiles for multi-receiver posts
+  let receiversMap = new Map<string, Profile>();
+  const allReceiverIds = new Set<string>();
+  for (const r of recognitions ?? []) {
+    for (const rid of ((r as Recognition & { receiver_ids?: string[] }).receiver_ids ?? [])) {
+      allReceiverIds.add(rid);
+    }
+  }
+  if (allReceiverIds.size > 0) {
+    const { data: receiverProfiles } = await supabase
+      .from("profiles")
+      .select("*")
+      .in("id", [...allReceiverIds]);
+    for (const p of receiverProfiles ?? []) {
+      receiversMap.set(p.id, p as Profile);
+    }
+  }
+
+  const recognitionsWithReceivers = (recognitions ?? []).map((r) => {
+    const rids = ((r as Recognition & { receiver_ids?: string[] }).receiver_ids ?? []);
+    const receivers = rids.map((rid: string) => receiversMap.get(rid)).filter(Boolean) as Profile[];
+    return { ...r, receivers: receivers.length > 0 ? receivers : undefined } as Recognition;
+  });
 
   const isOwn = user.id === id;
   const initials = profile.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -221,8 +245,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       ) : (
         <>
           <div className="space-y-4">
-            {recognitions.map((r) => (
-              <RecognitionCard key={r.id} recognition={r as Recognition} currentUserId={user.id} />
+            {recognitionsWithReceivers.map((r) => (
+              <RecognitionCard key={r.id} recognition={r} currentUserId={user.id} />
             ))}
           </div>
           <Pagination page={pageNum} totalPages={totalPages} buildHref={buildHref} />

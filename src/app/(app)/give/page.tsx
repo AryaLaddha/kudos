@@ -40,7 +40,7 @@ function parseMessage(
     if (!firstNameMap.has(first)) firstNameMap.set(first, t);
   });
 
-  // Extract trailing +number
+  // Extract trailing +number (must be at end of message)
   const pointsMatch = text.match(/\+(\d+)\s*$/);
   const pointsInText = pointsMatch ? parseInt(pointsMatch[1], 10) : null;
   const cleanText = text.replace(/\+\d+\s*$/, "").trim();
@@ -48,6 +48,8 @@ function parseMessage(
   // Split by @word — text BEFORE each @name is that person's message
   // e.g. "Thanks for the fix @alice great work @bob +10"
   //   → alice gets "Thanks for the fix", bob gets "great work"
+  // e.g. "Thanks @alice @bob +10"
+  //   → both get "Thanks" (shared intro text)
   const parts = cleanText.split(/@([A-Za-z]+)/);
   const recipients: Array<{ profile: Profile; message: string }> = [];
   const seen = new Set<string>();
@@ -60,10 +62,16 @@ function parseMessage(
     }
   }
 
-  // If any message segments are empty, fall back to the full text (minus @mentions)
-  const fallback = cleanText.replace(/@[A-Za-z]+/g, "").replace(/\s+/g, " ").trim();
+  // If a message segment is empty, propagate the last non-empty segment
+  // so "Thanks @alice @bob" → both get "Thanks" instead of bob getting raw fallback
+  const sharedIntro = parts[0].trim();
+  let lastMessage = sharedIntro;
   recipients.forEach((r) => {
-    if (!r.message) r.message = fallback;
+    if (r.message) {
+      lastMessage = r.message;
+    } else {
+      r.message = lastMessage;
+    }
   });
 
   return { recipients, pointsInText };

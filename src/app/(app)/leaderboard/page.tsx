@@ -29,28 +29,46 @@ export default async function LeaderboardPage() {
 
   const { data: entries } = await supabase
     .from("recognitions")
-    .select("receiver_id, points, profiles!recognitions_receiver_id_fkey(full_name, avatar_url, job_title)")
+    .select("receiver_ids, points")
     .eq("org_id", currentProfile.org_id)
     .gte("created_at", monthStart);
 
-  // Aggregate points per receiver
+  // Collect all unique receiver IDs across all posts
+  const allReceiverIds = new Set<string>();
+  for (const e of entries ?? []) {
+    for (const id of (e.receiver_ids ?? [])) allReceiverIds.add(id);
+  }
+
+  // Fetch profiles for all receivers
+  const profileMap = new Map<string, { full_name: string; avatar_url: string | null; job_title: string | null }>();
+  if (allReceiverIds.size > 0) {
+    const { data: receiverProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url, job_title")
+      .in("id", [...allReceiverIds]);
+    for (const p of receiverProfiles ?? []) profileMap.set(p.id, p);
+  }
+
+  // Aggregate points per receiver — each receiver in receiver_ids gets `points`
   const totals = new Map<string, { name: string; avatar: string | null; title: string | null; points: number; recognitions: number }>();
 
   for (const e of entries ?? []) {
-    const profile = (Array.isArray(e.profiles) ? e.profiles[0] : e.profiles) as { full_name: string; avatar_url: string | null; job_title: string | null } | null;
-    if (!profile) continue;
-    const existing = totals.get(e.receiver_id);
-    if (existing) {
-      existing.points += e.points;
-      existing.recognitions += 1;
-    } else {
-      totals.set(e.receiver_id, {
-        name: profile.full_name,
-        avatar: profile.avatar_url,
-        title: profile.job_title,
-        points: e.points,
-        recognitions: 1,
-      });
+    for (const receiverId of (e.receiver_ids ?? [])) {
+      const profile = profileMap.get(receiverId);
+      if (!profile) continue;
+      const existing = totals.get(receiverId);
+      if (existing) {
+        existing.points += e.points;
+        existing.recognitions += 1;
+      } else {
+        totals.set(receiverId, {
+          name: profile.full_name,
+          avatar: profile.avatar_url,
+          title: profile.job_title,
+          points: e.points,
+          recognitions: 1,
+        });
+      }
     }
   }
 

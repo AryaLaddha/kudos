@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
-import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2 } from "lucide-react";
+import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 const navItems = [
   { href: "/feed", label: "Feed", icon: LayoutDashboard },
   { href: "/give", label: "Give Kudos", icon: Heart },
+  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
 ];
 
 interface Props {

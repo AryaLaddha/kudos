@@ -76,6 +76,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [userAllowance, setUserAllowance] = useState<number | null>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<{ id: string; full_name: string; avatar_url: string | null } | null>(null);
   const modalScrollRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
@@ -87,15 +88,18 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
     : receiver ? [receiver] : [];
   const receiversLabel = receivers.map((r) => r.full_name).join(" & ") || receiver?.full_name || "Someone";
 
-  // Fetch current user's allowance for tip validation
+  // Fetch current user's profile (allowance + name/avatar for optimistic comments)
   useEffect(() => {
     supabase
       .from("profiles")
-      .select("monthly_allowance")
+      .select("id, full_name, avatar_url, monthly_allowance")
       .eq("id", currentUserId)
       .single()
       .then(({ data }) => {
-        if (data) setUserAllowance(data.monthly_allowance);
+        if (data) {
+          setUserAllowance(data.monthly_allowance);
+          setCurrentUserProfile({ id: data.id, full_name: data.full_name, avatar_url: data.avatar_url });
+        }
       });
   }, [currentUserId]);
 
@@ -169,8 +173,12 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
         alert("You don't have enough points to tip that amount.");
       }
     } else {
-      // Prepend newest first
-      setComments((prev) => [data as Comment, ...prev]);
+      // Prepend newest first, attaching current user profile so name shows immediately
+      const optimisticComment: Comment = {
+        ...(data as Comment),
+        user: currentUserProfile ?? undefined,
+      };
+      setComments((prev) => [optimisticComment, ...prev]);
       setCommentText("");
       setShowCommentBox(false);
       if (tip > 0) {

@@ -40,10 +40,11 @@ function parseMessage(
     if (!firstNameMap.has(first)) firstNameMap.set(first, t);
   });
 
-  // Extract trailing +number (must be at end of message)
-  const pointsMatch = text.match(/\+(\d+)\s*$/);
-  const pointsInText = pointsMatch ? parseInt(pointsMatch[1], 10) : null;
-  const cleanText = text.replace(/\+\d+\s*$/, "").trim();
+  // Find +number anywhere in the message (only first occurrence counts)
+  const allMatches = [...text.matchAll(/\+(\d+)/g)];
+  const pointsInText = allMatches.length > 0 ? parseInt(allMatches[0][1], 10) : null;
+  // Strip all +number occurrences from the text before parsing messages
+  const cleanText = text.replace(/\+\d+/g, "").replace(/\s+/g, " ").trim();
 
   // Split by @word — text BEFORE each @name is that person's message
   // e.g. "Thanks for the fix @alice great work @bob +10"
@@ -171,8 +172,12 @@ export default function GiveKudosPage() {
       toast.error("Each person needs a message of at least 5 characters before their @mention.");
       return;
     }
+    if ([...messageText.matchAll(/\+(\d+)/g)].length > 1) {
+      toast.error("Only one +number is allowed in your message.");
+      return;
+    }
     if (!pointsInText || pointsInText <= 0) {
-      toast.error("Add +number at the end of your message to set points (e.g. +20).");
+      toast.error("Add +number anywhere in your message to set points (e.g. +20).");
       return;
     }
     if (totalCost > balance) {
@@ -228,7 +233,7 @@ export default function GiveKudosPage() {
           </Label>
           <p className="text-xs text-slate-400 mb-3">
             Use <span className="font-mono bg-slate-100 px-1 rounded">@name</span> to mention teammates and{" "}
-            <span className="font-mono bg-slate-100 px-1 rounded">+20</span> at the end to set points.
+            <span className="font-mono bg-slate-100 px-1 rounded">+20</span> anywhere to set points for everyone.
           </p>
           <div className="relative">
             <textarea

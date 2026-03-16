@@ -278,7 +278,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
             </div>
             <div className="flex-shrink-0">
               <div className="rounded-full bg-indigo-50 px-3.5 py-1.5 text-sm font-bold text-indigo-600">
-                +{recognition.points} pts
+                +{recognition.points * Math.max(receivers.length, 1)} pts
               </div>
             </div>
           </div>
@@ -465,7 +465,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                         #{tag}
                       </Badge>
                     ))}
-                    <span className="ml-auto text-xs text-slate-400">+{recognition.points} pts · {timeAgo}</span>
+                    <span className="ml-auto text-xs text-slate-400">+{recognition.points * Math.max(receivers.length, 1)} pts · {timeAgo}</span>
                   </div>
                 </div>
               </div>

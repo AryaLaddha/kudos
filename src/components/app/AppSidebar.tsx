@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
-import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy } from "lucide-react";
+import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Menu, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -28,8 +27,10 @@ export default function AppSidebar({ user, profile }: Props) {
   const supabase = createClient();
   const [isPending, startTransition] = useTransition();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   function handleNav(href: string) {
+    setMobileOpen(false);
     if (href === pathname) return;
     setPendingHref(href);
     startTransition(() => {
@@ -40,6 +41,7 @@ export default function AppSidebar({ user, profile }: Props) {
   const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
+    setMobileOpen(false);
     setSigningOut(true);
     await supabase.auth.signOut();
     router.push("/");
@@ -49,13 +51,48 @@ export default function AppSidebar({ user, profile }: Props) {
   const initials = displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-slate-100 bg-white sticky top-0">
+    <>
+      {/* Mobile top header */}
+      <header className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center gap-3 border-b border-slate-100 bg-white px-4 md:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 transition-colors"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600">
+            <Sparkles className="h-3.5 w-3.5 text-white" />
+          </div>
+          <span className="text-sm font-bold text-slate-900">Kudos</span>
+        </div>
+      </header>
+
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+    <aside className={cn(
+      "fixed inset-y-0 left-0 z-50 flex h-screen w-60 flex-col border-r border-slate-100 bg-white transition-transform duration-200",
+      "md:sticky md:top-0 md:translate-x-0",
+      mobileOpen ? "translate-x-0" : "-translate-x-full"
+    )}>
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-100">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
           <Sparkles className="h-4 w-4 text-white" />
         </div>
         <span className="text-base font-bold text-slate-900">Kudos</span>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="ml-auto rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors md:hidden"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Points balance */}
@@ -134,5 +171,6 @@ export default function AppSidebar({ user, profile }: Props) {
         </div>
       </div>
     </aside>
+    </>
   );
 }

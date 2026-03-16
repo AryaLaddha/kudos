@@ -192,7 +192,7 @@ export default function GiveKudosPage() {
   const canSubmit = recipients.length > 0 && pointsInText !== null && pointsInText > 0 && totalCost <= balance;
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="mb-6">
         <Link
           href="/feed"

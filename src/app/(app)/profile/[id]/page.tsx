@@ -111,7 +111,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <Link
         href="/feed"
         className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-6"
@@ -121,14 +121,14 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       </Link>
 
       {/* Profile header */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm mb-6">
-        <div className="flex items-start gap-5">
+      <div className="rounded-2xl border border-slate-100 bg-white p-5 sm:p-8 shadow-sm mb-6">
+        <div className="flex items-start gap-4 sm:gap-5">
           <Avatar className="h-16 w-16 ring-4 ring-indigo-50">
             <AvatarImage src={profile.avatar_url ?? undefined} />
             <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xl font-bold">{initials}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="text-xl font-extrabold text-slate-900">{profile.full_name}</h1>
                 {profile.job_title && <p className="text-sm text-slate-500 mt-0.5">{profile.job_title}</p>}

@@ -248,7 +248,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
   return (
     <>
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-shadow">
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {/* Header */}
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
@@ -393,7 +393,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
 
         {/* Comments preview section */}
         {!isDemo && (comments.length > 0 || showCommentBox) && (
-          <div className="border-t border-slate-100 px-6 py-4 space-y-3">
+          <div className="border-t border-slate-100 px-4 sm:px-6 py-4 space-y-3">
             {/* 2 most recent comments */}
             {previewComments.map((comment) => (
               <CommentItem key={comment.id} comment={comment} />

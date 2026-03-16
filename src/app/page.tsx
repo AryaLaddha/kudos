@@ -115,7 +115,7 @@ export default function LandingPage() {
             <Sparkles className="h-3 w-3" />
             Recognition that actually means something
           </div>
-          <h1 className="mb-6 text-5xl font-extrabold leading-tight tracking-tight text-slate-900 md:text-6xl">
+          <h1 className="mb-6 text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
             Build a culture where{" "}
             <span className="text-indigo-600">people feel seen</span>
           </h1>
@@ -183,7 +183,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-14 text-center">
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-indigo-500">Why Kudos</p>
-            <h2 className="text-4xl font-extrabold text-slate-900">Recognition made ridiculously simple</h2>
+            <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">Recognition made ridiculously simple</h2>
           </div>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {features.map((f) => (
@@ -204,7 +204,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-14 text-center">
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-indigo-500">Social proof</p>
-            <h2 className="text-4xl font-extrabold text-slate-900">Loved by teams everywhere</h2>
+            <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">Loved by teams everywhere</h2>
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {testimonials.map((t) => (
@@ -230,7 +230,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-5xl">
           <div className="mb-14 text-center">
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-indigo-500">Pricing</p>
-            <h2 className="text-4xl font-extrabold text-slate-900">Simple, transparent pricing</h2>
+            <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">Simple, transparent pricing</h2>
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {plans.map((plan) => (
@@ -238,7 +238,7 @@ export default function LandingPage() {
                 key={plan.name}
                 className={`relative flex flex-col rounded-2xl border p-8 ${
                   plan.highlight
-                    ? "border-indigo-500 bg-indigo-600 text-white shadow-2xl shadow-indigo-200 scale-105"
+                    ? "border-indigo-500 bg-indigo-600 text-white shadow-2xl shadow-indigo-200 md:scale-105"
                     : "border-slate-100 bg-white shadow-sm"
                 }`}
               >
@@ -286,7 +286,7 @@ export default function LandingPage() {
               <Sparkles className="h-7 w-7 text-white" />
             </div>
           </div>
-          <h2 className="mb-4 text-4xl font-extrabold text-slate-900">Ready to start recognising?</h2>
+          <h2 className="mb-4 text-3xl font-extrabold text-slate-900 sm:text-4xl">Ready to start recognising?</h2>
           <p className="mb-8 text-lg text-slate-500">Join thousands of teams building healthier, happier cultures with Kudos.</p>
           <Link href="/auth/login">
             <Button size="lg" className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-10 h-12">

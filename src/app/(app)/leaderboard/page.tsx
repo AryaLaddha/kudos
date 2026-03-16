@@ -37,7 +37,7 @@ export default async function LeaderboardPage() {
   const totals = new Map<string, { name: string; avatar: string | null; title: string | null; points: number; recognitions: number }>();
 
   for (const e of entries ?? []) {
-    const profile = e.profiles as { full_name: string; avatar_url: string | null; job_title: string | null } | null;
+    const profile = (Array.isArray(e.profiles) ? e.profiles[0] : e.profiles) as { full_name: string; avatar_url: string | null; job_title: string | null } | null;
     if (!profile) continue;
     const existing = totals.get(e.receiver_id);
     if (existing) {

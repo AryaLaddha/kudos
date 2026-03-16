@@ -18,14 +18,25 @@ interface Props {
   currentUserId: string;
 }
 
-/** Parses trailing +number from comment text, returns { message, tip } */
+/** Parses +number from comment text (start or end), returns { message, tip } */
 function parseCommentTip(text: string): { message: string; tip: number } {
-  const match = text.match(/\+(\d+)\s*$/);
-  if (!match) return { message: text, tip: 0 };
-  return {
-    message: text.replace(/\+\d+\s*$/, "").trim(),
-    tip: parseInt(match[1], 10),
-  };
+  // Match +N at end: "great job +10"
+  const endMatch = text.match(/\+(\d+)\s*$/);
+  if (endMatch) {
+    return {
+      message: text.replace(/\+\d+\s*$/, "").trim(),
+      tip: parseInt(endMatch[1], 10),
+    };
+  }
+  // Match +N at start: "+10 great job"
+  const startMatch = text.match(/^\+(\d+)\s+(.*)/);
+  if (startMatch) {
+    return {
+      message: startMatch[2].trim(),
+      tip: parseInt(startMatch[1], 10),
+    };
+  }
+  return { message: text, tip: 0 };
 }
 
 function CommentItem({ comment }: { comment: Comment }) {

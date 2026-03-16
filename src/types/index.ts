@@ -25,12 +25,14 @@ export type Recognition = {
   org_id: string;
   giver_id: string;
   receiver_id: string;
+  receiver_ids?: string[];
   message: string;
   points: number;
   hashtags: string[];
   created_at: string;
   giver?: Profile;
   receiver?: Profile;
+  receivers?: Profile[];
   reactions?: Reaction[];
   comments?: Comment[];
 };

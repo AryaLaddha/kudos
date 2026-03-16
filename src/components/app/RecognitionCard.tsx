@@ -81,6 +81,11 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
 
   const giver = recognition.giver;
   const receiver = recognition.receiver;
+  // Use receivers array if available (multi-receiver post), fall back to single receiver
+  const receivers = recognition.receivers && recognition.receivers.length > 0
+    ? recognition.receivers
+    : receiver ? [receiver] : [];
+  const receiversLabel = receivers.map((r) => r.full_name).join(" & ") || receiver?.full_name || "Someone";
 
   // Fetch current user's allowance for tip validation
   useEffect(() => {
@@ -146,8 +151,9 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
     const { message, tip } = parseCommentTip(commentText);
     if (!message) return;
 
-    if (tip > 0 && userAllowance !== null && tip > userAllowance) {
-      alert(`You only have ${userAllowance} pts available.`);
+    const totalTip = tip * Math.max(receivers.length, 1);
+    if (tip > 0 && userAllowance !== null && totalTip > userAllowance) {
+      alert(`You only have ${userAllowance} pts available, but this costs ${totalTip} pts.`);
       return;
     }
 
@@ -168,7 +174,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
       setCommentText("");
       setShowCommentBox(false);
       if (tip > 0) {
-        setUserAllowance((prev) => (prev !== null ? prev - tip : prev));
+        setUserAllowance((prev) => (prev !== null ? prev - totalTip : prev));
         router.refresh();
       }
     }
@@ -202,7 +208,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                 handleCommentSubmit(e as unknown as React.FormEvent);
               }
             }}
-            placeholder={`Say something to ${receiver?.full_name || "them"}… add +10 to tip pts`}
+            placeholder={`Say something to ${receiversLabel}… add +10 to tip pts`}
             rows={2}
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-xs text-slate-800 outline-none resize-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all placeholder:text-slate-400"
           />
@@ -217,8 +223,9 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
         {previewTip > 0 && (
           <p className="text-[10px] flex items-center gap-1 text-amber-600 font-medium pl-1">
             <Coins className="h-3 w-3" />
-            Tipping {receiver?.full_name?.split(" ")[0] || "them"} {previewTip} pts
-            {userAllowance !== null && previewTip > userAllowance && (
+            Tipping {receiversLabel} {previewTip} pts each
+            {receivers.length > 1 && ` (${previewTip * receivers.length} pts total)`}
+            {userAllowance !== null && previewTip * Math.max(receivers.length, 1) > userAllowance && (
               <span className="text-red-500 ml-1">— exceeds your balance ({userAllowance} pts)</span>
             )}
           </p>
@@ -245,7 +252,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                   </AvatarFallback>
                 </Avatar>
               </Link>
-              <div className="flex items-center gap-1.5 text-sm">
+              <div className="flex items-center gap-1.5 text-sm flex-wrap">
                 <Link
                   href={isDemo ? "#" : `/profile/${recognition.giver_id}`}
                   className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
@@ -253,12 +260,20 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                   {giver?.full_name || "Someone"}
                 </Link>
                 <span className="text-slate-400">recognised</span>
-                <Link
-                  href={isDemo ? "#" : `/profile/${recognition.receiver_id}`}
-                  className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
-                >
-                  {receiver?.full_name || "Someone"}
-                </Link>
+                {receivers.map((r, i) => (
+                  <span key={r.id} className="inline-flex items-center gap-1">
+                    {i > 0 && <span className="text-slate-400">&amp;</span>}
+                    <Link
+                      href={isDemo ? "#" : `/profile/${r.id}`}
+                      className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
+                    >
+                      {r.full_name}
+                    </Link>
+                  </span>
+                ))}
+                {receivers.length === 0 && (
+                  <span className="font-semibold text-slate-900">{receiver?.full_name || "Someone"}</span>
+                )}
               </div>
             </div>
             <div className="flex-shrink-0">
@@ -268,16 +283,30 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
             </div>
           </div>
 
-          {/* Receiver avatar + message */}
+          {/* Receiver avatar(s) + message */}
           <div className="flex gap-3 mb-4">
-            <Link href={isDemo ? "#" : `/profile/${recognition.receiver_id}`}>
-              <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
-                <AvatarImage src={receiver?.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
-                  {getInitials(receiver?.full_name || "?")}
-                </AvatarFallback>
-              </Avatar>
-            </Link>
+            <div className="flex flex-col gap-1">
+              {receivers.slice(0, 3).map((r) => (
+                <Link key={r.id} href={isDemo ? "#" : `/profile/${r.id}`}>
+                  <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+                    <AvatarImage src={r.avatar_url ?? undefined} />
+                    <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
+                      {getInitials(r.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+              ))}
+              {receivers.length === 0 && (
+                <Link href={isDemo ? "#" : `/profile/${recognition.receiver_id}`}>
+                  <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+                    <AvatarImage src={receiver?.avatar_url ?? undefined} />
+                    <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
+                      {getInitials(receiver?.full_name || "?")}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+              )}
+            </div>
             <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
               <p className="text-sm text-slate-700 leading-relaxed">{recognition.message}</p>
             </div>
@@ -392,7 +421,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-800">
-                {giver?.full_name} → {receiver?.full_name}
+                {giver?.full_name} → {receiversLabel}
               </span>
               <button
                 onClick={() => setShowModal(false)}
@@ -406,14 +435,28 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
             <div ref={modalScrollRef} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               {/* Recognition message */}
               <div className="flex gap-3">
-                <Link href={`/profile/${recognition.receiver_id}`}>
-                  <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
-                    <AvatarImage src={receiver?.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
-                      {getInitials(receiver?.full_name || "?")}
-                    </AvatarFallback>
-                  </Avatar>
-                </Link>
+                <div className="flex flex-col gap-1">
+                  {receivers.slice(0, 3).map((r) => (
+                    <Link key={r.id} href={`/profile/${r.id}`}>
+                      <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+                        <AvatarImage src={r.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
+                          {getInitials(r.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Link>
+                  ))}
+                  {receivers.length === 0 && (
+                    <Link href={`/profile/${recognition.receiver_id}`}>
+                      <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+                        <AvatarImage src={receiver?.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
+                          {getInitials(receiver?.full_name || "?")}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Link>
+                  )}
+                </div>
                 <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
                   <p className="text-sm text-slate-700 leading-relaxed">{recognition.message}</p>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">

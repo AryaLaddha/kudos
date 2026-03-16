@@ -28,54 +28,34 @@ function detectMention(text: string, cursorPos: number): { query: string; start:
   return { query: match[1].toLowerCase(), start: cursorPos - match[0].length };
 }
 
-/** Parses the full message to extract @mention recipients and optional trailing +points */
+/** Parses message to extract @mentioned recipients and +points. One message for all. */
 function parseMessage(
   text: string,
   teammates: Profile[]
-): { recipients: Array<{ profile: Profile; message: string }>; pointsInText: number | null } {
-  // Build first-name → profile map (case-insensitive, first occurrence wins)
+): { recipients: Profile[]; pointsInText: number | null; cleanMessage: string } {
   const firstNameMap = new Map<string, Profile>();
   teammates.forEach((t) => {
     const first = t.full_name.split(" ")[0].toLowerCase();
     if (!firstNameMap.has(first)) firstNameMap.set(first, t);
   });
 
-  // Find +number anywhere in the message (only first occurrence counts)
   const allMatches = [...text.matchAll(/\+(\d+)/g)];
   const pointsInText = allMatches.length > 0 ? parseInt(allMatches[0][1], 10) : null;
-  // Strip all +number occurrences from the text before parsing messages
-  const cleanText = text.replace(/\+\d+/g, "").replace(/\s+/g, " ").trim();
+  // Strip +number from stored message
+  const cleanMessage = text.replace(/\+\d+/g, "").replace(/\s+/g, " ").trim();
 
-  // Split by @word — text BEFORE each @name is that person's message
-  // e.g. "Thanks for the fix @alice great work @bob +10"
-  //   → alice gets "Thanks for the fix", bob gets "great work"
-  // e.g. "Thanks @alice @bob +10"
-  //   → both get "Thanks" (shared intro text)
-  const parts = cleanText.split(/@([A-Za-z]+)/);
-  const recipients: Array<{ profile: Profile; message: string }> = [];
+  // Extract unique @mentioned teammates
+  const recipients: Profile[] = [];
   const seen = new Set<string>();
-
-  for (let i = 1; i < parts.length; i += 2) {
-    const profile = firstNameMap.get(parts[i].toLowerCase());
+  for (const m of text.matchAll(/@([A-Za-z]+)/g)) {
+    const profile = firstNameMap.get(m[1].toLowerCase());
     if (profile && !seen.has(profile.id)) {
       seen.add(profile.id);
-      recipients.push({ profile, message: parts[i - 1].trim() });
+      recipients.push(profile);
     }
   }
 
-  // If a message segment is empty, propagate the last non-empty segment
-  // so "Thanks @alice @bob" → both get "Thanks" instead of bob getting raw fallback
-  const sharedIntro = parts[0].trim();
-  let lastMessage = sharedIntro;
-  recipients.forEach((r) => {
-    if (r.message) {
-      lastMessage = r.message;
-    } else {
-      r.message = lastMessage;
-    }
-  });
-
-  return { recipients, pointsInText };
+  return { recipients, pointsInText, cleanMessage };
 }
 
 export default function GiveKudosPage() {
@@ -107,7 +87,7 @@ export default function GiveKudosPage() {
     load();
   }, []);
 
-  const { recipients, pointsInText } = parseMessage(messageText, teammates);
+  const { recipients, pointsInText, cleanMessage } = parseMessage(messageText, teammates);
   const effectivePoints = pointsInText ?? 0;
   const totalCost = effectivePoints * Math.max(recipients.length, 1);
   const balance = currentUser?.monthly_allowance ?? 0;
@@ -168,8 +148,8 @@ export default function GiveKudosPage() {
       toast.error("Mention at least one teammate with @name.");
       return;
     }
-    if (recipients.some((r) => r.message.length < 5)) {
-      toast.error("Each person needs a message of at least 5 characters before their @mention.");
+    if (cleanMessage.length < 5) {
+      toast.error("Write a message of at least 5 characters.");
       return;
     }
     if ([...messageText.matchAll(/\+(\d+)/g)].length > 1) {
@@ -188,8 +168,8 @@ export default function GiveKudosPage() {
     setSubmitting(true);
     const { error } = await supabase.rpc("send_multi_recognition", {
       p_org_id: currentUser.org_id ?? "00000000-0000-0000-0000-000000000000",
-      p_receivers: recipients.map((r) => r.profile.id),
-      p_messages: recipients.map((r) => r.message),
+      p_receivers: recipients.map((r) => r.id),
+      p_message: cleanMessage,
       p_points: effectivePoints,
       p_hashtags: hashtags,
     });
@@ -202,7 +182,7 @@ export default function GiveKudosPage() {
         console.error(error);
       }
     } else {
-      const names = recipients.map((r) => r.profile.full_name.split(" ")[0]).join(" & ");
+      const names = recipients.map((r) => r.full_name.split(" ")[0]).join(" & ");
       toast.success(`🎉 Kudos sent to ${names}!`);
       window.location.href = "/feed";
     }
@@ -293,7 +273,7 @@ export default function GiveKudosPage() {
                 {totalCost > balance && ` — only ${balance} available`}
               </div>
             </div>
-            {recipients.map(({ profile, message }) => (
+            {recipients.map((profile) => (
               <div key={profile.id} className="flex items-start gap-3 rounded-xl bg-white p-3 shadow-sm">
                 <Avatar className="h-8 w-8 flex-shrink-0">
                   <AvatarImage src={profile.avatar_url ?? undefined} />
@@ -306,12 +286,10 @@ export default function GiveKudosPage() {
                     <span className="text-sm font-semibold text-slate-900">{profile.full_name}</span>
                     <span className="text-xs font-bold text-indigo-600">+{effectivePoints} pts</span>
                   </div>
-                  {message ? (
-                    <p className="text-xs text-slate-500 line-clamp-2">{message}</p>
+                  {messageText ? (
+                    <p className="text-xs text-slate-500 line-clamp-2">{messageText}</p>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">
-                      Add text before @{profile.full_name.split(" ")[0]} for a personal message
-                    </p>
+                    <p className="text-xs text-slate-400 italic">Write your message above</p>
                   )}
                 </div>
               </div>

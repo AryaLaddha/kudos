@@ -4,7 +4,7 @@ import { Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RecognitionCard from "@/components/app/RecognitionCard";
 import Pagination from "@/components/app/Pagination";
-import type { Recognition } from "@/types";
+import type { Recognition, Profile } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,31 @@ export default async function FeedPage({ searchParams }: Props) {
 
   const { data: recognitions } = await query;
 
+  // Fetch receiver profiles for multi-receiver posts
+  let receiversMap = new Map<string, Profile>();
+  const allReceiverIds = new Set<string>();
+  for (const r of recognitions ?? []) {
+    for (const id of ((r as Recognition & { receiver_ids?: string[] }).receiver_ids ?? [])) {
+      allReceiverIds.add(id);
+    }
+  }
+  if (allReceiverIds.size > 0) {
+    const { data: receiverProfiles } = await supabase
+      .from("profiles")
+      .select("*")
+      .in("id", [...allReceiverIds]);
+    for (const p of receiverProfiles ?? []) {
+      receiversMap.set(p.id, p as Profile);
+    }
+  }
+
+  // Attach receivers array to each recognition
+  const recognitionsWithReceivers = (recognitions ?? []).map((r) => {
+    const rids = ((r as Recognition & { receiver_ids?: string[] }).receiver_ids ?? []);
+    const receivers = rids.map((id: string) => receiversMap.get(id)).filter(Boolean) as Profile[];
+    return { ...r, receivers: receivers.length > 0 ? receivers : undefined } as Recognition;
+  });
+
   // Demo recognitions when DB is empty / no org
   const demoRecognitions: Recognition[] = [
     {
@@ -102,7 +127,7 @@ export default async function FeedPage({ searchParams }: Props) {
   ];
 
   const isEmpty = !recognitions || recognitions.length === 0;
-  const feed = !isEmpty ? recognitions as Recognition[] : demoRecognitions;
+  const feed = !isEmpty ? recognitionsWithReceivers : demoRecognitions;
   const totalPages = isEmpty ? 1 : Math.max(1, Math.ceil((totalCount ?? 0) / PER_PAGE));
 
   return (

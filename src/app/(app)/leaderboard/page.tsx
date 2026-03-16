@@ -27,11 +27,19 @@ export default async function LeaderboardPage() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  const { data: entries } = await supabase
-    .from("recognitions")
-    .select("receiver_ids, points")
-    .eq("org_id", currentProfile.org_id)
-    .gte("created_at", monthStart);
+  const [{ data: entries }, { data: tipEntries }] = await Promise.all([
+    supabase
+      .from("recognitions")
+      .select("id, receiver_ids, points")
+      .eq("org_id", currentProfile.org_id)
+      .gte("created_at", monthStart),
+    supabase
+      .from("comments")
+      .select("recognition_id, points_tip, recognitions!inner(receiver_ids, org_id)")
+      .eq("recognitions.org_id", currentProfile.org_id)
+      .gte("created_at", monthStart)
+      .gt("points_tip", 0),
+  ]);
 
   // Collect all unique receiver IDs across all posts
   const allReceiverIds = new Set<string>();
@@ -68,6 +76,17 @@ export default async function LeaderboardPage() {
           points: e.points,
           recognitions: 1,
         });
+      }
+    }
+  }
+
+  // Add tip points — tips go to all receivers of the recognition
+  for (const tip of tipEntries ?? []) {
+    const rec = tip.recognitions as unknown as { receiver_ids: string[] };
+    for (const receiverId of (rec?.receiver_ids ?? [])) {
+      const existing = totals.get(receiverId);
+      if (existing) {
+        existing.points += tip.points_tip ?? 0;
       }
     }
   }

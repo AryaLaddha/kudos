@@ -10,52 +10,55 @@ create extension if not exists "pgcrypto";
 -- ORGANIZATIONS  (multi-tenant)
 -- ============================================================
 create table if not exists organizations (
-  id              uuid primary key default gen_random_uuid(),
-  name            text not null,
-  slug            text unique not null,
-  monthly_allowance int not null default 100,
-  created_at      timestamptz not null default now()
+  id                uuid primary key default gen_random_uuid(),
+  name              text not null,
+  slug              text unique not null,
+  monthly_allowance int not null default 200,
+  price_per_seat    numeric(10,2) not null default 0,   -- £/seat for MRR calculation
+  created_at        timestamptz not null default now()
 );
 
 -- ============================================================
 -- PROFILES  (extends auth.users 1-to-1)
 -- ============================================================
 create table if not exists profiles (
-  id              uuid primary key references auth.users(id) on delete cascade,
-  org_id          uuid references organizations(id) on delete cascade,
-  full_name       text not null default '',
-  avatar_url      text,
-  department      text,
-  job_title       text,
-  monthly_allowance int not null default 100,
-  points_balance  int not null default 0,
-  created_at      timestamptz not null default now()
+  id                uuid primary key references auth.users(id) on delete cascade,
+  org_id            uuid references organizations(id) on delete cascade,
+  full_name         text not null default '',
+  avatar_url        text,
+  department        text,
+  job_title         text,
+  monthly_allowance int not null default 200 check (monthly_allowance >= 0),
+  points_balance    int not null default 0   check (points_balance >= 0),
+  is_admin          boolean not null default false,
+  created_at        timestamptz not null default now()
 );
 
 -- ============================================================
 -- RECOGNITIONS  (the kudos posts)
 -- ============================================================
 create table if not exists recognitions (
-  id              uuid primary key default gen_random_uuid(),
-  org_id          uuid not null references organizations(id) on delete cascade,
-  giver_id        uuid not null references profiles(id) on delete cascade,
-  receiver_id     uuid not null references profiles(id) on delete cascade,
-  message         text not null,
-  points          int not null check (points > 0 and points <= 100),
-  hashtags        text[] not null default '{}',
-  created_at      timestamptz not null default now()
+  id           uuid primary key default gen_random_uuid(),
+  org_id       uuid not null references organizations(id) on delete cascade,
+  giver_id     uuid not null references profiles(id) on delete cascade,
+  receiver_id  uuid not null references profiles(id) on delete cascade,
+  receiver_ids uuid[] not null default '{}',   -- all recipient IDs (multi-receiver support)
+  message      text not null,
+  points       int not null check (points > 0 and points <= 100),
+  hashtags     text[] not null default '{}',
+  created_at   timestamptz not null default now()
 );
 
 -- ============================================================
 -- COMMENTS  (comments + optional point tips on recognitions)
 -- ============================================================
 create table if not exists comments (
-  id              uuid primary key default gen_random_uuid(),
-  recognition_id  uuid not null references recognitions(id) on delete cascade,
-  user_id         uuid not null references profiles(id) on delete cascade,
-  message         text not null,
-  points_tip      int not null default 0,
-  created_at      timestamptz not null default now()
+  id             uuid primary key default gen_random_uuid(),
+  recognition_id uuid not null references recognitions(id) on delete cascade,
+  user_id        uuid not null references profiles(id) on delete cascade,
+  message        text not null,
+  points_tip     int not null default 0 check (points_tip >= 0),
+  created_at     timestamptz not null default now()
 );
 
 alter table comments enable row level security;
@@ -75,11 +78,11 @@ create policy "users can insert own comments" on comments
 -- REACTIONS  (emoji reactions on recognitions)
 -- ============================================================
 create table if not exists reactions (
-  id              uuid primary key default gen_random_uuid(),
-  recognition_id  uuid not null references recognitions(id) on delete cascade,
-  user_id         uuid not null references profiles(id) on delete cascade,
-  emoji           text not null,
-  created_at      timestamptz not null default now(),
+  id             uuid primary key default gen_random_uuid(),
+  recognition_id uuid not null references recognitions(id) on delete cascade,
+  user_id        uuid not null references profiles(id) on delete cascade,
+  emoji          text not null,
+  created_at     timestamptz not null default now(),
   unique(recognition_id, user_id, emoji)
 );
 
@@ -87,22 +90,22 @@ create table if not exists reactions (
 -- POINT TRANSACTIONS  (full audit log)
 -- ============================================================
 create table if not exists point_transactions (
-  id              uuid primary key default gen_random_uuid(),
-  org_id          uuid not null references organizations(id) on delete cascade,
-  user_id         uuid not null references profiles(id) on delete cascade,
-  recognition_id  uuid references recognitions(id) on delete set null,
-  amount          int not null,  -- positive = received, negative = given
-  kind            text not null check (kind in ('given','received','monthly_reset')),
-  created_at      timestamptz not null default now()
+  id             uuid primary key default gen_random_uuid(),
+  org_id         uuid not null references organizations(id) on delete cascade,
+  user_id        uuid not null references profiles(id) on delete cascade,
+  recognition_id uuid references recognitions(id) on delete set null,
+  amount         int not null,  -- positive = received, negative = given
+  kind           text not null check (kind in ('given','received','monthly_reset')),
+  created_at     timestamptz not null default now()
 );
 
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
-alter table organizations     enable row level security;
-alter table profiles          enable row level security;
-alter table recognitions      enable row level security;
-alter table reactions         enable row level security;
+alter table organizations      enable row level security;
+alter table profiles           enable row level security;
+alter table recognitions       enable row level security;
+alter table reactions          enable row level security;
 alter table point_transactions enable row level security;
 
 -- Helper: get the caller's org_id
@@ -116,12 +119,23 @@ $$;
 create policy "org members can read" on organizations
   for select using (id = get_my_org_id());
 
--- Profiles: members of same org can read; owner can update
+-- Profiles: members of same org can read; owner can update non-sensitive columns only
 create policy "org members can read profiles" on profiles
   for select using (org_id = get_my_org_id());
 
+-- SECURITY: WITH CHECK prevents a user from elevating their own is_admin flag.
+-- The user can update their own row but cannot change is_admin, org_id, or points fields
+-- (those are only ever changed by SECURITY DEFINER RPCs).
 create policy "owner can update own profile" on profiles
-  for update using (id = auth.uid());
+  for update
+  using (id = auth.uid())
+  with check (
+    id = auth.uid() and
+    is_admin = (select is_admin from profiles where id = auth.uid()) and
+    org_id   = (select org_id   from profiles where id = auth.uid()) and
+    monthly_allowance = (select monthly_allowance from profiles where id = auth.uid()) and
+    points_balance    = (select points_balance    from profiles where id = auth.uid())
+  );
 
 create policy "service role can insert profiles" on profiles
   for insert with check (true);
@@ -204,11 +218,12 @@ select cron.schedule(
 -- SEND MULTI RECOGNITION RPC
 -- Handles everything: validates allowance, inserts recognitions,
 -- updates points, and writes audit log. No trigger dependency.
+-- p_message is the same text sent to every receiver.
 -- ============================================================
 create or replace function send_multi_recognition(
   p_org_id    uuid,
   p_receivers uuid[],
-  p_messages  text[],
+  p_message   text,
   p_points    int,
   p_hashtags  text[]
 )
@@ -219,6 +234,11 @@ declare
   rec_id       uuid;
   i            int;
 begin
+  -- Guard: p_org_id must match the giver's own org (prevent cross-org writes)
+  if p_org_id <> get_my_org_id() then
+    raise exception 'org_mismatch';
+  end if;
+
   total_cost := p_points * array_length(p_receivers, 1);
 
   -- Guard: giver must have enough monthly allowance
@@ -232,9 +252,9 @@ begin
   where id = auth.uid();
 
   for i in 1 .. array_length(p_receivers, 1) loop
-    -- Insert recognition
-    insert into recognitions (org_id, giver_id, receiver_id, message, points, hashtags)
-    values (p_org_id, auth.uid(), p_receivers[i], p_messages[i], p_points, p_hashtags)
+    -- Insert recognition (same message for all receivers; receiver_ids stores full list)
+    insert into recognitions (org_id, giver_id, receiver_id, receiver_ids, message, points, hashtags)
+    values (p_org_id, auth.uid(), p_receivers[i], p_receivers, p_message, p_points, p_hashtags)
     returning id into rec_id;
 
     -- Credit receiver's earned balance
@@ -255,8 +275,9 @@ $$;
 
 -- ============================================================
 -- POST COMMENT RPC
--- Inserts comment, handles optional point tip (same logic as recognitions),
--- returns full comment row with user data so the UI can update immediately.
+-- Inserts comment, handles optional point tip.
+-- Tips are distributed to ALL receivers of the recognition.
+-- Returns full comment row with user data so the UI can update immediately.
 -- ============================================================
 create or replace function post_comment(
   p_recognition_id uuid,
@@ -266,32 +287,39 @@ create or replace function post_comment(
 returns json language plpgsql security definer
 as $$
 declare
-  v_comment_id  uuid;
-  v_org_id      uuid;
-  v_receiver_id uuid;
-  v_result      json;
+  v_comment_id   uuid;
+  v_org_id       uuid;
+  v_receiver_ids uuid[];
+  v_receiver_id  uuid;
+  v_tip_each     int;
+  v_total_tip    int;
+  v_result       json;
 begin
-  -- Get org and recognition receiver
-  select org_id, receiver_id into v_org_id, v_receiver_id
+  -- Get org and all receivers of this recognition
+  select org_id, receiver_ids into v_org_id, v_receiver_ids
   from recognitions where id = p_recognition_id;
 
-  -- Handle tip: deduct from commenter's monthly allowance, credit receiver
+  -- Handle tip: deduct from commenter, credit every receiver
   if p_points_tip > 0 then
-    if (select monthly_allowance from profiles where id = auth.uid()) < p_points_tip then
+    v_total_tip := p_points_tip * array_length(v_receiver_ids, 1);
+
+    if (select monthly_allowance from profiles where id = auth.uid()) < v_total_tip then
       raise exception 'insufficient_points';
     end if;
 
-    update profiles set monthly_allowance = monthly_allowance - p_points_tip
+    update profiles set monthly_allowance = monthly_allowance - v_total_tip
     where id = auth.uid();
 
-    update profiles set points_balance = points_balance + p_points_tip
-    where id = v_receiver_id;
+    foreach v_receiver_id in array v_receiver_ids loop
+      update profiles set points_balance = points_balance + p_points_tip
+      where id = v_receiver_id;
 
-    insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
-    values (v_org_id, auth.uid(), p_recognition_id, -p_points_tip, 'given');
+      insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
+      values (v_org_id, auth.uid(), p_recognition_id, -p_points_tip, 'given');
 
-    insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
-    values (v_org_id, v_receiver_id, p_recognition_id, p_points_tip, 'received');
+      insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
+      values (v_org_id, v_receiver_id, p_recognition_id, p_points_tip, 'received');
+    end loop;
   end if;
 
   -- Insert the comment
@@ -318,6 +346,79 @@ begin
   where c.id = v_comment_id;
 
   return v_result;
+end;
+$$;
+
+-- ============================================================
+-- ADMIN RPC: GET DASHBOARD STATS
+-- Returns one row per organization with user counts and MRR.
+-- SECURITY DEFINER + explicit is_admin check prevents non-admins
+-- from reading cross-org data even if they call this directly.
+-- ============================================================
+create or replace function get_admin_dashboard_stats()
+returns table (
+  org_id           uuid,
+  org_name         text,
+  org_slug         text,
+  price_per_seat   numeric,
+  total_users      bigint,
+  active_users_30d bigint,
+  mrr              numeric,
+  created_at       timestamptz
+)
+language plpgsql security definer
+as $$
+begin
+  -- Only admins may call this function
+  if not (select is_admin from profiles where id = auth.uid()) then
+    raise exception 'unauthorized';
+  end if;
+
+  return query
+    select
+      o.id                                                      as org_id,
+      o.name                                                    as org_name,
+      o.slug                                                    as org_slug,
+      o.price_per_seat,
+      count(distinct p.id)                                      as total_users,
+      count(distinct case
+        when r.created_at >= now() - interval '30 days'
+          then coalesce(r.giver_id, r.receiver_id)
+        end)                                                    as active_users_30d,
+      o.price_per_seat * count(distinct case
+        when r.created_at >= now() - interval '30 days'
+          then coalesce(r.giver_id, r.receiver_id)
+        end)                                                    as mrr,
+      o.created_at
+    from organizations o
+    left join profiles p      on p.org_id = o.id
+    left join recognitions r  on r.org_id = o.id
+    group by o.id;
+end;
+$$;
+
+-- ============================================================
+-- ADMIN RPC: SET PRICE PER SEAT
+-- Updates pricing for an organization.
+-- Only callable by is_admin = true users.
+-- ============================================================
+create or replace function admin_set_price_per_seat(
+  p_org_id uuid,
+  p_price  numeric
+)
+returns void language plpgsql security definer
+as $$
+begin
+  -- Only admins may call this function
+  if not (select is_admin from profiles where id = auth.uid()) then
+    raise exception 'unauthorized';
+  end if;
+
+  if p_price < 0 then
+    raise exception 'invalid_price';
+  end if;
+
+  update organizations set price_per_seat = p_price where id = p_org_id;
 end;
 $$;
 

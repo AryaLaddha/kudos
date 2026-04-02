@@ -11,7 +11,7 @@ export async function addGoal(
   status: "aim" | "achieved",
   description: string,
   orgId: string,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; id?: string; created_at?: string }> {
   // Validate goal exists in static list (prevents fake goal_ids)
   const goalDef = getGoalById(goalId);
   if (!goalDef) {
@@ -51,13 +51,17 @@ export async function addGoal(
     return { error: "Organisation mismatch." };
   }
 
-  const { error: insertError } = await supabase.from("user_goals").insert({
-    user_id: user.id,
-    org_id: orgId,
-    goal_id: goalId,
-    status,
-    description: trimmed,
-  });
+  const { data: inserted, error: insertError } = await supabase
+    .from("user_goals")
+    .insert({
+      user_id: user.id,
+      org_id: orgId,
+      goal_id: goalId,
+      status,
+      description: trimmed,
+    })
+    .select("id, created_at")
+    .single();
 
   if (insertError) {
     // Unique constraint: user already has this goal in this bucket
@@ -68,7 +72,8 @@ export async function addGoal(
   }
 
   revalidatePath("/goals");
-  return {};
+  // Return the real DB-generated id so the client can use it for deletes
+  return { id: inserted.id, created_at: inserted.created_at };
 }
 
 export async function deleteGoal(id: string): Promise<{ error?: string }> {

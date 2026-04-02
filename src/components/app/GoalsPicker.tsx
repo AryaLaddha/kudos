@@ -62,13 +62,13 @@ export default function GoalsPicker({
       }
 
       const enriched: EnrichedUserGoal = {
-        id: crypto.randomUUID(),
+        id: result.id!,           // real DB-generated UUID
         user_id: "",
         org_id: orgId,
         goal_id: selectedGoal.id,
         status,
         description: description.trim(),
-        created_at: new Date().toISOString(),
+        created_at: result.created_at!,
         title: selectedGoal.title,
         category: selectedGoal.category,
         points: selectedGoal.points,

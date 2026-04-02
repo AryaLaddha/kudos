@@ -82,7 +82,7 @@ export default function GoalsPicker({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="max-w-lg w-full p-0 gap-0 overflow-hidden"
+        className="max-w-lg w-full p-0 gap-0 flex flex-col max-h-[85vh]"
         showCloseButton={false}
       >
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100">
@@ -97,7 +97,7 @@ export default function GoalsPicker({
         </DialogHeader>
 
         {/* Scrollable goal list */}
-        <div className="overflow-y-auto max-h-72 px-3 py-3 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
           {GOAL_CATEGORIES.map((cat) => {
             const catGoals = GOALS.filter(
               (g) => g.category === cat && !existingSet.has(g.id),

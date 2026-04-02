@@ -180,7 +180,7 @@ export default function GoalsPageClient({
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         status={pickerStatus}
-        existingGoalIds={pickerStatus === "achieved" ? achievedIds : aimIds}
+        existingGoalIds={pickerStatus === "achieved" ? [] : aimIds}
         orgId={orgId}
         onSuccess={handleGoalAdded}
       />

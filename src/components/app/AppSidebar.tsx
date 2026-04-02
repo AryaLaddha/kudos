@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
-import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X } from "lucide-react";
+import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -15,6 +15,10 @@ const navItems = [
   { href: "/give", label: "Give Kudos", icon: Heart },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/goals", label: "Goals", icon: Target },
+];
+
+const adminNavItems = [
+  { href: "/admin", label: "Admin", icon: ShieldCheck },
 ];
 
 interface Props {
@@ -153,6 +157,35 @@ export default function AppSidebar({ user, profile }: Props) {
           }
           My Profile
         </button>
+
+        {/* Admin-only nav items */}
+        {profile?.is_admin && (
+          <>
+            <Separator className="my-2" />
+            {adminNavItems.map((item) => {
+              const active = pathname === item.href || pendingHref === item.href;
+              const loading = isPending && pendingHref === item.href;
+              return (
+                <button
+                  key={item.href}
+                  onClick={() => handleNav(item.href)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-violet-50 text-violet-700"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  )}
+                >
+                  {loading
+                    ? <Loader2 className="h-4 w-4 text-violet-500 animate-spin" />
+                    : <item.icon className={cn("h-4 w-4", active ? "text-violet-600" : "text-slate-400")} />
+                  }
+                  {item.label}
+                </button>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       {/* User footer */}
@@ -163,7 +196,14 @@ export default function AppSidebar({ user, profile }: Props) {
             <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-bold">{initials}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
+              {profile?.is_admin && (
+                <span className="flex-shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-600">
+                  Admin
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400 truncate">{user.email}</p>
           </div>
           <button onClick={handleSignOut} disabled={signingOut} className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50" title="Sign out">

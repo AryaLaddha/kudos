@@ -64,3 +64,19 @@ export type PointTransaction = {
   kind: "given" | "received" | "monthly_reset";
   created_at: string;
 };
+
+export type UserGoal = {
+  id: string;
+  user_id: string;
+  org_id: string;
+  goal_id: string;
+  status: "aim" | "achieved";
+  description: string;
+  created_at: string;
+};
+
+export type EnrichedUserGoal = UserGoal & {
+  title: string;
+  category: string;
+  points: number;
+};

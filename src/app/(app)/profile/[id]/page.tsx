@@ -277,6 +277,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         <ProfileGoalsSection
           initialGoals={achievedGoals}
           isAdmin={viewerIsAdmin}
+          isOwn={isOwn}
           targetUserId={id}
           orgId={profile.org_id ?? ""}
         />

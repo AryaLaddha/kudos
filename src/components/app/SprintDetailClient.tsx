@@ -277,12 +277,18 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
           </div>
 
           {/* Project Allocation Pie Chart */}
-          {slices.length > 0 && (
-            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
-              <div className="flex items-center gap-2 mb-5">
-                <Target className="h-4 w-4 text-slate-400" />
-                <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">Project Allocation Overview</h2>
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-5">
+              <Target className="h-4 w-4 text-slate-400" />
+              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">Project Allocation Overview</h2>
+            </div>
+            {slices.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-center">
+                <Target className="h-10 w-10 text-slate-100 mb-2" />
+                <p className="text-sm font-medium text-slate-400">No project allocations saved yet.</p>
+                <p className="text-xs text-slate-400 mt-1">Assign percentages in the Grid Tracker to see the distribution.</p>
               </div>
+            ) : (
               <div className="flex flex-col sm:flex-row items-center gap-8">
                 <svg viewBox="0 0 100 100" className="h-48 w-48 flex-shrink-0">
                   {slices.map((s, i) => (
@@ -301,8 +307,8 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                   ))}
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 

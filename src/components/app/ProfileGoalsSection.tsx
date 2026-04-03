@@ -119,7 +119,7 @@ export default function ProfileGoalsSection({
                   </p>
                   <p className="text-sm text-slate-500 mt-1">{goal.description}</p>
                 </div>
-                {isAdmin && (
+                {(isAdmin || isOwn) && (
                   <button
                     onClick={() => handleDelete(goal.id)}
                     disabled={deletingId === goal.id}

@@ -101,3 +101,98 @@ export async function deleteGoal(id: string): Promise<{ error?: string }> {
   revalidatePath("/goals");
   return {};
 }
+
+// ── Admin-only actions ────────────────────────────────────────────────────────
+
+export async function adminAddGoalForUser(
+  targetUserId: string,
+  goalId: string,
+  description: string,
+): Promise<{ error?: string; id?: string; created_at?: string }> {
+  if (!targetUserId) return { error: "Invalid user." };
+
+  const goalDef = getGoalById(goalId);
+  if (!goalDef) return { error: "Invalid goal." };
+
+  const trimmed = description.trim();
+  if (!trimmed) return { error: "Description is required." };
+  if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
+    return { error: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer.` };
+  }
+
+  const supabase = await createClient();
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { error: "Not authenticated." };
+
+  // Verify caller is an admin
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("is_admin, org_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!callerProfile?.is_admin) return { error: "Not authorised." };
+
+  // Verify target user is in the same org
+  const { data: targetProfile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", targetUserId)
+    .single();
+
+  if (!targetProfile?.org_id || targetProfile.org_id !== callerProfile.org_id) {
+    return { error: "User not found in your organisation." };
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("user_goals")
+    .insert({
+      user_id: targetUserId,
+      org_id: callerProfile.org_id,
+      goal_id: goalId,
+      status: "achieved",
+      description: trimmed,
+    })
+    .select("id, created_at")
+    .single();
+
+  if (insertError) {
+    if (insertError.code === "23505") {
+      return { error: "This achievement has already been logged for this user." };
+    }
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  revalidatePath(`/profile/${targetUserId}`);
+  revalidatePath("/goals");
+  return { id: inserted.id, created_at: inserted.created_at };
+}
+
+export async function adminDeleteGoal(id: string): Promise<{ error?: string }> {
+  if (!id) return { error: "Invalid goal." };
+
+  const supabase = await createClient();
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { error: "Not authenticated." };
+
+  // Verify caller is an admin (RLS also enforces this)
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
+
+  if (!callerProfile?.is_admin) return { error: "Not authorised." };
+
+  const { error: deleteError } = await supabase
+    .from("user_goals")
+    .delete()
+    .eq("id", id);
+
+  if (deleteError) return { error: "Something went wrong. Please try again." };
+
+  revalidatePath("/goals");
+  return {};
+}

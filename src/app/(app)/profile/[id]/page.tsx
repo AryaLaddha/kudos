@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import RecognitionCard from "@/components/app/RecognitionCard";
 import Pagination from "@/components/app/Pagination";
-import type { Recognition, Profile } from "@/types";
+import ProfileGoalsSection from "@/components/app/ProfileGoalsSection";
+import type { Recognition, Profile, EnrichedUserGoal } from "@/types";
+import { getGoalById } from "@/lib/goals";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +39,14 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     .single();
 
   if (!profile) notFound();
+
+  // Check if the viewer is an admin
+  const { data: viewerProfile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
+  const viewerIsAdmin = viewerProfile?.is_admin === true;
 
   // Count totals for tab labels and pagination
   const [{ count: receivedCount }, { count: givenCount }] = await Promise.all([
@@ -92,7 +102,25 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   });
 
   const isOwn = user.id === id;
+  const canSeeGoals = isOwn || viewerIsAdmin;
   const initials = profile.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+
+  // Fetch achieved goals if viewer is the owner or an admin
+  let achievedGoals: EnrichedUserGoal[] = [];
+  if (canSeeGoals) {
+    const { data: rawGoals } = await supabase
+      .from("user_goals")
+      .select("*")
+      .eq("user_id", id)
+      .eq("status", "achieved")
+      .order("created_at", { ascending: false });
+
+    achievedGoals = (rawGoals ?? []).flatMap((g) => {
+      const def = getGoalById(g.goal_id);
+      if (!def) return [];
+      return [{ ...g, title: def.title, category: def.category, points: def.points }];
+    });
+  }
 
   // Top hashtags from all received recognitions (not paginated — use count query approach)
   const { data: allReceived } = await supabase
@@ -190,8 +218,18 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         )}
       </div>
 
+      {/* Goals / Achievements — visible to profile owner and admins only */}
+      {canSeeGoals && (
+        <ProfileGoalsSection
+          initialGoals={achievedGoals}
+          isAdmin={viewerIsAdmin}
+          targetUserId={id}
+          orgId={profile.org_id ?? ""}
+        />
+      )}
+
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 mb-6">
+      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 mb-6 mt-6">
         <Link
           href={`/profile/${id}?tab=received&page=1`}
           className={cn(

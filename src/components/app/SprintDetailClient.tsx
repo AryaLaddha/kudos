@@ -204,7 +204,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
         
         {/* Simple legend on hover for mini pies */}
         {size !== 48 && (
-          <div className="hidden group-hover:flex flex-col absolute left-full ml-2 z-50 bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-lg whitespace-nowrap">
+          <div className="hidden group-hover:flex flex-col absolute right-full mr-2 z-50 bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-lg whitespace-nowrap">
             {data.map((d, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />

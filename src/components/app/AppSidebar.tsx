@@ -9,6 +9,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { GlobalSearch } from "@/components/app/GlobalSearch";
 
 const navItems = [
   { href: "/feed", label: "Feed", icon: LayoutDashboard },
@@ -115,6 +116,11 @@ export default function AppSidebar({ user, profile }: Props) {
         <div className="mt-1 text-xs text-indigo-400">
           {profile?.monthly_allowance ?? 200} pts to give this month
         </div>
+      </div>
+
+      {/* Search */}
+      <div className="px-3 pb-2 border-b border-transparent">
+        <GlobalSearch />
       </div>
 
       {/* Nav */}

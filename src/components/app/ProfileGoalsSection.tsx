@@ -140,12 +140,24 @@ export default function ProfileGoalsSection({
       )}
 
       {/* Admin picker dialog */}
-      {isAdmin && (
+      {isAdmin && !isOwn && (
         <AdminGoalsPicker
           open={pickerOpen}
           onOpenChange={setPickerOpen}
           existingGoalIds={existingIds}
           targetUserId={targetUserId}
+          orgId={orgId}
+          onSuccess={handleGoalAdded}
+        />
+      )}
+
+      {/* User picker dialog */}
+      {isOwn && (
+        <GoalsPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          status="achieved"
+          existingGoalIds={existingIds}
           orgId={orgId}
           onSuccess={handleGoalAdded}
         />

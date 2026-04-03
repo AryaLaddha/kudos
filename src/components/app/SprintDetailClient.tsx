@@ -164,7 +164,6 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
     const s = polarToXY(start, r);
     const e = polarToXY(end, r);
     const large = end - start > 180 ? 1 : 0;
-    // For single full slice, SVG arc can fail, so use 359.9
     if (end - start >= 360) {
       return `M 50 50 L 50 ${50 - r} A ${r} ${r} 0 1 1 49.99 ${50 - r} Z`;
     }
@@ -174,26 +173,47 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
   function renderPie(data: { name: string; val: number }[], size: number = 48) {
     const total = data.reduce((s, d) => s + d.val, 0);
     if (total === 0) return null;
+
+    // Use a unique state-like approach or just simple hover titles for individual.
+    // For small pies, we'll use a wrapping div with a simple title attribute 
+    // as a fallback, but for a nice look, we stick to clean SVG.
+    
     let cumAngle = 0;
     return (
-      <svg viewBox="0 0 100 100" className={cn("flex-shrink-0", size === 48 ? "h-48 w-48" : "h-10 w-10")}>
-        {data.map((d, i) => {
-          const pct = d.val / total;
-          const start = cumAngle;
-          cumAngle += pct * 360;
-          const color = PIE_COLORS[i % PIE_COLORS.length];
-          return (
-            <path
-              key={i}
-              d={describeSlice(start, cumAngle, 40)}
-              fill={color}
-            >
-              <title>{d.name}: {Math.round(pct * 100)}%</title>
-            </path>
-          );
-        })}
-        <circle cx="50" cy="50" r={size === 48 ? 22 : 20} fill="white" />
-      </svg>
+      <div className="group relative flex items-center gap-2">
+        <svg viewBox="0 0 100 100" className={cn("flex-shrink-0 cursor-help", size === 48 ? "h-48 w-48" : "h-10 w-10")}>
+          {data.map((d, i) => {
+            const pct = d.val / total;
+            const start = cumAngle;
+            cumAngle += pct * 360;
+            const color = PIE_COLORS[i % PIE_COLORS.length];
+            return (
+              <g key={i} className="peer">
+                <path
+                  d={describeSlice(start, cumAngle, 40)}
+                  fill={color}
+                  className="transition-opacity hover:opacity-80"
+                />
+                {/* Fallback Native Title */}
+                <title>{d.name}: {Math.round(pct * 100)}%</title>
+              </g>
+            );
+          })}
+          <circle cx="50" cy="50" r={size === 48 ? 22 : 20} fill="white" />
+        </svg>
+        
+        {/* Simple legend on hover for mini pies */}
+        {size !== 48 && (
+          <div className="hidden group-hover:flex flex-col absolute left-full ml-2 z-50 bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-lg whitespace-nowrap">
+            {data.map((d, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                <span>{d.name}: {Math.round((d.val / total) * 100)}%</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     );
   }
 

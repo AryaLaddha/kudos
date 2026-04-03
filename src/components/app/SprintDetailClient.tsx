@@ -86,6 +86,11 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
   }
 
   async function saveParticipant(p: Participant) {
+    const totalAlloc = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
+    if (totalAlloc > 100) {
+      toast.error(`${p.profile.full_name} has ${totalAlloc}% allocation. Maximum is 100%.`);
+      return;
+    }
     setSavingId(p.user_id);
     const res = await updateParticipantScores(sprint.id, p.user_id, p.scores, p.base_points, p.project_allocations);
     setSavingId(null);
@@ -171,22 +176,26 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
   }
 
   function renderPie(data: { name: string; val: number }[], size: number = 48) {
-    const total = data.reduce((s, d) => s + d.val, 0);
-    if (total === 0) return null;
+    const currentTotal = data.reduce((s, d) => s + d.val, 0);
+    if (currentTotal === 0) return null;
 
-    // Use a unique state-like approach or just simple hover titles for individual.
-    // For small pies, we'll use a wrapping div with a simple title attribute 
-    // as a fallback, but for a nice look, we stick to clean SVG.
+    // Normalize to 100% max. If less than 100, add a "Bench" slice.
+    const pieData = [...data];
+    if (currentTotal < 100) {
+      pieData.push({ name: "Unallocated", val: 100 - currentTotal });
+    }
+    const finalTotal = Math.max(100, currentTotal);
     
     let cumAngle = 0;
     return (
       <div className="group relative flex items-center gap-2">
         <svg viewBox="0 0 100 100" className={cn("flex-shrink-0 cursor-help", size === 48 ? "h-48 w-48" : "h-10 w-10")}>
-          {data.map((d, i) => {
-            const pct = d.val / total;
+          {pieData.map((d, i) => {
+            const pct = d.val / finalTotal;
             const start = cumAngle;
             cumAngle += pct * 360;
-            const color = PIE_COLORS[i % PIE_COLORS.length];
+            const isBench = d.name === "Unallocated";
+            const color = isBench ? "#f1f5f9" : PIE_COLORS[i % PIE_COLORS.length];
             return (
               <g key={i} className="peer">
                 <path
@@ -194,7 +203,6 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                   fill={color}
                   className="transition-opacity hover:opacity-80"
                 />
-                {/* Fallback Native Title */}
                 <title>{d.name}: {Math.round(pct * 100)}%</title>
               </g>
             );
@@ -205,10 +213,10 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
         {/* Simple legend on hover for mini pies */}
         {size !== 48 && (
           <div className="hidden group-hover:flex flex-col absolute right-full mr-2 z-50 bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-lg whitespace-nowrap">
-            {data.map((d, i) => (
+            {pieData.map((d, i) => (
               <div key={i} className="flex items-center gap-1.5">
-                <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-                <span>{d.name}: {Math.round((d.val / total) * 100)}%</span>
+                <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.name === "Unallocated" ? "#64748b" : PIE_COLORS[i % PIE_COLORS.length] }} />
+                <span>{d.name}: {Math.round((d.val / finalTotal) * 100)}%</span>
               </div>
             ))}
           </div>
@@ -432,6 +440,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                     </th>
                   )}
                   <th className="px-3 py-3 text-center text-xs font-bold text-slate-800 bg-yellow-50 border-l border-slate-200">Grand Total</th>
+                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 bg-slate-50">Total %</th>
                   <th className="px-3 py-3 bg-slate-50"></th>
                 </tr>
                 <tr className="bg-white border-b border-slate-100">
@@ -453,6 +462,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                     </th>
                   ))}
                   <th className="px-2 py-1 bg-yellow-50/60 border-l border-yellow-100"></th>
+                  <th className="px-2 py-1 bg-slate-50/60 font-mono text-[9px] text-slate-400">sum</th>
                   <th></th>
                 </tr>
               </thead>
@@ -468,6 +478,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                   const total = grandTotal(p, wonCols, dedCols);
                   const isSaving = savingId === p.user_id;
                   const rowBg = rowIdx % 2 === 0 ? "bg-white" : "bg-slate-50";
+                  const currentAlloc = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
                   return (
                     <tr key={p.user_id} className={cn("border-b border-slate-100 hover:bg-slate-100/50 transition-colors", rowBg)}>
                       {/* Name */}
@@ -529,7 +540,10 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                             value={p.project_allocations[proj.id] || ""}
                             onChange={e => setAllocation(p.user_id, proj.id, Number(e.target.value))}
                             placeholder="—"
-                            className="w-14 rounded-lg border border-violet-200 text-center text-sm py-1 outline-none focus:border-violet-400 bg-white"
+                            className={cn(
+                              "w-14 rounded-lg border text-center text-sm py-1 outline-none bg-white",
+                              currentAlloc > 100 ? "border-red-400 text-red-600" : "border-violet-200 focus:border-violet-400"
+                            )}
                           />
                         </td>
                       ))}
@@ -537,6 +551,16 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                       {/* Grand total */}
                       <td className="px-3 py-2 text-center font-extrabold text-slate-900 bg-yellow-50/50 border-l border-yellow-100">
                         {total}
+                      </td>
+
+                      {/* Live Allocation Sum */}
+                      <td className="px-1 py-2 text-center border-l border-slate-100 bg-slate-50/50">
+                        <span className={cn(
+                          "text-xs font-bold",
+                          currentAlloc > 100 ? "text-red-500" : currentAlloc === 100 ? "text-green-600" : "text-slate-400"
+                        )}>
+                          {currentAlloc}%
+                        </span>
                       </td>
 
                       {/* Actions */}

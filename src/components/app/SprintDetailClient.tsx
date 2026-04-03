@@ -164,7 +164,37 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
     const s = polarToXY(start, r);
     const e = polarToXY(end, r);
     const large = end - start > 180 ? 1 : 0;
+    // For single full slice, SVG arc can fail, so use 359.9
+    if (end - start >= 360) {
+      return `M 50 50 L 50 ${50 - r} A ${r} ${r} 0 1 1 49.99 ${50 - r} Z`;
+    }
     return `M 50 50 L ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y} Z`;
+  }
+
+  function renderPie(data: { name: string; val: number }[], size: number = 48) {
+    const total = data.reduce((s, d) => s + d.val, 0);
+    if (total === 0) return null;
+    let cumAngle = 0;
+    return (
+      <svg viewBox="0 0 100 100" className={cn("flex-shrink-0", size === 48 ? "h-48 w-48" : "h-10 w-10")}>
+        {data.map((d, i) => {
+          const pct = d.val / total;
+          const start = cumAngle;
+          cumAngle += pct * 360;
+          const color = PIE_COLORS[i % PIE_COLORS.length];
+          return (
+            <path
+              key={i}
+              d={describeSlice(start, cumAngle, 40)}
+              fill={color}
+            >
+              <title>{d.name}: {Math.round(pct * 100)}%</title>
+            </path>
+          );
+        })}
+        <circle cx="50" cy="50" r={size === 48 ? 22 : 20} fill="white" />
+      </svg>
+    );
   }
 
   return (
@@ -266,6 +296,15 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-900 truncate">{p.profile.full_name}</p>
                     </div>
+
+                    {/* Individual Mini Pie */}
+                    <div className="flex-shrink-0">
+                      {renderPie(
+                        projects.map(proj => ({ name: proj.name, val: p.project_allocations[proj.id] || 0 })).filter(d => d.val > 0),
+                        10
+                      )}
+                    </div>
+
                     <div className="text-right">
                       <p className={cn("text-base font-extrabold", i === 0 ? "text-amber-600" : "text-violet-600")}>{p.total} pts</p>
                       <p className="text-[10px] text-slate-400">base: {p.base_points}</p>
@@ -290,13 +329,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
               </div>
             ) : (
               <div className="flex flex-col sm:flex-row items-center gap-8">
-                <svg viewBox="0 0 100 100" className="h-48 w-48 flex-shrink-0">
-                  {slices.map((s, i) => (
-                    <path key={i} d={describeSlice(s.startAngle, s.endAngle, 40)} fill={s.color} />
-                  ))}
-                  <circle cx="50" cy="50" r="22" fill="white" />
-                  <text x="50" y="53" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#475569">Allocation</text>
-                </svg>
+                {renderPie(projectTotals.map(p => ({ name: p.name, val: p.total })), 48)}
                 <div className="flex flex-col gap-2">
                   {slices.map((s, i) => (
                     <div key={i} className="flex items-center gap-2">

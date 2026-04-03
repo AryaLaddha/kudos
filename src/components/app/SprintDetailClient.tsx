@@ -353,7 +353,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
             <table className="min-w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="sticky left-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-bold text-slate-600 min-w-[180px]">
+                  <th className="sticky left-0 z-20 bg-slate-100 px-4 py-3 text-left text-xs font-bold text-slate-600 min-w-[200px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                     INN Resource
                   </th>
                   <th className="px-3 py-3 text-center text-xs font-bold text-slate-600 bg-slate-50">Base</th>
@@ -376,7 +376,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                   <th className="px-3 py-3 bg-slate-50"></th>
                 </tr>
                 <tr className="bg-white border-b border-slate-100">
-                  <th className="sticky left-0 z-10 bg-white px-4 py-2"></th>
+                  <th className="sticky left-0 z-20 bg-white px-4 py-2 border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"></th>
                   <th className="px-2 py-1 text-center text-[10px] text-slate-400 font-medium">points</th>
                   {wonCols.map(c => (
                     <th key={c.id} className="px-2 py-1 text-center text-[10px] text-green-600 font-medium bg-green-50/60 border-l border-green-100">
@@ -408,10 +408,11 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                 {participants.map((p, rowIdx) => {
                   const total = grandTotal(p, wonCols, dedCols);
                   const isSaving = savingId === p.user_id;
+                  const rowBg = rowIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
                   return (
-                    <tr key={p.user_id} className={cn("border-b border-slate-100 hover:bg-slate-50/50 transition-colors", rowIdx % 2 === 0 ? "" : "bg-slate-50/30")}>
+                    <tr key={p.user_id} className={cn("border-b border-slate-100 hover:bg-slate-100/50 transition-colors", rowBg)}>
                       {/* Name */}
-                      <td className="sticky left-0 z-10 bg-inherit px-4 py-2 font-medium text-slate-800 whitespace-nowrap">
+                      <td className={cn("sticky left-0 z-10 px-4 py-2 font-medium text-slate-800 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]", rowBg)}>
                         <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6 flex-shrink-0">
                             <AvatarImage src={p.profile.avatar_url ?? undefined} />

@@ -14,12 +14,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { GOALS, GOAL_CATEGORIES, type GoalDefinition } from "@/lib/goals";
 import type { EnrichedUserGoal } from "@/types";
-import { adminAddGoalForUser, adminDeleteGoal } from "@/app/(app)/goals/actions";
+import { adminAddGoalForUser, adminDeleteGoal, deleteGoal } from "@/app/(app)/goals/actions";
+import GoalsPicker from "@/components/app/GoalsPicker";
 import { toast } from "sonner";
 
 interface Props {
   initialGoals: EnrichedUserGoal[];
   isAdmin: boolean;
+  isOwn: boolean;
   targetUserId: string;
   orgId: string;
 }
@@ -27,6 +29,7 @@ interface Props {
 export default function ProfileGoalsSection({
   initialGoals,
   isAdmin,
+  isOwn,
   targetUserId,
   orgId,
 }: Props) {
@@ -38,12 +41,12 @@ export default function ProfileGoalsSection({
   function handleDelete(id: string) {
     setDeletingId(id);
     startTransition(async () => {
-      const result = await adminDeleteGoal(id);
+      const result = isAdmin ? await adminDeleteGoal(id) : await deleteGoal(id);
       if (result.error) {
         toast.error(result.error);
       } else {
         setGoals((prev) => prev.filter((g) => g.id !== id));
-        toast.success("Achievement removed.");
+        toast.success("Goal removed.");
       }
       setDeletingId(null);
     });
@@ -71,7 +74,7 @@ export default function ProfileGoalsSection({
             </span>
           )}
         </div>
-        {isAdmin && (
+        {(isAdmin || isOwn) && (
           <Button
             size="sm"
             onClick={() => setPickerOpen(true)}

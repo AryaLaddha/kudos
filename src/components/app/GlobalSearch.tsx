@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { Search, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 
 import {
   CommandDialog,
@@ -19,24 +19,11 @@ import { cn } from "@/lib/utils";
 
 export function GlobalSearch() {
   const router = useRouter();
-  const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [debouncedQuery, setDebouncedQuery] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [users, setUsers] = React.useState<any[]>([]);
-  const [isPending, startTransition] = React.useTransition();
-  const [redirectingTo, setRedirectingTo] = React.useState<string | null>(null);
-
-  // Reset and close dialog when navigation completes
-  React.useEffect(() => {
-    if (open) {
-      setOpen(false);
-      setRedirectingTo(null);
-      setQuery("");
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
 
   // Debounce query
   React.useEffect(() => {
@@ -71,10 +58,9 @@ export function GlobalSearch() {
   }, []);
 
   const handleSelect = (id: string) => {
-    setRedirectingTo(id);
-    startTransition(() => {
-      router.push(`/profile/${id}`);
-    });
+    setOpen(false);
+    setQuery("");
+    router.push(`/profile/${id}`);
   };
 
   return (
@@ -110,33 +96,19 @@ export function GlobalSearch() {
                     value={user.id}
                     onSelect={() => handleSelect(user.id)}
                     className="flex items-center gap-3 p-2 cursor-pointer"
-                    disabled={isPending}
                   >
-                    {redirectingTo === user.id ? (
-                      <>
-                        <div className="h-8 w-8 rounded-full bg-slate-200 animate-pulse mix-blend-multiply" />
-                        <div className="flex flex-col flex-1 gap-1 py-1">
-                          <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
-                          <div className="h-3 w-24 bg-slate-100 rounded animate-pulse" />
-                        </div>
-                        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                      </>
-                    ) : (
-                      <>
-                        <Avatar className="h-8 w-8 mix-blend-multiply">
-                          <AvatarImage src={user.avatar_url || undefined} />
-                          <AvatarFallback className="text-xs bg-indigo-100 text-indigo-700 font-bold">
-                            {user.full_name?.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col flex-1">
-                          <span className="text-sm font-medium">{user.full_name}</span>
-                          {user.job_title && (
-                            <span className="text-xs text-muted-foreground">{user.job_title}</span>
-                          )}
-                        </div>
-                      </>
-                    )}
+                    <Avatar className="h-8 w-8 mix-blend-multiply">
+                      <AvatarImage src={user.avatar_url || undefined} />
+                      <AvatarFallback className="text-xs bg-indigo-100 text-indigo-700 font-bold">
+                        {user.full_name?.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{user.full_name}</span>
+                      {user.job_title && (
+                        <span className="text-xs text-muted-foreground">{user.job_title}</span>
+                      )}
+                    </div>
                   </CommandItem>
                 ))}
               </CommandGroup>

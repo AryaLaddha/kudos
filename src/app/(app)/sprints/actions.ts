@@ -230,7 +230,7 @@ export async function updateAllParticipants(
       scores: p.scores,
       base_points: p.base_points,
       project_allocations: p.project_allocations
-    })));
+    })), { onConflict: "sprint_id,user_id" });
 
   if (error) return { error: error.message };
   revalidatePath(`/sprints/${sprintId}`);

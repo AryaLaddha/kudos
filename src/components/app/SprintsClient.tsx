@@ -175,7 +175,7 @@ export default function SprintsClient({ sprints, projects }: Props) {
           </div>
         )}
         {sprints.map(sprint => {
-          const active = sprint.status === "active";
+          const active = sprint.status !== "completed";
           const participantCount = sprint.sprint_participants?.[0]?.count ?? 0;
           return (
             <button

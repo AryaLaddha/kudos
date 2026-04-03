@@ -14,7 +14,8 @@ import { GOALS, GOAL_CATEGORIES, GoalDefinition } from "@/lib/goals";
 import { EnrichedUserGoal } from "@/types";
 import { addGoal } from "@/app/(app)/goals/actions";
 import { toast } from "sonner";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface GoalsPickerProps {
   open: boolean;
@@ -35,14 +36,17 @@ export default function GoalsPicker({
 }: GoalsPickerProps) {
   const [selectedGoal, setSelectedGoal] = useState<GoalDefinition | null>(null);
   const [description, setDescription] = useState("");
+  const [search, setSearch] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const existingSet = new Set(existingGoalIds);
+  const searchLower = search.toLowerCase().trim();
 
   function handleClose(value: boolean) {
     if (!value) {
       setSelectedGoal(null);
       setDescription("");
+      setSearch("");
     }
     onOpenChange(value);
   }
@@ -96,11 +100,27 @@ export default function GoalsPicker({
           </p>
         </DialogHeader>
 
+        {/* Search */}
+        <div className="px-3 pt-3 pb-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <Input
+              placeholder="Search goals…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 text-sm h-9"
+            />
+          </div>
+        </div>
+
         {/* Scrollable goal list */}
         <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
           {GOAL_CATEGORIES.map((cat) => {
             const catGoals = GOALS.filter(
-              (g) => g.category === cat && !existingSet.has(g.id),
+              (g) =>
+                g.category === cat &&
+                !existingSet.has(g.id) &&
+                (!searchLower || g.title.toLowerCase().includes(searchLower)),
             );
             if (catGoals.length === 0) return null;
 
@@ -144,16 +164,19 @@ export default function GoalsPicker({
             );
           })}
 
-          {GOAL_CATEGORIES.every(
-            (cat) =>
-              GOALS.filter(
-                (g) => g.category === cat && !existingSet.has(g.id),
-              ).length === 0,
-          ) && (
-            <p className="text-sm text-slate-500 text-center py-6">
-              You've added all available goals in this section.
-            </p>
-          )}
+          {searchLower
+            ? GOALS.every(
+                (g) => existingSet.has(g.id) || !g.title.toLowerCase().includes(searchLower)
+              ) && (
+                <p className="text-sm text-slate-500 text-center py-6">No goals match your search.</p>
+              )
+            : GOAL_CATEGORIES.every(
+                (cat) => GOALS.filter((g) => g.category === cat && !existingSet.has(g.id)).length === 0,
+              ) && (
+                <p className="text-sm text-slate-500 text-center py-6">
+                  You&apos;ve added all available goals in this section.
+                </p>
+              )}
         </div>
 
         {/* Description — shown once a goal is selected */}
@@ -182,7 +205,7 @@ export default function GoalsPicker({
           </div>
         )}
 
-        <DialogFooter className="border-t border-slate-100 bg-slate-50/50" showCloseButton>
+        <DialogFooter className="mx-0 mb-0 border-t border-slate-100 bg-slate-50/50" showCloseButton>
           <Button
             onClick={handleConfirm}
             disabled={!selectedGoal || !description.trim() || isPending}

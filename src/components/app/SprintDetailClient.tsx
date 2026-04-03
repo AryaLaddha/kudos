@@ -408,7 +408,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                 {participants.map((p, rowIdx) => {
                   const total = grandTotal(p, wonCols, dedCols);
                   const isSaving = savingId === p.user_id;
-                  const rowBg = rowIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
+                  const rowBg = rowIdx % 2 === 0 ? "bg-white" : "bg-slate-50";
                   return (
                     <tr key={p.user_id} className={cn("border-b border-slate-100 hover:bg-slate-100/50 transition-colors", rowBg)}>
                       {/* Name */}

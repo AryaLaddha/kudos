@@ -188,6 +188,15 @@ VALUES
     now(), '{"full_name":"Paulene Pascual"}'::jsonb,
     '{"provider":"email","providers":["email"]}'::jsonb,
     now(), now(), '', '', '', ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    gen_random_uuid(), 'authenticated', 'authenticated',
+    'rachelle.brade@scape.com.au.invalid',
+    crypt('Welcome123!', gen_salt('bf')),
+    now(), '{"full_name":"Rachelle Brade"}'::jsonb,
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    now(), now(), '', '', '', ''
   );
 
 -- 4. Assign all newly created profiles to the Scape org
@@ -195,11 +204,23 @@ UPDATE profiles
 SET org_id = 'aaaaaaaa-0000-0000-0000-000000000001'
 WHERE org_id IS NULL;
 
+-- 5. Set org admins
+UPDATE profiles
+SET is_admin = true
+WHERE id IN (
+  SELECT p.id FROM profiles p
+  JOIN auth.users au ON au.id = p.id
+  WHERE au.email IN (
+    'angelica.chavez@scape.com.au.invalid',
+    'rachelle.brade@scape.com.au.invalid'
+  )
+);
+
 -- ============================================================
 -- Verification queries (run these to confirm):
 -- SELECT count(*) FROM organizations;          -- expect: 1
--- SELECT count(*) FROM profiles;               -- expect: 17
--- SELECT count(*) FROM auth.users;             -- expect: 17
+-- SELECT count(*) FROM profiles;               -- expect: 18
+-- SELECT count(*) FROM auth.users;             -- expect: 18
 -- SELECT count(*) FROM recognitions;           -- expect: 0
--- SELECT full_name, monthly_allowance, points_balance FROM profiles ORDER BY full_name;
+-- SELECT full_name, monthly_allowance, points_balance, is_admin FROM profiles ORDER BY full_name;
 -- ============================================================

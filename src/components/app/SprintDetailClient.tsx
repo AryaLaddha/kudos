@@ -10,6 +10,8 @@ import {
   removeParticipant,
   updateParticipantScores,
   deleteSprint,
+  updateSprintStatus,
+  updateAllParticipants,
 } from "@/app/(app)/sprints/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -22,6 +24,7 @@ interface Sprint {
   name: string;
   start_date: string;
   end_date: string;
+  status: "active" | "completed";
   columns: { won: Column[]; deducted: Column[] };
 }
 interface Profile { id: string; full_name: string; avatar_url: string | null; job_title?: string | null; }
@@ -137,9 +140,41 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
   const ranked = useMemo(() =>
     [...participants]
       .map(p => ({ ...p, total: grandTotal(p, wonCols, dedCols) }))
-      .sort((a, b) => b.total - a.total),
+      .sort((a, b) => {
+        if (b.total !== a.total) return b.total - a.total;
+        return a.profile.full_name.localeCompare(b.profile.full_name);
+      }),
     [participants, wonCols, dedCols]
   );
+
+  async function handleToggleStatus() {
+    const next = sprint.status === "completed" ? "active" : "completed";
+    const res = await updateSprintStatus(sprint.id, next);
+    if ("error" in res && res.error) toast.error(res.error);
+    else toast.success(`Sprint marked as ${next}`);
+  }
+
+  async function handleSaveAll() {
+    const overAllocated = participants.find(p => {
+      const total = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
+      return total > 100;
+    });
+    if (overAllocated) {
+      toast.error(`Cannot save. ${overAllocated.profile.full_name} exceeds 100% allocation.`);
+      return;
+    }
+
+    setSavingId("ALL");
+    const res = await updateAllParticipants(sprint.id, participants.map(p => ({
+      user_id: p.user_id,
+      scores: p.scores,
+      base_points: p.base_points,
+      project_allocations: p.project_allocations
+    })));
+    setSavingId(null);
+    if ("error" in res && res.error) toast.error(res.error);
+    else toast.success("All changes saved!");
+  }
 
   const winner = ranked[0];
 
@@ -240,18 +275,35 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
             <Zap className="h-5 w-5 text-violet-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">{sprint.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-extrabold text-slate-900">{sprint.name}</h1>
+              <div className={cn(
+                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                sprint.status === "completed" ? "bg-slate-100 text-slate-500" : "bg-green-100 text-green-700"
+              )}>
+                {sprint.status === "completed" ? "Completed" : "In Progress"}
+              </div>
+            </div>
             <p className="text-sm text-slate-500">{formatDate(sprint.start_date)} – {formatDate(sprint.end_date)}</p>
           </div>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleStatus}
+            className="h-9 px-3 gap-2"
+          >
+            {sprint.status === "completed" ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
+            {sprint.status === "completed" ? "Re-open Sprint" : "Complete Sprint"}
+          </Button>
           <Button
             variant="ghost"
             onClick={handleDeleteSprint}
             className="text-slate-400 hover:text-red-500 hover:bg-red-50 gap-2 h-9 px-3"
           >
             <Trash2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Delete Sprint</span>
+            <span className="hidden sm:inline">Delete</span>
           </Button>
         </div>
       </div>
@@ -378,7 +430,18 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
         <div>
           {/* Add participant */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{participants.length} Participants</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{participants.length} Participants</h2>
+              <Button
+                size="sm"
+                onClick={handleSaveAll}
+                disabled={savingId === "ALL"}
+                className="gap-1.5 text-xs h-8 bg-green-600 hover:bg-green-700 text-white font-bold"
+              >
+                {savingId === "ALL" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Save All Changes
+              </Button>
+            </div>
             <Button
               size="sm"
               onClick={() => setShowAddUser(v => !v)}

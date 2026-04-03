@@ -131,6 +131,15 @@ export async function updateSprintColumns(id: string, columns: object) {
   return {};
 }
 
+export async function updateSprintStatus(id: string, status: "active" | "completed") {
+  const { supabase } = await requireAdminClient();
+  const { error } = await supabase.from("sprints").update({ status }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/sprints/${id}`);
+  revalidatePath("/sprints");
+  return {};
+}
+
 // ── SPRINT PARTICIPANTS ────────────────────────────────────────
 
 export async function getSprintParticipants(sprintId: string) {
@@ -139,6 +148,11 @@ export async function getSprintParticipants(sprintId: string) {
     .from("sprint_participants")
     .select("*, profile:profiles(id, full_name, avatar_url, job_title)")
     .eq("sprint_id", sprintId);
+    
+  if (data) {
+    // Sort by name ascending for the grid
+    data.sort((a: any, b: any) => a.profile.full_name.localeCompare(b.profile.full_name));
+  }
   return data ?? [];
 }
 
@@ -191,6 +205,33 @@ export async function updateParticipantScores(
     .update({ scores, base_points: basePoints, project_allocations: projectAllocations })
     .eq("sprint_id", sprintId)
     .eq("user_id", userId);
+  if (error) return { error: error.message };
+  revalidatePath(`/sprints/${sprintId}`);
+  return {};
+}
+
+export async function updateAllParticipants(
+  sprintId: string,
+  payload: {
+    user_id: string;
+    scores: Record<string, number>;
+    base_points: number;
+    project_allocations: Record<string, number>;
+  }[]
+) {
+  const { supabase } = await requireAdminClient();
+  
+  // Upsert all records (Supabase upsert works with bulk arrays)
+  const { error } = await supabase
+    .from("sprint_participants")
+    .upsert(payload.map(p => ({
+      sprint_id: sprintId,
+      user_id: p.user_id,
+      scores: p.scores,
+      base_points: p.base_points,
+      project_allocations: p.project_allocations
+    })));
+
   if (error) return { error: error.message };
   revalidatePath(`/sprints/${sprintId}`);
   return {};

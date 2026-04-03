@@ -13,6 +13,7 @@ interface Sprint {
   name: string;
   start_date: string;
   end_date: string;
+  status: "active" | "completed";
   sprint_participants: { count: number }[];
 }
 
@@ -174,22 +175,22 @@ export default function SprintsClient({ sprints, projects }: Props) {
           </div>
         )}
         {sprints.map(sprint => {
-          const active = isActive(sprint);
+          const active = sprint.status === "active";
           const participantCount = sprint.sprint_participants?.[0]?.count ?? 0;
           return (
             <button
               key={sprint.id}
               onClick={() => startTransition(() => router.push(`/sprints/${sprint.id}`))}
               className={cn(
-                "w-full text-left rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5",
-                active ? "border-violet-200 bg-violet-50" : "border-slate-100 bg-white"
+                "w-full text-left rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 relative group",
+                active ? "border-violet-200 bg-violet-50/30" : "border-slate-100 bg-white"
               )}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <div className={cn("h-2.5 w-2.5 rounded-full", active ? "bg-violet-500" : "bg-slate-300")} />
-                  <span className={cn("text-[11px] font-bold uppercase tracking-wide", active ? "text-violet-600" : "text-slate-400")}>
-                    {active ? "Active" : "Completed"}
+                  <div className={cn("h-2.5 w-2.5 rounded-full", active ? "bg-green-500 animate-pulse" : "bg-slate-300")} />
+                  <span className={cn("text-[11px] font-bold uppercase tracking-wide", active ? "text-green-600" : "text-slate-400")}>
+                    {active ? "In Progress" : "Completed"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

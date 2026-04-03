@@ -83,8 +83,34 @@ export async function createSprint(payload: {
     .select()
     .single();
   if (error) return { error: error.message };
+
+  // Auto-add all org members to the new sprint
+  const { data: orgUsers } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("org_id", orgId);
+
+  if (orgUsers && orgUsers.length > 0) {
+    const participants = orgUsers.map((u) => ({
+      sprint_id: data.id,
+      user_id: u.id,
+      base_points: payload.base_points,
+      scores: {},
+      project_allocations: {},
+    }));
+    await supabase.from("sprint_participants").insert(participants);
+  }
+
   revalidatePath("/sprints");
   return { data };
+}
+
+export async function deleteSprint(id: string) {
+  const { supabase } = await requireAdminClient();
+  const { error } = await supabase.from("sprints").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/sprints");
+  return {};
 }
 
 export async function getSprintById(id: string) {

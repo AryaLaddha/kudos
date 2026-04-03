@@ -2,20 +2,18 @@
 
 CREATE TABLE IF NOT EXISTS public.projects (
   id uuid primary key default gen_random_uuid(),
-  org_id text references public.orgs(id),
+  org_id uuid references public.organizations(id) on delete cascade,
   name text not null,
   created_at timestamp with time zone default now()
 );
 
--- Note: Since the admin dashboard is generally isolated by organization,
--- we ensure everything has an org_id column or link
 CREATE TABLE IF NOT EXISTS public.sprints (
   id uuid primary key default gen_random_uuid(),
-  org_id text references public.orgs(id) not null,
+  org_id uuid references public.organizations(id) on delete cascade not null,
   name text not null,
   start_date date,
   end_date date,
-  columns jsonb default '{"won": [], "deducted": []}'::jsonb, 
+  columns jsonb default '{"won": [], "deducted": []}'::jsonb,
   created_at timestamp with time zone default now()
 );
 
@@ -45,8 +43,16 @@ CREATE POLICY "Admins manage projects" ON public.projects
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE profiles.id = auth.uid() 
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.is_admin = true
+      AND profiles.org_id = projects.org_id
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
       AND profiles.is_admin = true
       AND profiles.org_id = projects.org_id
     )
@@ -58,8 +64,16 @@ CREATE POLICY "Admins manage sprints" ON public.sprints
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE profiles.id = auth.uid() 
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.is_admin = true
+      AND profiles.org_id = sprints.org_id
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
       AND profiles.is_admin = true
       AND profiles.org_id = sprints.org_id
     )
@@ -70,6 +84,15 @@ CREATE POLICY "Admins manage sprint_participants" ON public.sprint_participants
   AS PERMISSIVE FOR ALL
   TO authenticated
   USING (
+    EXISTS (
+      SELECT 1 FROM public.sprints
+      JOIN public.profiles ON profiles.org_id = sprints.org_id
+      WHERE sprints.id = sprint_participants.sprint_id
+      AND profiles.id = auth.uid()
+      AND profiles.is_admin = true
+    )
+  )
+  WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.sprints
       JOIN public.profiles ON profiles.org_id = sprints.org_id

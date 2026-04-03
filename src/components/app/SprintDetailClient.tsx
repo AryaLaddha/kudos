@@ -2,13 +2,14 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, Target } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, Target, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   addParticipant,
   removeParticipant,
   updateParticipantScores,
+  deleteSprint,
 } from "@/app/(app)/sprints/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -117,6 +118,16 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
     toast.success("Removed from sprint");
   }
 
+  async function handleDeleteSprint() {
+    if (!confirm(`Are you sure you want to delete the sprint "${sprint.name}"? This will delete all associated point data.`)) return;
+    const res = await deleteSprint(sprint.id);
+    if ("error" in res && res.error) toast.error(res.error);
+    else {
+      toast.success("Sprint deleted");
+      startTransition(() => router.push("/sprints"));
+    }
+  }
+
   // ── Analytics ─────────────────────────────────────────────
   const ranked = useMemo(() =>
     [...participants]
@@ -174,6 +185,16 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
             <h1 className="text-2xl font-extrabold text-slate-900">{sprint.name}</h1>
             <p className="text-sm text-slate-500">{formatDate(sprint.start_date)} – {formatDate(sprint.end_date)}</p>
           </div>
+        </div>
+        <div className="ml-auto">
+          <Button
+            variant="ghost"
+            onClick={handleDeleteSprint}
+            className="text-slate-400 hover:text-red-500 hover:bg-red-50 gap-2 h-9 px-3"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Delete Sprint</span>
+          </Button>
         </div>
       </div>
 

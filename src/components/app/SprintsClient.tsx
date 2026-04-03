@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Plus, Calendar, Users, Loader2, X } from "lucide-react";
+import { Zap, Plus, Calendar, Users, Loader2, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createSprint, createProject, deleteProject } from "@/app/(app)/sprints/actions";
+import { createSprint, createProject, deleteProject, deleteSprint } from "@/app/(app)/sprints/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +81,16 @@ export default function SprintsClient({ sprints, projects }: Props) {
     const res = await deleteProject(id);
     if ("error" in res && res.error) toast.error(res.error);
     else startTransition(() => router.refresh());
+  }
+
+  async function handleDeleteSprint(id: string, name: string) {
+    if (!confirm(`Are you sure you want to delete the sprint "${name}"? This will delete all associated point data.`)) return;
+    const res = await deleteSprint(id);
+    if ("error" in res && res.error) toast.error(res.error);
+    else {
+      toast.success("Sprint deleted");
+      startTransition(() => router.refresh());
+    }
   }
 
   return (
@@ -182,7 +192,18 @@ export default function SprintsClient({ sprints, projects }: Props) {
                     {active ? "Active" : "Completed"}
                   </span>
                 </div>
-                {isPending && <Loader2 className="h-4 w-4 text-violet-400 animate-spin" />}
+                <div className="flex items-center gap-2">
+                  {isPending && <Loader2 className="h-4 w-4 text-violet-400 animate-spin" />}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteSprint(sprint.id, sprint.name);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </div>
+                </div>
               </div>
               <h2 className="text-lg font-extrabold text-slate-900 mb-2">{sprint.name}</h2>
               <div className="flex items-center gap-4 text-xs text-slate-500">

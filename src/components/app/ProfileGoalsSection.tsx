@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Trophy, Plus, Trash2, CheckCircle2, Loader2 } from "lucide-react";
+import { Trophy, Plus, Trash2, CheckCircle2, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { GOALS, GOAL_CATEGORIES, type GoalDefinition } from "@/lib/goals";
 import type { EnrichedUserGoal } from "@/types";
 import { adminAddGoalForUser, adminDeleteGoal } from "@/app/(app)/goals/actions";
@@ -56,13 +57,13 @@ export default function ProfileGoalsSection({
   const existingIds = goals.map((g) => g.goal_id);
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-5 sm:p-8 shadow-sm mt-6">
+    <div className="rounded-2xl border border-slate-100 bg-white p-5 sm:p-8 shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-amber-500" />
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            Achievements
+            Completed Goals
           </h2>
           {goals.length > 0 && (
             <span className="text-xs bg-amber-50 text-amber-600 font-bold px-2 py-0.5 rounded-full">
@@ -77,7 +78,7 @@ export default function ProfileGoalsSection({
             className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
           >
             <Plus className="h-3.5 w-3.5" />
-            Add Achievement
+            Add Goal
           </Button>
         )}
       </div>
@@ -171,15 +172,18 @@ function AdminGoalsPicker({
 }: PickerProps) {
   const [selectedGoal, setSelectedGoal] = useState<GoalDefinition | null>(null);
   const [description, setDescription] = useState("");
+  const [search, setSearch] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const existingSet = new Set(existingGoalIds);
+  const searchLower = search.toLowerCase().trim();
   const allAdded = GOALS.every((g) => existingSet.has(g.id));
 
   function handleClose(value: boolean) {
     if (!value) {
       setSelectedGoal(null);
       setDescription("");
+      setSearch("");
     }
     onOpenChange(value);
   }
@@ -224,23 +228,41 @@ function AdminGoalsPicker({
       >
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100">
           <DialogTitle className="text-base font-bold text-slate-900">
-            Log an Achievement
+            Log a Completed Goal
           </DialogTitle>
           <p className="text-xs text-slate-500 mt-0.5">
             Select a goal they&apos;ve completed, then describe how they achieved it.
           </p>
         </DialogHeader>
 
+        {/* Search */}
+        {!allAdded && (
+          <div className="px-3 pt-3 pb-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              <Input
+                placeholder="Search goals…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 text-sm h-9"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Goal list */}
         <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
           {allAdded ? (
             <p className="text-sm text-slate-500 text-center py-6">
-              All available achievements have been logged for this user.
+              All available goals have been logged for this user.
             </p>
           ) : (
             GOAL_CATEGORIES.map((cat) => {
               const catGoals = GOALS.filter(
-                (g) => g.category === cat && !existingSet.has(g.id),
+                (g) =>
+                  g.category === cat &&
+                  !existingSet.has(g.id) &&
+                  (!searchLower || g.title.toLowerCase().includes(searchLower)),
               );
               if (catGoals.length === 0) return null;
               return (
@@ -293,6 +315,11 @@ function AdminGoalsPicker({
               );
             })
           )}
+          {!allAdded && searchLower && GOALS.every(
+            (g) => existingSet.has(g.id) || !g.title.toLowerCase().includes(searchLower)
+          ) && (
+            <p className="text-sm text-slate-500 text-center py-6">No goals match your search.</p>
+          )}
         </div>
 
         {/* Description */}
@@ -317,7 +344,7 @@ function AdminGoalsPicker({
           </div>
         )}
 
-        <DialogFooter className="border-t border-slate-100 bg-slate-50/50" showCloseButton>
+        <DialogFooter className="mx-0 mb-0 border-t border-slate-100 bg-slate-50/50" showCloseButton>
           <Button
             onClick={handleConfirm}
             disabled={!selectedGoal || !description.trim() || isPending}

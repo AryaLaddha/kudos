@@ -54,7 +54,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     supabase.from("recognitions").select("*", { count: "exact", head: true }).eq("giver_id", id),
   ]);
 
-  const activeTab = tab === "given" ? "given" : "received";
+  const activeTab = tab === "given" ? "given" : tab === "goals" ? "goals" : "received";
   const totalItems = activeTab === "received" ? (receivedCount ?? 0) : (givenCount ?? 0);
   const totalPages = Math.max(1, Math.ceil(totalItems / PER_PAGE));
 
@@ -218,18 +218,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         )}
       </div>
 
-      {/* Goals / Achievements — visible to profile owner and admins only */}
-      {canSeeGoals && (
-        <ProfileGoalsSection
-          initialGoals={achievedGoals}
-          isAdmin={viewerIsAdmin}
-          targetUserId={id}
-          orgId={profile.org_id ?? ""}
-        />
-      )}
-
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 mb-6 mt-6">
+      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 mb-6">
         <Link
           href={`/profile/${id}?tab=received&page=1`}
           className={cn(
@@ -262,33 +252,63 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             </span>
           )}
         </Link>
+        {canSeeGoals && (
+          <Link
+            href={`/profile/${id}?tab=goals`}
+            className={cn(
+              "flex-1 rounded-lg px-4 py-2 text-sm font-semibold text-center transition-colors",
+              activeTab === "goals"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Completed Goals
+            {achievedGoals.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600 font-bold">
+                {achievedGoals.length}
+              </span>
+            )}
+          </Link>
+        )}
       </div>
 
+      {/* Goals tab */}
+      {activeTab === "goals" && canSeeGoals && (
+        <ProfileGoalsSection
+          initialGoals={achievedGoals}
+          isAdmin={viewerIsAdmin}
+          targetUserId={id}
+          orgId={profile.org_id ?? ""}
+        />
+      )}
+
       {/* Recognition list */}
-      {!recognitions || recognitions.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
-          <p className="text-sm text-slate-400">
-            {activeTab === "received"
-              ? "No recognitions yet — be the first to give kudos!"
-              : "No kudos given yet."}
-          </p>
-          {activeTab === "received" && !isOwn && (
-            <Link href="/give" className="mt-3 inline-block">
-              <Button size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
-                Give Kudos
-              </Button>
-            </Link>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="space-y-4">
-            {recognitionsWithReceivers.map((r) => (
-              <RecognitionCard key={r.id} recognition={r} currentUserId={user.id} />
-            ))}
+      {activeTab !== "goals" && (
+        !recognitions || recognitions.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+            <p className="text-sm text-slate-400">
+              {activeTab === "received"
+                ? "No recognitions yet — be the first to give kudos!"
+                : "No kudos given yet."}
+            </p>
+            {activeTab === "received" && !isOwn && (
+              <Link href="/give" className="mt-3 inline-block">
+                <Button size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
+                  Give Kudos
+                </Button>
+              </Link>
+            )}
           </div>
-          <Pagination page={pageNum} totalPages={totalPages} buildHref={buildHref} />
-        </>
+        ) : (
+          <>
+            <div className="space-y-4">
+              {recognitionsWithReceivers.map((r) => (
+                <RecognitionCard key={r.id} recognition={r} currentUserId={user.id} />
+              ))}
+            </div>
+            <Pagination page={pageNum} totalPages={totalPages} buildHref={buildHref} />
+          </>
+        )
       )}
     </div>
   );

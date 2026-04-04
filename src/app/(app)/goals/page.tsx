@@ -4,7 +4,7 @@ import { GOALS } from "@/lib/goals";
 import { EnrichedUserGoal, UserGoal } from "@/types";
 import GoalsPageClient from "@/components/app/GoalsPageClient";
 
-export const dynamic = "force-dynamic";
+// Pages using cookies() are already dynamic — no need for force-dynamic
 
 function enrichGoals(rows: UserGoal[]): EnrichedUserGoal[] {
   return rows.flatMap((row) => {
@@ -31,7 +31,7 @@ export default async function GoalsPage() {
 
   const { data: rows } = await supabase
     .from("user_goals")
-    .select("*")
+    .select("id, user_id, goal_id, status, description, created_at, org_id")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 

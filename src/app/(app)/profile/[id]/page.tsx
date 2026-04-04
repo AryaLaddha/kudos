@@ -12,7 +12,7 @@ import type { Recognition, Profile, EnrichedUserGoal } from "@/types";
 import { getGoalById } from "@/lib/goals";
 import { cn } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+// Pages using cookies() + searchParams are already dynamic — no need for force-dynamic
 
 const PER_PAGE = 10;
 
@@ -34,7 +34,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id, org_id, full_name, avatar_url, department, job_title, points_balance, monthly_allowance, is_admin, created_at")
     .eq("id", id)
     .single();
 
@@ -50,8 +50,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
   // Count totals for tab labels and pagination
   const [{ count: receivedCount }, { count: givenCount }] = await Promise.all([
-    supabase.from("recognitions").select("*", { count: "exact", head: true }).eq("receiver_id", id),
-    supabase.from("recognitions").select("*", { count: "exact", head: true }).eq("giver_id", id),
+    supabase.from("recognitions").select("id", { count: "exact", head: true }).eq("receiver_id", id),
+    supabase.from("recognitions").select("id", { count: "exact", head: true }).eq("giver_id", id),
   ]);
 
   const activeTab = tab === "given" ? "given" : tab === "goals" ? "goals" : "received";
@@ -62,11 +62,11 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const recognitionQuery = supabase
     .from("recognitions")
     .select(`
-      *,
-      giver:profiles!recognitions_giver_id_fkey(*),
-      receiver:profiles!recognitions_receiver_id_fkey(*),
-      reactions(*),
-      comments(*, user:profiles(*))
+      id, org_id, giver_id, receiver_id, receiver_ids, message, points, hashtags, created_at,
+      giver:profiles!recognitions_giver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at),
+      receiver:profiles!recognitions_receiver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at),
+      reactions(id, recognition_id, user_id, emoji, created_at),
+      comments(id, recognition_id, user_id, message, points_tip, created_at, user:profiles(id, full_name, avatar_url))
     `)
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -88,7 +88,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   if (allReceiverIds.size > 0) {
     const { data: receiverProfiles } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at")
       .in("id", [...allReceiverIds]);
     for (const p of receiverProfiles ?? []) {
       receiversMap.set(p.id, p as Profile);
@@ -110,7 +110,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   if (canSeeGoals) {
     const { data: rawGoals } = await supabase
       .from("user_goals")
-      .select("*")
+      .select("id, user_id, goal_id, status, description, created_at, org_id")
       .eq("user_id", id)
       .eq("status", "achieved")
       .order("created_at", { ascending: false });

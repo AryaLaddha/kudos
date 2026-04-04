@@ -242,32 +242,36 @@ export async function updateAllParticipants(
 export async function getAdminAnalytics() {
   const { supabase, orgId } = await requireAdminClient();
 
-  // Fetch everything in parallel
+  // Fetch sprints first to get org-scoped IDs for filtering participants
+  const { data: sprints } = await supabase
+    .from("sprints")
+    .select("id, name, start_date, end_date")
+    .eq("org_id", orgId)
+    .order("start_date", { ascending: false });
+
+  const sprintIds = sprints?.map(s => s.id) ?? [];
+
+  // Fetch everything else in parallel — participants filtered at DB level by org's sprint IDs
   const [
-    { data: sprints },
     { data: projects },
     { data: participants },
     { data: orgUsers },
     { data: userGoals },
     { data: recognitions }
   ] = await Promise.all([
-    supabase.from("sprints").select("*").eq("org_id", orgId).order("start_date", { ascending: false }),
-    supabase.from("projects").select("*").eq("org_id", orgId).order("name"),
-    supabase.from("sprint_participants").select("*, profile:profiles(id, full_name, avatar_url, job_title)").order("created_at"),
+    supabase.from("projects").select("id, name").eq("org_id", orgId).order("name"),
+    sprintIds.length > 0
+      ? supabase.from("sprint_participants").select("sprint_id, user_id, base_points, scores, project_allocations, profile:profiles(id, full_name, avatar_url, job_title)").in("sprint_id", sprintIds)
+      : Promise.resolve({ data: [] }),
     supabase.from("profiles").select("id, full_name, avatar_url, job_title").eq("org_id", orgId).order("full_name"),
-    supabase.from("user_goals").select("*").eq("org_id", orgId).order("created_at"),
+    supabase.from("user_goals").select("id, user_id, goal_id, status, description, created_at, org_id").eq("org_id", orgId).order("created_at"),
     supabase.from("recognitions").select("receiver_id, receiver_ids, points, created_at").eq("org_id", orgId)
   ]);
-
-  // Filter participants to only those belonging to sprints of this org
-  // (In a scale-up scenario, this would be a join or internal RLS is enough)
-  const sprintIds = new Set(sprints?.map(s => s.id) || []);
-  const filteredParticipants = participants?.filter(p => sprintIds.has(p.sprint_id)) || [];
 
   return {
     sprints: sprints || [],
     projects: projects || [],
-    participants: filteredParticipants,
+    participants: participants || [],
     orgUsers: orgUsers || [],
     userGoals: userGoals || [],
     recognitions: recognitions || []

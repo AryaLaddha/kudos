@@ -3,7 +3,7 @@ import { getSprintById, getSprintParticipants, getProjects, getOrgUsers } from "
 import { notFound } from "next/navigation";
 import SprintDetailClient from "@/components/app/SprintDetailClient";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30; // admin data — tolerate up to 30s staleness
 
 interface Props {
   params: Promise<{ id: string }>;

@@ -6,7 +6,7 @@ import RecognitionCard from "@/components/app/RecognitionCard";
 import Pagination from "@/components/app/Pagination";
 import type { Recognition, Profile } from "@/types";
 
-export const dynamic = "force-dynamic";
+// Pages using cookies() are already dynamic — no need for force-dynamic
 
 const PER_PAGE = 20;
 
@@ -28,14 +28,14 @@ export default async function FeedPage({ searchParams }: Props) {
   // Get user's profile + org
   const { data: profile } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id, org_id, full_name, avatar_url, department, job_title, points_balance, monthly_allowance, is_admin, created_at")
     .eq("id", user.id)
     .single();
 
   // Count total for pagination
   let countQuery = supabase
     .from("recognitions")
-    .select("*", { count: "exact", head: true });
+    .select("id", { count: "exact", head: true });
   if (profile?.org_id) countQuery = countQuery.eq("org_id", profile.org_id);
   const { count: totalCount } = await countQuery;
 
@@ -43,11 +43,11 @@ export default async function FeedPage({ searchParams }: Props) {
   let query = supabase
     .from("recognitions")
     .select(`
-      *,
-      giver:profiles!recognitions_giver_id_fkey(*),
-      receiver:profiles!recognitions_receiver_id_fkey(*),
-      reactions(*),
-      comments(*, user:profiles(*))
+      id, org_id, giver_id, receiver_id, receiver_ids, message, points, hashtags, created_at,
+      giver:profiles!recognitions_giver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at),
+      receiver:profiles!recognitions_receiver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at),
+      reactions(id, recognition_id, user_id, emoji, created_at),
+      comments(id, recognition_id, user_id, message, points_tip, created_at, user:profiles(id, full_name, avatar_url))
     `)
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -69,7 +69,7 @@ export default async function FeedPage({ searchParams }: Props) {
   if (allReceiverIds.size > 0) {
     const { data: receiverProfiles } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at")
       .in("id", [...allReceiverIds]);
     for (const p of receiverProfiles ?? []) {
       receiversMap.set(p.id, p as Profile);

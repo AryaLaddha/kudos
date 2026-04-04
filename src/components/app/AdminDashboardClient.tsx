@@ -288,12 +288,22 @@ export default function AdminDashboardClient({
           )}
         </div>
 
-        {(tab === "recognition" || tab === "sprint" || tab === "quality") && (
-          <div className="flex p-0.5 bg-slate-100/60 rounded-lg">
-            <button onClick={() => setViewMode("list")} className={cn("p-1.5 rounded-md transition-all", viewMode === "list" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}><ListOrdered className="h-4 w-4" /></button>
-            <button onClick={() => setViewMode("graph")} className={cn("p-1.5 rounded-md transition-all", viewMode === "graph" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}><BarChart3 className="h-4 w-4" /></button>
-          </div>
-        )}
+        <div className="flex flex-col items-end gap-1 text-right">
+          <p className="text-xs font-medium text-slate-400 italic max-w-xs leading-tight">
+            {tab === "recognition" && "Track team recognition points and extra performance bonuses across any time period."}
+            {tab === "sprint" && "Cumulative performance audit: Base points plus net wins and deductions per sprint."}
+            {tab === "goals" && "Team growth heatmap: Tracking certifications, professional development, and contribution goals."}
+            {tab === "projects" && "Project efficiency index: Comparing team effort (allocation) vs. actual recognized results."}
+            {tab === "quality" && "Systemic issue monitor: Tracking bugs, absences, and communication audit trends."}
+            {tab === "utilization" && "Resource utilization audit: Live overview of team workload and burnout risk."}
+          </p>
+          {(tab === "recognition" || tab === "sprint" || tab === "quality") && (
+            <div className="flex p-0.5 bg-slate-100/60 rounded-lg">
+              <button onClick={() => setViewMode("list")} className={cn("p-1.5 rounded-md transition-all", viewMode === "list" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}><ListOrdered className="h-4 w-4" /></button>
+              <button onClick={() => setViewMode("graph")} className={cn("p-1.5 rounded-md transition-all", viewMode === "graph" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}><BarChart3 className="h-4 w-4" /></button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main View Area */}

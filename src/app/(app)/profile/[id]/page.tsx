@@ -81,7 +81,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   let receiversMap = new Map<string, Profile>();
   const allReceiverIds = new Set<string>();
   for (const r of recognitions ?? []) {
-    for (const rid of ((r as Recognition & { receiver_ids?: string[] }).receiver_ids ?? [])) {
+    for (const rid of ((r as unknown as Recognition & { receiver_ids?: string[] }).receiver_ids ?? [])) {
       allReceiverIds.add(rid);
     }
   }
@@ -96,9 +96,10 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   }
 
   const recognitionsWithReceivers = (recognitions ?? []).map((r) => {
-    const rids = ((r as Recognition & { receiver_ids?: string[] }).receiver_ids ?? []);
+    const row = r as unknown as Recognition & { receiver_ids?: string[] };
+    const rids = row.receiver_ids ?? [];
     const receivers = rids.map((rid: string) => receiversMap.get(rid)).filter(Boolean) as Profile[];
-    return { ...r, receivers: receivers.length > 0 ? receivers : undefined } as Recognition;
+    return { ...row, receivers: receivers.length > 0 ? receivers : undefined } as Recognition;
   });
 
   const isOwn = user.id === id;

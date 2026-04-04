@@ -62,7 +62,7 @@ export default async function FeedPage({ searchParams }: Props) {
   let receiversMap = new Map<string, Profile>();
   const allReceiverIds = new Set<string>();
   for (const r of recognitions ?? []) {
-    for (const id of ((r as Recognition & { receiver_ids?: string[] }).receiver_ids ?? [])) {
+    for (const id of ((r as unknown as Recognition & { receiver_ids?: string[] }).receiver_ids ?? [])) {
       allReceiverIds.add(id);
     }
   }
@@ -78,9 +78,10 @@ export default async function FeedPage({ searchParams }: Props) {
 
   // Attach receivers array to each recognition
   const recognitionsWithReceivers = (recognitions ?? []).map((r) => {
-    const rids = ((r as Recognition & { receiver_ids?: string[] }).receiver_ids ?? []);
+    const row = r as unknown as Recognition & { receiver_ids?: string[] };
+    const rids = row.receiver_ids ?? [];
     const receivers = rids.map((id: string) => receiversMap.get(id)).filter(Boolean) as Profile[];
-    return { ...r, receivers: receivers.length > 0 ? receivers : undefined } as Recognition;
+    return { ...row, receivers: receivers.length > 0 ? receivers : undefined } as Recognition;
   });
 
   // Demo recognitions when DB is empty / no org

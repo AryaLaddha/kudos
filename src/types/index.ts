@@ -14,9 +14,10 @@ export type Profile = {
   avatar_url: string | null;
   department: string | null;
   job_title: string | null;
-  monthly_allowance: number;
-  points_balance: number;
-  is_admin: boolean;
+  // Optional — only fetched when the current user's own profile is loaded
+  monthly_allowance?: number;
+  points_balance?: number;
+  is_admin?: boolean;
   created_at: string;
 };
 

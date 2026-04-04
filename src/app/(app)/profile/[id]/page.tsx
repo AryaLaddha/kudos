@@ -63,8 +63,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     .from("recognitions")
     .select(`
       id, org_id, giver_id, receiver_id, receiver_ids, message, points, hashtags, created_at,
-      giver:profiles!recognitions_giver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at),
-      receiver:profiles!recognitions_receiver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at),
+      giver:profiles!recognitions_giver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, created_at),
+      receiver:profiles!recognitions_receiver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, created_at),
       reactions(id, recognition_id, user_id, emoji, created_at),
       comments(id, recognition_id, user_id, message, points_tip, created_at, user:profiles(id, full_name, avatar_url))
     `)
@@ -88,7 +88,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   if (allReceiverIds.size > 0) {
     const { data: receiverProfiles } = await supabase
       .from("profiles")
-      .select("id, full_name, avatar_url, job_title, department, org_id, points_balance, monthly_allowance, is_admin, created_at")
+      .select("id, full_name, avatar_url, job_title, department, org_id, created_at")
       .in("id", [...allReceiverIds]);
     for (const p of receiverProfiles ?? []) {
       receiversMap.set(p.id, p as Profile);

@@ -77,9 +77,9 @@ export default function GiveKudosPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("id, org_id, full_name, avatar_url, job_title, department, points_balance, monthly_allowance, is_admin, created_at").eq("id", user.id).single();
       setCurrentUser(profile);
-      let query = supabase.from("profiles").select("*").neq("id", user.id);
+      let query = supabase.from("profiles").select("id, org_id, full_name, avatar_url, job_title, department, created_at").neq("id", user.id);
       if (profile?.org_id) query = query.eq("org_id", profile.org_id);
       const { data: team } = await query.limit(50);
       setTeammates(team ?? []);

@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Recognition, Comment } from "@/types";
 import { cn } from "@/lib/utils";
 import { MessageCircle, Send, Coins, X } from "lucide-react";
+import { toast } from "sonner";
 
 const EMOJI_OPTIONS = ["❤️", "🙌", "🚀", "🎉", "💯"];
 
@@ -135,6 +136,8 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
         .eq("emoji", emoji);
       if (!error) {
         setReactions((prev) => prev?.filter((r) => !(r.emoji === emoji && r.user_id === currentUserId)));
+      } else {
+        toast.error("Couldn't remove reaction. Please try again.");
       }
     } else {
       const { data, error } = await supabase
@@ -144,6 +147,8 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
         .single();
       if (!error && data) {
         setReactions((prev) => [...(prev ?? []), data]);
+      } else if (error) {
+        toast.error("Couldn't add reaction. Please try again.");
       }
     }
   }
@@ -157,7 +162,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
 
     const totalTip = tip * Math.max(receivers.length, 1);
     if (tip > 0 && userAllowance !== null && totalTip > userAllowance) {
-      alert(`You only have ${userAllowance} pts available, but this costs ${totalTip} pts.`);
+      toast.error(`You only have ${userAllowance} pts available, but this costs ${totalTip} pts.`);
       return;
     }
 
@@ -170,7 +175,9 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
 
     if (error) {
       if (error.message?.includes("insufficient_points")) {
-        alert("You don't have enough points to tip that amount.");
+        toast.error("You don't have enough points to tip that amount.");
+      } else {
+        toast.error("Something went wrong. Please try again.");
       }
     } else {
       // Prepend newest first, attaching current user profile so name shows immediately

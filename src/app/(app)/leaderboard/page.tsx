@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+
+export const revalidate = 300; // Revalidate every 5 minutes — leaderboard doesn't need real-time
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Trophy, Medal } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,13 +34,15 @@ export default async function LeaderboardPage() {
       .from("recognitions")
       .select("id, receiver_ids, points")
       .eq("org_id", currentProfile.org_id)
-      .gte("created_at", monthStart),
+      .gte("created_at", monthStart)
+      .limit(500),
     supabase
       .from("comments")
       .select("recognition_id, points_tip, recognitions!inner(receiver_ids, org_id)")
       .eq("recognitions.org_id", currentProfile.org_id)
       .gte("created_at", monthStart)
-      .gt("points_tip", 0),
+      .gt("points_tip", 0)
+      .limit(500),
   ]);
 
   // Collect all unique receiver IDs across all posts

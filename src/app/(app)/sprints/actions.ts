@@ -62,6 +62,7 @@ export async function createSprint(payload: {
       start_date: payload.start_date,
       end_date: payload.end_date,
       org_id: orgId,
+      status: "active",
       columns: {
         won: [
           { id: "extra", name: "Extra Points" },
@@ -243,11 +244,15 @@ export async function getAdminAnalytics() {
   const { supabase, orgId } = await requireAdminClient();
 
   // Fetch sprints first to get org-scoped IDs for filtering participants
-  const { data: sprints } = await supabase
+  const { data: sprints, error: sprintsError } = await supabase
     .from("sprints")
     .select("id, name, start_date, end_date, status")
     .eq("org_id", orgId)
     .order("start_date", { ascending: false });
+
+  if (sprintsError) {
+    console.error("[getAdminAnalytics] sprints query failed:", sprintsError.message);
+  }
 
   const sprintIds = sprints?.map(s => s.id) ?? [];
 

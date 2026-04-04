@@ -236,3 +236,34 @@ export async function updateAllParticipants(
   revalidatePath(`/sprints/${sprintId}`);
   return {};
 }
+
+// ── ANALYTICS ──────────────────────────────────────────────────
+
+export async function getAdminAnalytics() {
+  const { supabase, orgId } = await requireAdminClient();
+
+  // Fetch everything in parallel
+  const [
+    { data: sprints },
+    { data: projects },
+    { data: participants },
+    { data: orgUsers }
+  ] = await Promise.all([
+    supabase.from("sprints").select("*").eq("org_id", orgId).order("start_date", { ascending: false }),
+    supabase.from("projects").select("*").eq("org_id", orgId).order("name"),
+    supabase.from("sprint_participants").select("*, profile:profiles(id, full_name, avatar_url, job_title)").order("created_at"),
+    supabase.from("profiles").select("id, full_name, avatar_url, job_title").eq("org_id", orgId).order("full_name")
+  ]);
+
+  // Filter participants to only those belonging to sprints of this org
+  // (In a scale-up scenario, this would be a join or internal RLS is enough)
+  const sprintIds = new Set(sprints?.map(s => s.id) || []);
+  const filteredParticipants = participants?.filter(p => sprintIds.has(p.sprint_id)) || [];
+
+  return {
+    sprints: sprints || [],
+    projects: projects || [],
+    participants: filteredParticipants,
+    orgUsers: orgUsers || []
+  };
+}

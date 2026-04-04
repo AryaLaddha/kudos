@@ -15,7 +15,12 @@ import {
   TrendingDown,
   TrendingUp,
   Percent,
-  Scale
+  Scale,
+  ShieldAlert,
+  Flame,
+  Snowflake,
+  Activity,
+  Award
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -76,7 +81,7 @@ export default function AdminDashboardClient({
   goalDefinitions 
 }: Props) {
   
-  const [tab, setTab] = useState<"recognition" | "sprint" | "goals" | "projects">("recognition");
+  const [tab, setTab] = useState<"recognition" | "sprint" | "goals" | "projects" | "quality" | "utilization">("recognition");
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
   
   // Filters
@@ -84,25 +89,26 @@ export default function AdminDashboardClient({
   const [sprintFilter, setSprintFilter] = useState<string>("all_time");
   const [goalFilter, setGoalFilter] = useState<string>("all");
 
+  // Colors for Goal Categories (Heatmap)
+  const CATEGORY_COLORS: Record<string, string> = {
+    "Learning & Certification": "bg-violet-500",
+    "Sprint Contribution": "bg-emerald-500",
+    "Productivity & Efficiency": "bg-amber-500",
+    "Practice Growth": "bg-blue-500",
+    "Collaboration & Quality": "bg-rose-500"
+  };
+
   // ── 1. Recognition Leaderboard ──
   const recognitionRanking = useMemo(() => {
     let filtered = participants;
-    
     if (recognitionFilter.type === "month" && recognitionFilter.monthValue) {
-      const targetMonth = recognitionFilter.monthValue;
-      filtered = participants.filter(p => {
-        const s = sprints.find(sp => sp.id === p.sprint_id);
-        return s?.start_date.startsWith(targetMonth);
-      });
+      filtered = participants.filter(p => sprints.find(s => s.id === p.sprint_id)?.start_date.startsWith(recognitionFilter.monthValue!));
     }
-
     const stats: Record<string, { profile: Profile; total: number }> = {};
     filtered.forEach(p => {
       if (!stats[p.user_id]) stats[p.user_id] = { profile: p.profile, total: 0 };
-      const recAmt = p.scores["recognition"] || 0;
-      stats[p.user_id].total += recAmt;
+      stats[p.user_id].total += (p.scores["recognition"] || 0);
     });
-
     return Object.values(stats).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
   }, [participants, recognitionFilter, sprints]);
 
@@ -110,66 +116,106 @@ export default function AdminDashboardClient({
   const sprintRanking = useMemo(() => {
     let filtered = participants;
     if (sprintFilter !== "all_time") filtered = participants.filter(p => p.sprint_id === sprintFilter);
-
     const stats: Record<string, { profile: Profile; total: number }> = {};
     filtered.forEach(p => {
       if (!stats[p.user_id]) stats[p.user_id] = { profile: p.profile, total: 0 };
       const won = Object.values(p.scores).reduce((s, v) => s + (v > 0 ? v : 0), 0);
       const ded = Object.values(p.scores).reduce((s, v) => s + (v < 0 ? Math.abs(v) : 0), 0);
       const net = p.base_points + won - ded;
-      if (sprintFilter === "all_time") stats[p.user_id].total += net;
-      else stats[p.user_id].total = net;
+      if (sprintFilter === "all_time") stats[p.user_id].total += net; else stats[p.user_id].total = net;
     });
-
     return Object.values(stats).sort((a, b) => b.total - a.total);
   }, [participants, sprintFilter]);
 
-  // ── 3. Goals Tracker ──
-  const goalCompletions = useMemo(() => {
-    let filtered = userGoals.filter(ug => ug.status === "achieved");
-    if (goalFilter !== "all") filtered = filtered.filter(ug => ug.goal_id === goalFilter);
-
-    return filtered.map(ug => ({
+  // ── 3. Goals & Category Heatmap ──
+  const { goalList, goalCategoryStats } = useMemo(() => {
+    const list = userGoals.filter(ug => ug.status === "achieved").map(ug => ({
       ...ug,
       user: orgUsers.find(u => u.id === ug.user_id),
       goal: goalDefinitions.find(g => g.id === ug.goal_id)
-    })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    })).filter(ug => goalFilter === "all" || ug.goal_id === goalFilter)
+       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const catStats: Record<string, number> = {};
+    const totalAchieved = userGoals.filter(ug => ug.status === "achieved").length;
+    userGoals.filter(ug => ug.status === "achieved").forEach(ug => {
+      const g = goalDefinitions.find(def => def.id === ug.goal_id);
+      if (g) catStats[g.category] = (catStats[g.category] || 0) + 1;
+    });
+
+    return { 
+      goalList: list, 
+      goalCategoryStats: Object.entries(catStats).map(([name, count]) => ({ name, count, pct: (count / totalAchieved) * 100 }))
+                         .sort((a, b) => b.count - a.count)
+    };
   }, [userGoals, goalFilter, orgUsers, goalDefinitions]);
 
-  // ── 4. Project Efficiency Calculation ──
+  // ── 4. Project Efficiency ──
   const projectEfficiency = useMemo(() => {
     const stats: Record<string, { id: string; name: string; totalEffort: number; totalRecognition: number }> = {};
     projects.forEach(p => stats[p.id] = { id: p.id, name: p.name, totalEffort: 0, totalRecognition: 0 });
-    
-    participants.forEach(participant => {
-      const recognitionAmt = participant.scores["recognition"] || 0;
-      const allocations = participant.project_allocations;
-      const totalPersonAlloc = Object.values(allocations).reduce((s, v) => s + v, 0);
-
-      Object.entries(allocations).forEach(([projId, allocPct]) => {
+    participants.forEach(p => {
+      const rec = p.scores["recognition"] || 0;
+      const allocs = p.project_allocations;
+      const totalAlloc = Object.values(allocs).reduce((s, v) => s + v, 0);
+      Object.entries(allocs).forEach(([projId, val]) => {
         if (!stats[projId]) return;
-        stats[projId].totalEffort += allocPct;
+        stats[projId].totalEffort += val;
+        if (totalAlloc > 0) stats[projId].totalRecognition += (val / totalAlloc) * rec;
+      });
+    });
+    const totalRec = Object.values(stats).reduce((s, v) => s + v.totalRecognition, 0);
+    const totalEffort = Object.values(stats).reduce((s, v) => s + v.totalEffort, 0);
+    return Object.values(stats).map(p => ({
+      ...p,
+      effortPct: totalEffort > 0 ? (p.totalEffort / totalEffort) * 100 : 0,
+      recPct: totalRec > 0 ? (p.totalRecognition / totalRec) * 100 : 0
+    })).map(p => ({ ...p, ratio: p.effortPct > 0 ? (p.recPct / p.effortPct) : 0 }))
+       .sort((a, b) => b.ratio - a.ratio);
+  }, [projects, participants]);
 
-        // Distribute recognition points proportionally to the effort assigned to this project
-        if (totalPersonAlloc > 0) {
-          const share = (allocPct / totalPersonAlloc) * recognitionAmt;
-          stats[projId].totalRecognition += share;
+  // ── 5. Quality Control (Deductions) ──
+  const qualityStats = useMemo(() => {
+    const itemTotals: Record<string, number> = {};
+    const userStats: Record<string, { profile: Profile; bugs: number }> = {};
+
+    participants.forEach(p => {
+      Object.entries(p.scores).forEach(([key, val]) => {
+        if (val < 0) { // Deductions
+          const abs = Math.abs(val);
+          itemTotals[key] = (itemTotals[key] || 0) + abs;
+          if (!userStats[p.user_id]) userStats[p.user_id] = { profile: p.profile, bugs: 0 };
+          if (key === "bugs") userStats[p.user_id].bugs += abs;
         }
       });
     });
 
-    const totalEverythingRec = Object.values(stats).reduce((s, v) => s + v.totalRecognition, 0);
-    const totalEverythingEffort = Object.values(stats).reduce((s, v) => s + v.totalEffort, 0);
+    const ranking = Object.values(userStats).filter(u => u.bugs > 0).sort((a, b) => b.bugs - a.bugs);
+    const issues = Object.entries(itemTotals).map(([name, total]) => ({ name, total }))
+                    .sort((a, b) => b.total - a.total);
+    
+    return { ranking, issues };
+  }, [participants]);
 
-    return Object.values(stats).map(p => ({
-      ...p,
-      effortPct: totalEverythingEffort > 0 ? (p.totalEffort / totalEverythingEffort) * 100 : 0,
-      recPct: totalEverythingRec > 0 ? (p.totalRecognition / totalEverythingRec) * 100 : 0,
-    })).map(p => ({
-      ...p,
-      ratio: p.effortPct > 0 ? (p.recPct / p.effortPct) : 0
-    })).sort((a, b) => b.ratio - a.ratio);
-  }, [projects, participants]);
+  // ── 6. Resource Utilization ──
+  const resourceHealth = useMemo(() => {
+    return orgUsers.map(user => {
+      // Find latest sprint for this user
+      const sortedP = participants.filter(p => p.user_id === user.id)
+        .sort((a, b) => {
+           const sA = sprints.find(s => s.id === a.sprint_id);
+           const sB = sprints.find(s => s.id === b.sprint_id);
+           return new Date(sB?.start_date || "").getTime() - new Date(sA?.start_date || "").getTime();
+        });
+      const latest = sortedP[0];
+      const alloc = Object.values(latest?.project_allocations || {}).reduce((s, v) => s + v, 0);
+      return {
+        user,
+        alloc,
+        status: alloc > 100 ? "overloaded" : alloc < 50 ? "underutilized" : "balanced"
+      };
+    }).sort((a, b) => b.alloc - a.alloc);
+  }, [orgUsers, participants, sprints]);
 
   // ── Helpers ──
   const monthOptions = useMemo(() => {
@@ -183,22 +229,24 @@ export default function AdminDashboardClient({
       {/* Header & Tabs */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-slate-100">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Analytics Dashboard</h1>
-          <p className="text-slate-500 mt-1 font-medium italic">Measuring impact, strategy, and team achievements</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Admin Insights</h1>
+          <p className="text-slate-500 mt-1 font-medium italic">Strategic reporting and team health monitoring</p>
         </div>
         
-        <div className="inline-flex p-1 bg-slate-100 rounded-2xl">
+        <div className="inline-flex p-1 bg-slate-100/80 rounded-2xl overflow-x-auto max-w-full">
           {[
             { id: "recognition", label: "Recognition", icon: Zap },
             { id: "sprint", label: "Sprints", icon: Trophy },
-            { id: "goals", label: "Goals", icon: Target },
-            { id: "projects", label: "Projects", icon: Briefcase },
+            { id: "goals", label: "Practice", icon: Target },
+            { id: "projects", label: "ROI", icon: Briefcase },
+            { id: "quality", label: "Quality", icon: ShieldAlert },
+            { id: "utilization", label: "Health", icon: Activity },
           ].map(t => (
             <button
               key={t.id}
-              onClick={() => { setTab(t.id as any); if (t.id === "projects") setViewMode("list"); }}
+              onClick={() => { setTab(t.id as any); setViewMode("list"); }}
               className={cn(
-                "px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all",
+                "px-4 py-2.5 rounded-xl text-[13px] font-bold flex items-center gap-2 transition-all whitespace-nowrap",
                 tab === t.id ? "bg-white text-violet-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
               )}
             >
@@ -209,7 +257,7 @@ export default function AdminDashboardClient({
         </div>
       </div>
 
-      {/* Project tab header specific Controls */}
+      {/* Tab Specific Filters */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           {tab === "recognition" && (
@@ -222,28 +270,25 @@ export default function AdminDashboardClient({
           {tab === "sprint" && (
             <select className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700" value={sprintFilter} onChange={(e) => setSprintFilter(e.target.value)}>
               <option value="all_time">All Time Points</option>
-              <optgroup label="Sprints History">
-                {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </optgroup>
+              {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           )}
 
           {tab === "goals" && (
             <select className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 max-w-[300px]" value={goalFilter} onChange={(e) => setGoalFilter(e.target.value)}>
-              <option value="all">All Achieved Goals</option>
+              <option value="all">Explore Achievements</option>
               {goalDefinitions.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
             </select>
           )}
-
-          {tab === "projects" && (
-             <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-xl text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Scale className="h-3.5 w-3.5" />
-                Efficiency Index: Comparison of Effort vs. Results
-             </div>
+          
+          {(tab === "projects" || tab === "quality" || tab === "utilization") && (
+            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
+               <Activity className="h-3 w-3" /> System Oversight Active
+            </div>
           )}
         </div>
 
-        {tab !== "goals" && tab !== "projects" && (
+        {(tab === "recognition" || tab === "sprint" || tab === "quality") && (
           <div className="flex p-0.5 bg-slate-100/60 rounded-lg">
             <button onClick={() => setViewMode("list")} className={cn("p-1.5 rounded-md transition-all", viewMode === "list" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}><ListOrdered className="h-4 w-4" /></button>
             <button onClick={() => setViewMode("graph")} className={cn("p-1.5 rounded-md transition-all", viewMode === "graph" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}><BarChart3 className="h-4 w-4" /></button>
@@ -251,103 +296,142 @@ export default function AdminDashboardClient({
         )}
       </div>
 
-      {/* Main Content Areas */}
+      {/* Main View Area */}
       <div className="space-y-6">
-        {tab === "recognition" && (viewMode === "list" ? <RankingList data={recognitionRanking} subtext="pts generated via recognition" unit="pts" /> : <RankingGraph data={recognitionRanking} unit="pts" />)}
-        {tab === "sprint" && (viewMode === "list" ? <RankingList data={sprintRanking} subtext="total net balance" unit="pts" /> : <RankingGraph data={sprintRanking} unit="pts" />)}
         
+        {/* RECOGNITION & SPRINT */}
+        {tab === "recognition" && (viewMode === "list" ? <RankingList data={recognitionRanking} subtext="life-time recognition" unit="pts" /> : <RankingGraph data={recognitionRanking} unit="pts" />)}
+        {tab === "sprint" && (viewMode === "list" ? <RankingList data={sprintRanking} subtext="net performance" unit="pts" /> : <RankingGraph data={sprintRanking} unit="pts" />)}
+
+        {/* PRACTICE GROWTH (GOALS) */}
         {tab === "goals" && (
-          <div className="grid gap-4">
-            {goalCompletions.length === 0 ? (
-              <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-20 text-center text-slate-400 italic">No completions found.</div>
-            ) : (
-              goalCompletions.map(ug => (
-                <div key={ug.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row gap-6 items-start">
-                  <div className="flex items-center gap-4 flex-1">
-                    <Avatar className="h-14 w-14 shadow-sm">
-                      <AvatarImage src={ug.user?.avatar_url || undefined} />
-                      <AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(ug.user?.full_name || "?")}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900 leading-tight">{ug.user?.full_name}</h3>
-                      <p className="text-sm text-slate-500 font-bold mt-1 line-clamp-1">{ug.goal?.title}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase rounded shadow-sm ring-1 ring-inset ring-emerald-100">Achieved</span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(ug.created_at).toLocaleDateString()}</span>
+          <div className="space-y-10">
+            {/* Heatmap/Breakdown */}
+            {goalFilter === "all" && (
+              <div className="bg-white border border-slate-100 rounded-[2.5rem] p-10 shadow-sm">
+                <h3 className="text-xl font-black text-slate-900 mb-8">Practice Focus Heatmap</h3>
+                <div className="flex flex-col md:flex-row gap-10 items-center">
+                  <div className="flex-1 w-full space-y-5">
+                    {goalCategoryStats.map(cat => (
+                      <div key={cat.name} className="space-y-2">
+                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
+                          <span>{cat.name}</span>
+                          <span className="text-slate-900">{cat.count} logs</span>
+                        </div>
+                        <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden">
+                           <div style={{ width: `${cat.pct}%` }} className={cn("h-full transition-all duration-1000", CATEGORY_COLORS[cat.name] || "bg-slate-300")} />
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                  <div className="md:w-1/3 bg-slate-50/80 border border-slate-100 rounded-2xl p-4 text-xs italic text-slate-600 leading-relaxed border-l-4 border-l-violet-200">
-                    "{ug.description}"
+                  <div className="w-full md:w-64 aspect-square rounded-full border-[16px] border-slate-50 flex flex-center items-center justify-center relative">
+                      <div className="text-center">
+                        <p className="text-4xl font-black text-slate-900">{userGoals.length}</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">Total logs</p>
+                      </div>
                   </div>
                 </div>
-              ))
+              </div>
+            )}
+            
+            <div className="grid gap-4">
+              {goalList.slice(0, 15).map(ug => (
+                <div key={ug.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex items-center gap-6">
+                  <Avatar className="h-12 w-12"><AvatarImage src={ug.user?.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(ug.user?.full_name || "?")}</AvatarFallback></Avatar>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-black text-slate-900 truncate">{ug.user?.full_name}</h4>
+                    <p className="text-xs text-slate-500 font-bold truncate mt-0.5">{ug.goal?.title}</p>
+                  </div>
+                  <div className="text-right whitespace-nowrap">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Logged</p>
+                    <p className="text-sm font-black text-slate-700 mt-1">{new Date(ug.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* QUALITY CONTROL */}
+        {tab === "quality" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 ml-1">Top Issue Categories</h3>
+              <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-6 shadow-sm">
+                {qualityStats.issues.map(iss => (
+                  <div key={iss.name} className="space-y-2">
+                    <div className="flex justify-between text-xs font-bold uppercase tracking-tight text-slate-500">
+                      <span>{iss.name}</span>
+                      <span className="text-red-500">{iss.total} issues</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
+                       <div style={{ width: `${(iss.total / qualityStats.issues[0].total) * 100}%` }} className="h-full bg-red-400" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {viewMode === "list" ? (
+              <RankingList data={qualityStats.ranking.map(r => ({ profile: r.profile, total: r.bugs }))} subtext="bug violations" unit="x" />
+            ) : (
+              <RankingGraph data={qualityStats.ranking.map(r => ({ profile: r.profile, total: r.bugs }))} unit="x" />
             )}
           </div>
         )}
 
+        {/* ROI / PROJECTS */}
         {tab === "projects" && (
-          <div className="grid gap-4">
-            {projectEfficiency.map(p => {
-               const ratio = p.ratio;
-               const isHighImpact = ratio > 1.25;
-               const isHighEffort = ratio < 0.75;
-               
-               return (
-                 <div key={p.id} className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm">
-                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                     <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                           <div className="p-2 bg-violet-50 rounded-xl">
-                              <Briefcase className="h-5 w-5 text-violet-600" />
-                           </div>
-                           <h3 className="text-xl font-black text-slate-900 tracking-tight">{p.name}</h3>
-                        </div>
-                        <p className="text-sm text-slate-500 ml-12">
-                          Efficiency Index <span className="font-bold text-slate-900">{ratio.toFixed(2)}x</span>
-                        </p>
-                     </div>
-
-                     <div className="flex items-center gap-4">
-                        {isHighImpact && <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm ring-1 ring-inset ring-emerald-100 animate-pulse"><TrendingUp className="h-4 w-4" /> High Impact Project</div>}
-                        {isHighEffort && <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-500 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm ring-1 ring-inset ring-amber-100"><TrendingDown className="h-4 w-4" /> High Effort / Low ROI</div>}
-                        {!isHighImpact && !isHighEffort && <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-400 rounded-2xl text-xs font-bold uppercase tracking-widest">Balanced Return</div>}
-                     </div>
-                   </div>
-
-                   {/* Stats Bars View */}
-                   <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-10">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Team Allocation / Effort</span>
-                            <span className="text-sm font-black text-slate-700">{p.effortPct.toFixed(1)}%</span>
-                        </div>
-                        <div className="h-4 w-full bg-slate-50 rounded-full overflow-hidden">
-                           <div style={{ width: `${Math.max(2, p.effortPct)}%` }} className="h-full bg-slate-300 rounded-full transition-all duration-1000" />
-                        </div>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase leading-relaxed font-mono">
-                          Total Effort Units: {Math.round(p.totalEffort)} units
-                        </p>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">Recognition / Output</span>
-                            <span className="text-sm font-black text-violet-600">{p.recPct.toFixed(1)}%</span>
-                        </div>
-                        <div className="h-4 w-full bg-violet-50 rounded-full overflow-hidden">
-                           <div style={{ width: `${Math.max(2, p.recPct)}%` }} className="h-full bg-violet-500 rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(124,58,237,0.3)]" />
-                        </div>
-                        <p className="text-[10px] text-violet-400 font-bold uppercase leading-relaxed font-mono">
-                          Total Result Points: {Math.round(p.totalRecognition)} pts
-                        </p>
-                      </div>
-                   </div>
+          <div className="grid gap-6">
+            {projectEfficiency.map(p => (
+              <div key={p.id} className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm">
+                 <div className="flex justify-between items-start gap-4 mb-8">
+                    <div className="flex items-center gap-3">
+                       <div className="p-2 bg-violet-50 rounded-xl"><Briefcase className="h-5 w-5 text-violet-600" /></div>
+                       <div><h3 className="text-xl font-black text-slate-900 leading-none">{p.name}</h3><p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">ROI Index: <span className="text-violet-600">{p.ratio.toFixed(2)}x</span></p></div>
+                    </div>
+                    {p.ratio > 1.25 ? <span className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ring-1 ring-inset ring-emerald-100">Super Impact</span> : p.ratio < 0.75 ? <span className="bg-amber-50 text-amber-500 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ring-1 ring-inset ring-amber-100">High Overhead</span> : null}
                  </div>
-               )
-            })}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div className="space-y-3">
+                       <div className="flex justify-between text-[10px] font-black uppercase text-slate-400"><span>Effort Sink</span><span>{p.effortPct.toFixed(1)}%</span></div>
+                       <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden"><div style={{ width: `${p.effortPct}%` }} className="h-full bg-slate-300" /></div>
+                    </div>
+                    <div className="space-y-3">
+                       <div className="flex justify-between text-[10px] font-black uppercase text-violet-400"><span>Results Yield</span><span>{p.recPct.toFixed(1)}%</span></div>
+                       <div className="h-2.5 bg-violet-50 rounded-full overflow-hidden"><div style={{ width: `${p.recPct}%` }} className="h-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.3)]" /></div>
+                    </div>
+                 </div>
+              </div>
+            ))}
           </div>
         )}
+
+        {/* RESOURCE UTILIZATION / HEALTH */}
+        {tab === "utilization" && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {resourceHealth.map(entry => (
+               <div key={entry.user.id} className={cn(
+                 "rounded-3xl border p-6 flex items-center justify-between transition-all",
+                 entry.status === "overloaded" ? "border-red-100 bg-red-50/20" : entry.status === "underutilized" ? "border-blue-100 bg-blue-50/20" : "border-slate-100 bg-white"
+               )}>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10 ring-2 ring-white"><AvatarImage src={entry.user.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(entry.user.full_name)}</AvatarFallback></Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate">{entry.user.full_name}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mt-1">{entry.status}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={cn("text-xl font-black", entry.status === "overloaded" ? "text-red-500" : entry.status === "underutilized" ? "text-blue-500" : "text-slate-900")}>{entry.alloc}%</p>
+                    <div className="mt-1 flex gap-0.5 justify-end">
+                       {[1,2,3].map(i => <div key={i} className={cn("h-1 w-3 rounded-full", entry.alloc >= (i * 33) ? (entry.status === "overloaded" ? "bg-red-400" : "bg-emerald-400") : "bg-slate-100")} />)}
+                    </div>
+                  </div>
+               </div>
+            ))}
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -356,16 +440,19 @@ export default function AdminDashboardClient({
 // ── Sub-Components ───────────────────────────────────────────
 
 function RankingList({ data, subtext, unit }: { data: any[], subtext: string, unit: string }) {
-  if (data.length === 0) return <div className="text-center py-20 text-slate-300 italic border border-dashed border-slate-200 rounded-3xl">No performance data found for this period.</div>;
+  if (data.length === 0) return <div className="text-center py-20 text-slate-300 italic border border-dashed border-slate-200 rounded-3xl">Empty leaderboard.</div>;
   return (
     <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
       <div className="grid divide-y divide-slate-50">
         {data.map((row, i) => (
           <div key={row.profile.id} className="flex items-center gap-4 p-5 hover:bg-slate-50/50 transition-colors">
-            <div className={cn("flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-black", i === 0 ? "bg-amber-100 text-amber-600 shadow-sm shadow-amber-100/50" : i === 1 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-400")}>{i + 1}</div>
-            <Avatar className="h-12 w-12"><AvatarImage src={row.profile.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(row.profile.full_name)}</AvatarFallback></Avatar>
-            <div className="flex-1"><h3 className="text-base font-black text-slate-900 tracking-tight">{row.profile.full_name}</h3><p className="text-xs text-slate-400 font-bold uppercase mt-0.5 tracking-widest">{row.profile.job_title || "Explorer"}</p></div>
-            <div className="text-right"><p className={cn("text-xl font-black leading-none", i === 0 ? "text-amber-600" : "text-violet-600")}>{Math.round(row.total)}{unit}</p><p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">{subtext}</p></div>
+            <div className={cn("flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-xs font-black", i === 0 ? "bg-amber-100 text-amber-600" : "bg-slate-50 text-slate-400")}>{i + 1}</div>
+            <Avatar className="h-10 w-10"><AvatarImage src={row.profile.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(row.profile.full_name)}</AvatarFallback></Avatar>
+            <div className="flex-1 min-w-0"><h3 className="text-sm font-black text-slate-900 truncate tracking-tight">{row.profile.full_name}</h3><p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{row.profile.job_title || "Team Member"}</p></div>
+            <div className="text-right">
+              <p className={cn("text-lg font-black leading-none", i === 0 ? "text-amber-600" : "text-violet-600")}>{Math.round(row.total)}{unit}</p>
+              <span className="text-[9px] text-slate-400 uppercase font-black">{subtext}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -376,21 +463,13 @@ function RankingList({ data, subtext, unit }: { data: any[], subtext: string, un
 function RankingGraph({ data, unit }: { data: any[], unit: string }) {
   const max = data.length > 0 ? data[0].total : 1;
   return (
-    <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm space-y-6">
-      {data.map((row, i) => {
-        const pct = (row.total / max) * 100;
-        return (
-          <div key={row.profile.id} className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-500 px-1">
-              <span className="flex items-center gap-2"><span className="text-slate-300 w-4">#{i+1}</span>{row.profile.full_name}</span>
-              <span className="text-violet-600">{Math.round(row.total)}{unit}</span>
-            </div>
-            <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden">
-               <div style={{ width: `${Math.max(5, pct)}%` }} className={cn("h-full rounded-full transition-all duration-1000", i === 0 ? "bg-amber-400" : "bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.2)]")} />
-            </div>
-          </div>
-        );
-      })}
+    <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm space-y-5">
+      {data.map((row, i) => (
+        <div key={row.profile.id} className="space-y-2">
+          <div className="flex justify-between text-[10px] font-black uppercase text-slate-400 px-1"><span>{row.profile.full_name}</span><span>{Math.round(row.total)}{unit}</span></div>
+          <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden"><div style={{ width: `${(row.total / max) * 100}%` }} className={cn("h-full transition-all duration-1000", i === 0 ? "bg-amber-400" : "bg-violet-500")} /></div>
+        </div>
+      ))}
     </div>
   );
 }

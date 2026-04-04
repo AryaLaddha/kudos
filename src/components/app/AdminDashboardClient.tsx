@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { 
-  ShieldCheck, 
-  TrendingUp, 
-  Users, 
-  Briefcase, 
-  Zap, 
   Trophy, 
-  AlertCircle,
-  Clock
+  BarChart3, 
+  ListOrdered, 
+  Search,
+  ChevronDown,
+  Calendar,
+  Zap,
+  Target,
+  SearchIcon
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -22,11 +23,11 @@ interface Sprint {
   start_date: string;
   end_date: string;
   status: "active" | "completed";
+  columns?: { won: { id: string; name: string }[]; deducted: { id: string; name: string }[] };
 }
 interface Project { id: string; name: string; }
 interface Profile { id: string; full_name: string; avatar_url: string | null; job_title?: string | null; }
 interface Participant {
-  id: string;
   sprint_id: string;
   user_id: string;
   base_points: number;
@@ -34,274 +35,330 @@ interface Participant {
   project_allocations: Record<string, number>;
   profile: Profile;
 }
+interface UserGoal {
+  id: string;
+  user_id: string;
+  goal_id: string;
+  status: "aim" | "achieved";
+  description: string;
+  created_at: string;
+}
+interface GoalDefinition {
+  id: string;
+  title: string;
+  points: number;
+  category: string;
+}
 
 interface Props {
   sprints: Sprint[];
   projects: Project[];
   participants: Participant[];
   orgUsers: Profile[];
+  userGoals: UserGoal[];
+  goalDefinitions: GoalDefinition[];
 }
 
 function getInitials(n: string) { return n.split(" ").map(p => p[0]).join("").toUpperCase().slice(0, 2); }
 
 // ── Components ────────────────────────────────────────────────
 
-export default function AdminDashboardClient({ sprints, projects, participants, orgUsers }: Props) {
+export default function AdminDashboardClient({ 
+  sprints, 
+  participants, 
+  orgUsers, 
+  userGoals,
+  goalDefinitions 
+}: Props) {
   
-  // ── Calculation 1: High Level KPIs ──
-  const kpis = useMemo(() => {
-    const totalPointsSpent = participants.reduce((total, p) => {
-      const won = Object.values(p.scores).reduce((s, v) => s + (v > 0 ? v : 0), 0); // Simplified win logic
-      return total + won;
-    }, 0);
-    const activeProjects = projects.length;
-    const avgTeamPoints = sprints.length > 0 ? (totalPointsSpent / sprints.length) : 0;
+  const [tab, setTab] = useState<"recognition" | "sprint" | "goals">("recognition");
+  const [viewMode, setViewMode] = useState<"list" | "graph">("list");
+  
+  // Filters
+  const [recognitionFilter, setRecognitionFilter] = useState<{ type: "all" | "month", monthValue?: string }>({ type: "all" });
+  const [sprintFilter, setSprintFilter] = useState<string>("all_time");
+  const [goalFilter, setGoalFilter] = useState<string>("all");
+
+  // ── 1. Recognition Leaderboard Calculation ──
+  const recognitionRanking = useMemo(() => {
+    let filtered = participants;
     
-    return {
-      totalPointsSpent,
-      activeProjects,
-      totalPeople: orgUsers.length,
-      avgTeamPoints: Math.round(avgTeamPoints)
-    };
-  }, [participants, projects, sprints, orgUsers]);
-
-  // ── Calculation 2: Resource Heatmap ──
-  // Latest project allocation per person (from the most recent sprint they were in)
-  const latestAllocations = useMemo(() => {
-    const sortedSprints = [...sprints].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
-    
-    return orgUsers.map(user => {
-      // Find the most recent sprint where this user has allocations
-      const userSprints = participants
-        .filter(p => p.user_id === user.id)
-        .sort((a, b) => {
-          const sA = sprints.find(s => s.id === a.sprint_id);
-          const sB = sprints.find(s => s.id === b.sprint_id);
-          return new Date(sB?.start_date || "").getTime() - new Date(sA?.start_date || "").getTime();
-        });
-
-      const latest = userSprints[0];
-      const allocs = latest?.project_allocations || {};
-      const total = Object.values(allocs).reduce((s, v) => s + v, 0);
-
-      return {
-        user,
-        allocs,
-        total,
-        isOverloaded: total > 100
-      };
-    });
-  }, [orgUsers, participants, sprints]);
-
-  // ── Calculation 3: Hall of Fame (Total Points over time) ──
-  const hallOfFame = useMemo(() => {
-    const stats: Record<string, { profile: Profile; totalWins: number; totalBugs: number; net: number }> = {};
-    
-    participants.forEach(p => {
-      if (!stats[p.user_id]) stats[p.user_id] = { profile: p.profile, totalWins: 0, totalBugs: 0, net: 0 };
-      
-      // In our current schema, won/deducted are mixed in 'scores'
-      // For this report, we'll assume anything > 0 is win, anything else is deduction
-      // (Better: filter by the column metadata from sprint, but this is a good proxy)
-      Object.values(p.scores).forEach(v => {
-        if (v > 0) stats[p.user_id].totalWins += v;
-        else stats[p.user_id].totalBugs += Math.abs(v);
+    if (recognitionFilter.type === "month" && recognitionFilter.monthValue) {
+      const targetMonth = recognitionFilter.monthValue; // "2026-04"
+      filtered = participants.filter(p => {
+        const s = sprints.find(sp => sp.id === p.sprint_id);
+        return s?.start_date.startsWith(targetMonth);
       });
-      stats[p.user_id].net += stats[p.user_id].totalWins - stats[p.user_id].totalBugs;
+    }
+
+    const stats: Record<string, { profile: Profile; total: number }> = {};
+    filtered.forEach(p => {
+      if (!stats[p.user_id]) stats[p.user_id] = { profile: p.profile, total: 0 };
+      // Look for the "recognition" score. Fallback to any positive value if not found.
+      const recognitionAmt = p.scores["recognition"] || 0;
+      stats[p.user_id].total += recognitionAmt;
     });
 
-    return Object.values(stats).sort((a, b) => b.net - a.net).slice(0, 5);
-  }, [participants]);
+    return Object.values(stats)
+      .filter(s => s.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [participants, recognitionFilter, sprints]);
+
+  // ── 2. Sprint Leaderboard Calculation ──
+  const sprintRanking = useMemo(() => {
+    let filtered = participants;
+    
+    if (sprintFilter !== "all_time") {
+      filtered = participants.filter(p => p.sprint_id === sprintFilter);
+    }
+
+    const stats: Record<string, { profile: Profile; total: number }> = {};
+    filtered.forEach(p => {
+      if (!stats[p.user_id]) stats[p.user_id] = { profile: p.profile, total: 0 };
+      
+      const won = Object.values(p.scores).reduce((s, v) => s + (v > 0 ? v : 0), 0);
+      const ded = Object.values(p.scores).reduce((s, v) => s + (v < 0 ? Math.abs(v) : 0), 0);
+      const net = p.base_points + won - ded;
+      
+      if (sprintFilter === "all_time") {
+        stats[p.user_id].total += net;
+      } else {
+        // Individual sprint view is usually just the absolute total for that one.
+        stats[p.user_id].total = net;
+      }
+    });
+
+    return Object.values(stats).sort((a, b) => b.total - a.total);
+  }, [participants, sprintFilter]);
+
+  // ── 3. Goals Completion Tracker Calculation ──
+  const goalCompletions = useMemo(() => {
+    let filtered = userGoals.filter(ug => ug.status === "achieved");
+    if (goalFilter !== "all") {
+      filtered = filtered.filter(ug => ug.goal_id === goalFilter);
+    }
+
+    return filtered.map(ug => {
+      const user = orgUsers.find(u => u.id === ug.user_id);
+      const goal = goalDefinitions.find(g => g.id === ug.goal_id);
+      return { ...ug, user, goal };
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [userGoals, goalFilter, orgUsers, goalDefinitions]);
+
+  // ── Helper: Month Dropdown Options ──
+  const monthOptions = useMemo(() => {
+    const months = new Set<string>();
+    sprints.forEach(s => months.add(s.start_date.substring(0, 7)));
+    return Array.from(months).sort().reverse();
+  }, [sprints]);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600 shadow-lg shadow-violet-200">
-            <ShieldCheck className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 leading-none">Admin Dashboard</h1>
-            <p className="text-sm text-slate-500 mt-1.5 flex items-center gap-1.5 font-medium">
-              Org Command Center <span className="h-1 w-1 rounded-full bg-slate-300" /> Real-time Analytics
-            </p>
-          </div>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8 pb-32">
+      {/* Header & Main Tabs */}
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-slate-100">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Analytics Dashboard</h1>
+          <p className="text-slate-500 mt-1 font-medium">Organisation overview and leaderboards</p>
+        </div>
+        
+        <div className="inline-flex p-1 bg-slate-100 rounded-2xl">
+          {[
+            { id: "recognition", label: "Recognition", icon: Zap },
+            { id: "sprint", label: "Sprints", icon: Trophy },
+            { id: "goals", label: "Goals", icon: Target },
+          ].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id as any)}
+              className={cn(
+                "px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all",
+                tab === t.id ? "bg-white text-violet-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <t.icon className="h-4 w-4" />
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* KPI Ribbon */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Points Earned", val: kpis.totalPointsSpent, icon: Zap, color: "text-amber-500", bg: "bg-amber-50" },
-          { label: "Active Team", val: kpis.totalPeople, icon: Users, color: "text-violet-600", bg: "bg-violet-50" },
-          { label: "Total Projects", val: kpis.activeProjects, icon: Briefcase, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Sprint Avg", val: kpis.avgTeamPoints, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-        ].map((kpi, i) => (
-          <div key={i} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className={cn("p-2 rounded-xl", kpi.bg)}>
-                <kpi.icon className={cn("h-5 w-5", kpi.color)} />
+      {/* Report Controls (Filters & Toggle) */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          {tab === "recognition" && (
+            <select 
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-500"
+              value={recognitionFilter.type === "all" ? "all" : recognitionFilter.monthValue}
+              onChange={(e) => {
+                if (e.target.value === "all") setRecognitionFilter({ type: "all" });
+                else setRecognitionFilter({ type: "month", monthValue: e.target.value });
+              }}
+            >
+              <option value="all">All Time History</option>
+              {monthOptions.map(m => <option key={m} value={m}>{new Date(m + "-01").toLocaleString('en-US', { month: 'long', year: 'numeric' })}</option>)}
+            </select>
+          )}
+
+          {tab === "sprint" && (
+            <select 
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-500"
+              value={sprintFilter}
+              onChange={(e) => setSprintFilter(e.target.value)}
+            >
+              <option value="all_time">All Time Points</option>
+              <optgroup label="Recent Sprints">
+                {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </optgroup>
+            </select>
+          )}
+
+          {tab === "goals" && (
+            <select 
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-500 max-w-[300px]"
+              value={goalFilter}
+              onChange={(e) => setGoalFilter(e.target.value)}
+            >
+              <option value="all">All Achieved Goals</option>
+              {goalDefinitions.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
+            </select>
+          )}
+        </div>
+
+        {tab !== "goals" && (
+          <div className="flex p-0.5 bg-slate-100/60 rounded-lg">
+            <button 
+              onClick={() => setViewMode("list")}
+              className={cn("p-1.5 rounded-md transition-all", viewMode === "list" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}
+            >
+              <ListOrdered className="h-4 w-4" />
+            </button>
+            <button 
+              onClick={() => setViewMode("graph")}
+              className={cn("p-1.5 rounded-md transition-all", viewMode === "graph" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}
+            >
+              <BarChart3 className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Main Leaderboard Content */}
+      <div className="space-y-6">
+        {tab === "recognition" && viewMode === "list" && (
+          <RankingList data={recognitionRanking} subtext="pts generated via recognition" unit="pts" />
+        )}
+        {tab === "recognition" && viewMode === "graph" && (
+          <RankingGraph data={recognitionRanking} unit="pts" />
+        )}
+        
+        {tab === "sprint" && viewMode === "list" && (
+          <RankingList data={sprintRanking} subtext="points accumulated" unit="pts" />
+        )}
+        {tab === "sprint" && viewMode === "graph" && (
+          <RankingGraph data={sprintRanking} unit="pts" />
+        )}
+
+        {tab === "goals" && (
+          <div className="grid gap-4">
+            {goalCompletions.length === 0 ? (
+              <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-20 text-center text-slate-400">
+                <SearchIcon className="h-10 w-10 mx-auto mb-4 opacity-10" />
+                No completions found for this filter.
               </div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{kpi.label}</span>
+            ) : (
+              goalCompletions.map(ug => (
+                <div key={ug.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row gap-6 items-start">
+                  <div className="flex items-center gap-4 flex-1">
+                    <Avatar className="h-14 w-14">
+                      <AvatarImage src={ug.user?.avatar_url || undefined} />
+                      <AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(ug.user?.full_name || "?")}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900">{ug.user?.full_name}</h3>
+                      <p className="text-sm text-slate-500 font-bold mt-0.5">{ug.goal?.title || "Goal Description"}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase rounded shadow-sm">Achieved</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(ug.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="md:w-1/3 bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs italic text-slate-600 leading-relaxed relative">
+                    <div className="absolute top-3 left-3 opacity-10 text-violet-600">
+                       <Zap className="h-4 w-4 fill-current" />
+                    </div>
+                    "{ug.description}"
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-Components ───────────────────────────────────────────
+
+function RankingList({ data, subtext, unit }: { data: any[], subtext: string, unit: string }) {
+  if (data.length === 0) return <div className="text-center py-20 text-slate-400">No data found for this period.</div>;
+  
+  return (
+    <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+      <div className="grid divide-y divide-slate-50">
+        {data.map((row, i) => (
+          <div key={row.profile.id} className="flex items-center gap-4 p-5 hover:bg-slate-50/50 transition-colors">
+            <div className={cn(
+              "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-black",
+              i === 0 ? "bg-amber-100 text-amber-600 shadow-sm shadow-amber-100/50" : i === 1 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-400"
+            )}>
+              {i + 1}
             </div>
-            <div className="text-3xl font-black text-slate-900">{kpi.val.toLocaleString()}</div>
+            <Avatar className="h-12 w-12 grayscale-[0.5] hover:grayscale-0 transition-all">
+              <AvatarImage src={row.profile.avatar_url || undefined} />
+              <AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(row.profile.full_name)}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <h3 className="text-base font-black text-slate-900 tracking-tight">{row.profile.full_name}</h3>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">{row.profile.job_title || "Explorer"}</p>
+            </div>
+            <div className="text-right">
+              <p className={cn("text-xl font-black leading-none", i === 0 ? "text-amber-600" : "text-violet-600")}>{row.total}{unit}</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">{subtext}</p>
+            </div>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Hall of Fame Ranking */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="flex items-center gap-2 px-1">
-            <Trophy className="h-4 w-4 text-slate-400" />
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600">Leaderboard Legends</h2>
-          </div>
-          <div className="rounded-3xl border border-slate-100 bg-white shadow-sm p-4 divide-y divide-slate-50">
-            {hallOfFame.map((stat, i) => (
-              <div key={stat.profile.id} className="flex items-center gap-4 py-4 first:pt-2 last:pb-2">
-                <div className={cn(
-                  "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-sm font-black",
-                  i === 0 ? "bg-amber-100 text-amber-600 shadow-sm shadow-amber-100" : "bg-slate-50 text-slate-400"
-                )}>
-                  {i + 1}
-                </div>
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={stat.profile.avatar_url || undefined} />
-                  <AvatarFallback className="bg-violet-100 text-violet-700 font-bold">
-                    {getInitials(stat.profile.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{stat.profile.full_name}</p>
-                  <p className="text-xs text-slate-400 truncate">{stat.profile.job_title || "Team Member"}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-black text-violet-600">+{stat.net}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Total Net</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Resource Heatmap Grid */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-slate-400" />
-              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600">Current Resource Effort</h2>
+function RankingGraph({ data, unit }: { data: any[], unit: string }) {
+  const max = data.length > 0 ? data[0].total : 1;
+  
+  return (
+    <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm space-y-6">
+      {data.map((row, i) => {
+        const pct = (row.total / max) * 100;
+        return (
+          <div key={row.profile.id} className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-500 px-1">
+              <span className="flex items-center gap-2">
+                <span className="text-slate-300 w-4">#{i+1}</span>
+                {row.profile.full_name}
+              </span>
+              <span className="text-violet-600">{row.total}{unit}</span>
             </div>
-            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-slate-400">
-               <span className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-violet-100" /> Assigned</span>
-               <span className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-red-100" /> Over 100%</span>
+            <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden">
+               <div 
+                 style={{ width: `${Math.max(5, pct)}%` }} 
+                 className={cn("h-full rounded-full transition-all duration-1000", i === 0 ? "bg-amber-400" : "bg-violet-500")}
+               />
             </div>
           </div>
-          
-          <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden overflow-x-auto">
-            <table className="min-w-full text-left text-sm border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50 border-b border-slate-100">
-                  <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-xs">Resource</th>
-                  {projects.slice(0, 4).map(p => (
-                    <th key={p.id} className="px-4 py-4 font-bold text-slate-500 uppercase tracking-tighter text-xs text-center truncate max-w-[100px]">
-                      {p.name}
-                    </th>
-                  ))}
-                  <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-xs text-center border-l border-slate-100">Load</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {latestAllocations.map(entry => (
-                  <tr key={entry.user.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={entry.user.avatar_url || undefined} />
-                          <AvatarFallback className="bg-violet-100 text-violet-700 text-xs font-bold">
-                            {getInitials(entry.user.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm font-semibold text-slate-900">{entry.user.full_name}</span>
-                      </div>
-                    </td>
-                    {projects.slice(0, 4).map(p => {
-                      const val = entry.allocs[p.id] || 0;
-                      return (
-                        <td key={p.id} className="px-4 py-3 text-center">
-                          {val > 0 ? (
-                            <div className="inline-flex h-8 w-12 items-center justify-center rounded-lg bg-violet-50 text-violet-600 font-bold text-xs ring-1 ring-inset ring-violet-100">
-                              {val}%
-                            </div>
-                          ) : (
-                            <span className="text-slate-200">—</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                    <td className="px-6 py-3 text-center border-l border-slate-100 bg-slate-50/10">
-                      <div className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ring-1 ring-inset",
-                        entry.isOverloaded ? "bg-red-50 text-red-600 ring-red-100" : entry.total === 0 ? "bg-slate-50 text-slate-400 ring-slate-100" : "bg-emerald-50 text-emerald-600 ring-emerald-100"
-                      )}>
-                        {entry.isOverloaded && <AlertCircle className="h-3 w-3" />}
-                        {entry.total}%
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {projects.length > 4 && (
-              <div className="px-6 py-3 bg-slate-50/30 text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest border-t border-slate-100">
-                + {projects.length - 4} more projects hidden in overview
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Team Velocity Summary */}
-      <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <h2 className="text-lg font-extrabold text-slate-900">Team Velocity Trend</h2>
-            <p className="text-sm text-slate-500">Average points per sprint across the organization</p>
-          </div>
-        </div>
-        
-        <div className="h-48 w-full flex items-end gap-2 px-2 pb-6 border-b border-slate-100">
-          {[...sprints].reverse().slice(-7).map((s, i) => {
-            const sprintParticipants = participants.filter(p => p.sprint_id === s.id);
-            const total = sprintParticipants.reduce((sum, p) => sum + p.base_points, 0); // Simplified velocity
-            const avg = sprintParticipants.length > 0 ? (total / sprintParticipants.length) : 0;
-            const height = Math.min(100, Math.max(20, (avg / 30) * 100)); // Scaled
-            
-            return (
-              <div key={s.id} className="flex-1 group relative">
-                <div 
-                  style={{ height: `${height}%` }}
-                  className="w-full bg-violet-100 group-hover:bg-violet-600 rounded-t-xl transition-all duration-300 shadow-sm"
-                />
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] px-2 py-1 rounded font-bold shadow-xl">
-                  {Math.round(avg)} pts
-                </div>
-                <div className="absolute -bottom-8 left-0 right-0 text-center text-[10px] font-bold text-slate-400 rotate-[-45deg] origin-top-left truncate pr-2">
-                  {s.name}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-12 flex items-center gap-6 justify-center">
-            <span className="flex items-center gap-2 text-xs font-bold text-slate-500">
-              <div className="h-3 w-3 rounded-md bg-violet-100" /> Avg Points
-            </span>
-            <span className="flex items-center gap-2 text-xs font-bold text-slate-500">
-              <div className="h-3 w-3 rounded-md bg-emerald-500" /> Target Line
-            </span>
-        </div>
-      </div>
+        );
+      })}
+      {data.length === 0 && <div className="text-center py-10 text-slate-300 italic">Graph empty.</div>}
     </div>
   );
 }

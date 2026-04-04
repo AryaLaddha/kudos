@@ -245,7 +245,7 @@ export async function getAdminAnalytics() {
   // Fetch sprints first to get org-scoped IDs for filtering participants
   const { data: sprints } = await supabase
     .from("sprints")
-    .select("id, name, start_date, end_date")
+    .select("id, name, start_date, end_date, status")
     .eq("org_id", orgId)
     .order("start_date", { ascending: false });
 

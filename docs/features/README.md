@@ -16,10 +16,11 @@ Kudos is a team recognition SaaS app where employees give points-based shoutouts
 | [04-comments-reactions.md](./04-comments-reactions.md) | Comments with point tips, emoji reactions, all-comments modal |
 | [05-leaderboard.md](./05-leaderboard.md) | Monthly rankings aggregated from recognitions + tips |
 | [06-user-profiles.md](./06-user-profiles.md) | Profile page — stats, kudos history tabs, "known for" hashtags |
-| [07-admin-dashboard.md](./07-admin-dashboard.md) | Internal admin panel — org stats, MRR, per-seat pricing |
-| [08-points-system.md](./08-points-system.md) | How points flow — allowances, balances, transactions, monthly reset |
+| [07-admin-dashboard.md](./07-admin-dashboard.md) | Command Center — Org Analytics, Leaderboards, ROI, Health |
+| [08-points-system.md](./08-points-system.md) | Scoring mechanics — Kudos Allowance vs. Sprint Performance |
 | [09-navigation-layout.md](./09-navigation-layout.md) | Sidebar, mobile header, routing, sign-out |
 | [10-database-schema.md](./10-database-schema.md) | All tables, RLS policies, triggers, and RPC functions |
+| [11-sprint-management.md](./11-sprint-management.md) | Admin SOP — Creating sprints, allocations, and scoring |
 
 ---
 

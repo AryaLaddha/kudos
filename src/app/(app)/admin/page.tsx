@@ -6,16 +6,17 @@ import { GOALS } from "@/lib/goals";
 export default async function AdminPage() {
   await requireAdmin(); 
 
-  const { sprints, projects, participants, orgUsers, userGoals } = await getAdminAnalytics();
+  const { sprints, projects, participants, orgUsers, userGoals, recognitions } = await getAdminAnalytics();
 
   return (
-    <AdminDashboardClient 
+    <AdminDashboardClient
       sprints={sprints}
       projects={projects}
       participants={participants}
       orgUsers={orgUsers}
       userGoals={userGoals}
       goalDefinitions={GOALS}
+      recognitions={recognitions}
     />
   );
 }

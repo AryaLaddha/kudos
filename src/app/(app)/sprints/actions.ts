@@ -248,13 +248,15 @@ export async function getAdminAnalytics() {
     { data: projects },
     { data: participants },
     { data: orgUsers },
-    { data: userGoals }
+    { data: userGoals },
+    { data: recognitions }
   ] = await Promise.all([
     supabase.from("sprints").select("*").eq("org_id", orgId).order("start_date", { ascending: false }),
     supabase.from("projects").select("*").eq("org_id", orgId).order("name"),
     supabase.from("sprint_participants").select("*, profile:profiles(id, full_name, avatar_url, job_title)").order("created_at"),
     supabase.from("profiles").select("id, full_name, avatar_url, job_title").eq("org_id", orgId).order("full_name"),
-    supabase.from("user_goals").select("*").eq("org_id", orgId).order("created_at")
+    supabase.from("user_goals").select("*").eq("org_id", orgId).order("created_at"),
+    supabase.from("recognitions").select("receiver_id, receiver_ids, points, created_at").eq("org_id", orgId)
   ]);
 
   // Filter participants to only those belonging to sprints of this org
@@ -267,6 +269,7 @@ export async function getAdminAnalytics() {
     projects: projects || [],
     participants: filteredParticipants,
     orgUsers: orgUsers || [],
-    userGoals: userGoals || []
+    userGoals: userGoals || [],
+    recognitions: recognitions || []
   };
 }

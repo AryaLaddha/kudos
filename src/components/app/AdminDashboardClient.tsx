@@ -59,6 +59,13 @@ interface GoalDefinition {
   category: string;
 }
 
+interface Recognition {
+  receiver_id: string;
+  receiver_ids: string[] | null;
+  points: number;
+  created_at: string;
+}
+
 interface Props {
   sprints: Sprint[];
   projects: Project[];
@@ -66,19 +73,21 @@ interface Props {
   orgUsers: Profile[];
   userGoals: UserGoal[];
   goalDefinitions: GoalDefinition[];
+  recognitions: Recognition[];
 }
 
 function getInitials(n: string) { return n.split(" ").map(p => p[0]).join("").toUpperCase().slice(0, 2); }
 
 // ── Components ────────────────────────────────────────────────
 
-export default function AdminDashboardClient({ 
-  sprints, 
+export default function AdminDashboardClient({
+  sprints,
   projects,
-  participants, 
-  orgUsers, 
+  participants,
+  orgUsers,
   userGoals,
-  goalDefinitions 
+  goalDefinitions,
+  recognitions
 }: Props) {
   
   const [tab, setTab] = useState<"recognition" | "sprint" | "goals" | "projects" | "quality" | "utilization">("recognition");
@@ -98,19 +107,34 @@ export default function AdminDashboardClient({
     "Collaboration & Quality": "bg-rose-500"
   };
 
-  // ── 1. Recognition Leaderboard ──
+  // ── 1. Recognition Leaderboard (from recognitions table) ──
   const recognitionRanking = useMemo(() => {
-    let filtered = participants;
+    let filtered = recognitions;
     if (recognitionFilter.type === "month" && recognitionFilter.monthValue) {
-      filtered = participants.filter(p => sprints.find(s => s.id === p.sprint_id)?.start_date.startsWith(recognitionFilter.monthValue!));
+      filtered = recognitions.filter(r => r.created_at.startsWith(recognitionFilter.monthValue!));
     }
     const stats: Record<string, { profile: Profile; total: number }> = {};
-    filtered.forEach(p => {
-      if (!stats[p.user_id]) stats[p.user_id] = { profile: p.profile, total: 0 };
-      stats[p.user_id].total += (p.scores["recognition"] || 0);
+    // Build a lookup for orgUsers by id
+    const userMap: Record<string, Profile> = {};
+    orgUsers.forEach(u => { userMap[u.id] = u; });
+
+    filtered.forEach(r => {
+      // Collect all receivers (single + multi-receiver posts)
+      const receivers = [
+        ...(r.receiver_id ? [r.receiver_id] : []),
+        ...(r.receiver_ids ?? [])
+      ];
+      // Deduplicate in case receiver_id is also in receiver_ids
+      const unique = Array.from(new Set(receivers));
+      unique.forEach(uid => {
+        const profile = userMap[uid];
+        if (!profile) return;
+        if (!stats[uid]) stats[uid] = { profile, total: 0 };
+        stats[uid].total += r.points;
+      });
     });
     return Object.values(stats).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
-  }, [participants, recognitionFilter, sprints]);
+  }, [recognitions, recognitionFilter, orgUsers]);
 
   // ── 2. Sprint Leaderboard ──
   const sprintRanking = useMemo(() => {
@@ -220,9 +244,9 @@ export default function AdminDashboardClient({
   // ── Helpers ──
   const monthOptions = useMemo(() => {
     const months = new Set<string>();
-    sprints.forEach(s => months.add(s.start_date.substring(0, 7)));
+    recognitions.forEach(r => months.add(r.created_at.substring(0, 7)));
     return Array.from(months).sort().reverse();
-  }, [sprints]);
+  }, [recognitions]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8 pb-32">
@@ -310,7 +334,7 @@ export default function AdminDashboardClient({
       <div className="space-y-6">
         
         {/* RECOGNITION & SPRINT */}
-        {tab === "recognition" && (viewMode === "list" ? <RankingList data={recognitionRanking} subtext="life-time recognition" unit="pts" /> : <RankingGraph data={recognitionRanking} unit="pts" />)}
+        {tab === "recognition" && (viewMode === "list" ? <RankingList data={recognitionRanking} subtext="kudos received" unit="pts" /> : <RankingGraph data={recognitionRanking} unit="pts" />)}
         {tab === "sprint" && (viewMode === "list" ? <RankingList data={sprintRanking} subtext="net performance" unit="pts" /> : <RankingGraph data={sprintRanking} unit="pts" />)}
 
         {/* PRACTICE GROWTH (GOALS) */}

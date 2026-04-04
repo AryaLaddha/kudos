@@ -142,9 +142,11 @@ export default function AdminDashboardClient({
     if (sprintFilter !== "all_time") filtered = participants.filter(p => p.sprint_id === sprintFilter);
     const stats: Record<string, { profile: Profile; total: number }> = {};
     filtered.forEach(p => {
+      if (!p.profile) return; // skip orphaned participant rows
+      const scores = p.scores ?? {};
       if (!stats[p.user_id]) stats[p.user_id] = { profile: p.profile, total: 0 };
-      const won = Object.values(p.scores).reduce((s, v) => s + (v > 0 ? v : 0), 0);
-      const ded = Object.values(p.scores).reduce((s, v) => s + (v < 0 ? Math.abs(v) : 0), 0);
+      const won = Object.values(scores).reduce((s, v) => s + (v > 0 ? v : 0), 0);
+      const ded = Object.values(scores).reduce((s, v) => s + (v < 0 ? Math.abs(v) : 0), 0);
       const net = p.base_points + won - ded;
       if (sprintFilter === "all_time") stats[p.user_id].total += net; else stats[p.user_id].total = net;
     });
@@ -179,8 +181,10 @@ export default function AdminDashboardClient({
     const stats: Record<string, { id: string; name: string; totalEffort: number; totalRecognition: number }> = {};
     projects.forEach(p => stats[p.id] = { id: p.id, name: p.name, totalEffort: 0, totalRecognition: 0 });
     participants.forEach(p => {
-      const rec = p.scores["recognition"] || 0;
-      const allocs = p.project_allocations;
+      if (!p.profile) return;
+      const scores = p.scores ?? {};
+      const allocs = p.project_allocations ?? {};
+      const rec = scores["recognition"] || 0;
       const totalAlloc = Object.values(allocs).reduce((s, v) => s + v, 0);
       Object.entries(allocs).forEach(([projId, val]) => {
         if (!stats[projId]) return;
@@ -204,7 +208,9 @@ export default function AdminDashboardClient({
     const userStats: Record<string, { profile: Profile; bugs: number }> = {};
 
     participants.forEach(p => {
-      Object.entries(p.scores).forEach(([key, val]) => {
+      if (!p.profile) return;
+      const scores = p.scores ?? {};
+      Object.entries(scores).forEach(([key, val]) => {
         if (val < 0) { // Deductions
           const abs = Math.abs(val);
           itemTotals[key] = (itemTotals[key] || 0) + abs;
@@ -217,7 +223,7 @@ export default function AdminDashboardClient({
     const ranking = Object.values(userStats).filter(u => u.bugs > 0).sort((a, b) => b.bugs - a.bugs);
     const issues = Object.entries(itemTotals).map(([name, total]) => ({ name, total }))
                     .sort((a, b) => b.total - a.total);
-    
+
     return { ranking, issues };
   }, [participants]);
 
@@ -415,6 +421,11 @@ export default function AdminDashboardClient({
 
         {/* ROI / PROJECTS */}
         {tab === "projects" && (
+          projectEfficiency.length === 0 ? (
+            <div className="text-center py-20 text-slate-300 italic border border-dashed border-slate-200 rounded-3xl">
+              No projects yet — create projects in the Sprints page and assign allocations to participants.
+            </div>
+          ) :
           <div className="grid gap-6">
             {projectEfficiency.map(p => (
               <div key={p.id} className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm">
@@ -442,6 +453,18 @@ export default function AdminDashboardClient({
 
         {/* RESOURCE UTILIZATION / HEALTH */}
         {tab === "utilization" && (
+          resourceHealth.length === 0 ? (
+            <div className="text-center py-20 text-slate-300 italic border border-dashed border-slate-200 rounded-3xl">
+              No team members found.
+            </div>
+          ) :
+          <div className="space-y-4">
+            {resourceHealth.every(e => e.alloc === 0) && (
+              <div className="flex items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                <Activity className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span><strong>No sprint allocations set yet.</strong> Assign project allocations in a sprint to see utilization data here.</span>
+              </div>
+            )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {resourceHealth.map(entry => (
                <div key={entry.user.id} className={cn(
@@ -463,6 +486,7 @@ export default function AdminDashboardClient({
                   </div>
                </div>
             ))}
+          </div>
           </div>
         )}
 

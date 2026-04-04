@@ -10,10 +10,15 @@ export default async function AdminPage() {
   const { sprints, projects, participants, orgUsers, userGoals, recognitions } = await getAdminAnalytics();
 
   // Supabase infers to-one joins as arrays — normalise profile to single object
-  const normalisedParticipants = participants.map((p) => ({
-    ...p,
-    profile: (Array.isArray(p.profile) ? p.profile[0] : p.profile) as Profile,
-  }));
+  // Also guard against null scores/project_allocations and drop orphaned rows (deleted user)
+  const normalisedParticipants = participants
+    .map((p) => ({
+      ...p,
+      profile: (Array.isArray(p.profile) ? p.profile[0] : p.profile) as Profile | null,
+      scores: (p.scores ?? {}) as Record<string, number>,
+      project_allocations: (p.project_allocations ?? {}) as Record<string, number>,
+    }))
+    .filter((p) => p.profile != null) as (typeof participants[number] & { profile: Profile; scores: Record<string, number>; project_allocations: Record<string, number> })[];
 
   return (
     <AdminDashboardClient

@@ -83,142 +83,142 @@ export default function AppSidebar({ user, profile }: Props) {
         />
       )}
 
-    <aside className={cn(
-      "fixed inset-y-0 left-0 z-50 flex h-screen w-60 flex-col border-r border-slate-100 bg-white transition-transform duration-200",
-      "md:sticky md:top-0 md:translate-x-0",
-      mobileOpen ? "translate-x-0" : "-translate-x-full"
-    )}>
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-100">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
-          <Sparkles className="h-4 w-4 text-white" />
-        </div>
-        <span className="text-base font-bold text-slate-900">Kudos</span>
-        <button
-          onClick={() => setMobileOpen(false)}
-          className="ml-auto rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors md:hidden"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Points balance */}
-      <div className="mx-3 my-3 rounded-xl bg-indigo-50 px-4 py-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Coins className="h-3.5 w-3.5 text-indigo-500" />
-          <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Your balance</span>
-        </div>
-        <div className="flex items-end gap-1">
-          <span className="text-2xl font-extrabold text-indigo-600">
-            {profile?.points_balance ?? 0}
-          </span>
-          <span className="text-xs text-indigo-400 mb-0.5">pts</span>
-        </div>
-        <div className="mt-1 text-xs text-indigo-400">
-          {profile?.monthly_allowance ?? 200} pts to give this month
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="px-3 pb-2 border-b border-transparent">
-        <GlobalSearch />
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-2 space-y-0.5">
-        {navItems.map((item) => {
-          const active = pathname === item.href || pendingHref === item.href;
-          const loading = isPending && pendingHref === item.href;
-          return (
-            <button
-              key={item.href}
-              onClick={() => handleNav(item.href)}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              )}
-            >
-              {loading
-                ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
-                : <item.icon className={cn("h-4 w-4", active ? "text-indigo-600" : "text-slate-400")} />
-              }
-              {item.label}
-            </button>
-          );
-        })}
-        <Separator className="my-2" />
-        <button
-          onClick={() => handleNav(`/profile/${user.id}`)}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-            pathname.startsWith("/profile") || pendingHref?.startsWith("/profile")
-              ? "bg-indigo-50 text-indigo-700"
-              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-          )}
-        >
-          {isPending && pendingHref?.startsWith("/profile")
-            ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
-            : <User className={cn("h-4 w-4", pathname.startsWith("/profile") ? "text-indigo-600" : "text-slate-400")} />
-          }
-          My Profile
-        </button>
-
-        {/* Admin-only nav items */}
-        {profile?.is_admin && (
-          <>
-            <Separator className="my-2" />
-            {adminNavItems.map((item) => {
-              const active = pathname === item.href || pendingHref === item.href;
-              const loading = isPending && pendingHref === item.href;
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => handleNav(item.href)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                    active
-                      ? "bg-violet-50 text-violet-700"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                  )}
-                >
-                  {loading
-                    ? <Loader2 className="h-4 w-4 text-violet-500 animate-spin" />
-                    : <item.icon className={cn("h-4 w-4", active ? "text-violet-600" : "text-slate-400")} />
-                  }
-                  {item.label}
-                </button>
-              );
-            })}
-          </>
-        )}
-      </nav>
-
-      {/* User footer */}
-      <div className="border-t border-slate-100 p-3">
-        <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={profile?.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-bold">{initials}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
-              {profile?.is_admin && (
-                <span className="flex-shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-600">
-                  Admin
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400 truncate">{user.email}</p>
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-50 flex h-screen w-60 flex-col border-r border-slate-100 bg-white transition-transform duration-200",
+        "md:sticky md:top-0 md:translate-x-0",
+        mobileOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-100">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
+            <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <button onClick={handleSignOut} disabled={signingOut} className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50" title="Sign out">
-            {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+          <span className="text-base font-bold text-slate-900">Kudos</span>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="ml-auto rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors md:hidden"
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
-      </div>
-    </aside>
+
+        {/* Points balance */}
+        <div className="mx-3 my-3 rounded-xl bg-indigo-50 px-4 py-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Coins className="h-3.5 w-3.5 text-indigo-500" />
+            <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Your balance</span>
+          </div>
+          <div className="flex items-end gap-1">
+            <span className="text-2xl font-extrabold text-indigo-600">
+              {profile?.points_balance ?? 0}
+            </span>
+            <span className="text-xs text-indigo-400 mb-0.5">pts</span>
+          </div>
+          <div className="mt-1 text-xs text-indigo-400">
+            {profile?.monthly_allowance ?? 200} pts to give this month
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="px-3 pb-2 border-b border-transparent">
+          <GlobalSearch />
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-2 space-y-0.5">
+          {navItems.map((item) => {
+            const active = pathname === item.href || pendingHref === item.href;
+            const loading = isPending && pendingHref === item.href;
+            return (
+              <button
+                key={item.href}
+                onClick={() => handleNav(item.href)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-indigo-50 text-indigo-700"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                )}
+              >
+                {loading
+                  ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
+                  : <item.icon className={cn("h-4 w-4", active ? "text-indigo-600" : "text-slate-400")} />
+                }
+                {item.label}
+              </button>
+            );
+          })}
+          <Separator className="my-2" />
+          <button
+            onClick={() => handleNav(`/profile/${user.id}`)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname.startsWith("/profile") || pendingHref?.startsWith("/profile")
+                ? "bg-indigo-50 text-indigo-700"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            )}
+          >
+            {isPending && pendingHref?.startsWith("/profile")
+              ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
+              : <User className={cn("h-4 w-4", pathname.startsWith("/profile") ? "text-indigo-600" : "text-slate-400")} />
+            }
+            My Profile
+          </button>
+
+          {/* Admin-only nav items */}
+          {profile?.is_admin && (
+            <>
+              <Separator className="my-2" />
+              {adminNavItems.map((item) => {
+                const active = pathname === item.href || pendingHref === item.href;
+                const loading = isPending && pendingHref === item.href;
+                return (
+                  <button
+                    key={item.href}
+                    onClick={() => handleNav(item.href)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                      active
+                        ? "bg-violet-50 text-violet-700"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    )}
+                  >
+                    {loading
+                      ? <Loader2 className="h-4 w-4 text-violet-500 animate-spin" />
+                      : <item.icon className={cn("h-4 w-4", active ? "text-violet-600" : "text-slate-400")} />
+                    }
+                    {item.label}
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </nav>
+
+        {/* User footer */}
+        <div className="border-t border-slate-100 p-3">
+          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={profile?.avatar_url ?? undefined} />
+              <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-bold">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
+                {profile?.is_admin && (
+                  <span className="flex-shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-600">
+                    Admin
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 truncate">{user.email}</p>
+            </div>
+            <button onClick={handleSignOut} disabled={signingOut} className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50" title="Sign out">
+              {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+      </aside>
     </>
   );
 }

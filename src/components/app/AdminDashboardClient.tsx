@@ -12,6 +12,8 @@ import {
   Activity,
   HelpCircle,
   Users,
+  Coins,
+  Medal,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -95,12 +97,12 @@ export default function AdminDashboardClient({
   // Sprints are ordered start_date DESC — index 0 is the latest
   const latestSprintId = sprints[0]?.id ?? "all_time";
 
-  const [tab, setTab] = useState<"recognition" | "sprint" | "goals" | "projects" | "quality" | "utilization">("recognition");
+  const [tab, setTab] = useState<"points" | "projects" | "quality" | "utilization">("points");
+  const [subTab, setSubTab] = useState<"recognition" | "sprint" | "goals">("recognition");
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
 
   const [recognitionFilter, setRecognitionFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
   const [sprintFilter, setSprintFilter] = useState<string>("all_time");
-  const [goalFilter, setGoalFilter] = useState<string>("all");
   const [qualitySprintFilter, setQualitySprintFilter] = useState<string>(latestSprintId);
   const [healthSprintFilter, setHealthSprintFilter] = useState<string>(latestSprintId);
   const [healthPersonFilter, setHealthPersonFilter] = useState<string>("all");
@@ -152,7 +154,21 @@ export default function AdminDashboardClient({
     return Object.values(stats).sort((a, b) => b.total - a.total);
   }, [participants, sprintFilter]);
 
-  // ── 3. Goals & Category Heatmap ──
+  // ── 3. Goals Leaderboard (All-time) ──
+  const goalsRanking = useMemo(() => {
+    const stats: Record<string, { profile: Profile; total: number; count: number }> = {};
+    userGoals.filter(ug => ug.status === "achieved").forEach(ug => {
+      const profile = orgUsers.find(u => u.id === ug.user_id);
+      const def = goalDefinitions.find(g => g.id === ug.goal_id);
+      if (!profile || !def) return;
+      if (!stats[ug.user_id]) stats[ug.user_id] = { profile, total: 0, count: 0 };
+      stats[ug.user_id].total += def.points;
+      stats[ug.user_id].count += 1;
+    });
+    return Object.values(stats).sort((a, b) => b.total - a.total);
+  }, [userGoals, orgUsers, goalDefinitions]);
+
+  // ── 4. Practice & Category Heatmap ──
   const { goalList, goalCategoryStats } = useMemo(() => {
     const list = userGoals
       .filter(ug => ug.status === "achieved")
@@ -161,7 +177,6 @@ export default function AdminDashboardClient({
         user: orgUsers.find(u => u.id === ug.user_id),
         goal: goalDefinitions.find(g => g.id === ug.goal_id),
       }))
-      .filter(ug => goalFilter === "all" || ug.goal_id === goalFilter)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     const catStats: Record<string, number> = {};
@@ -174,10 +189,10 @@ export default function AdminDashboardClient({
     return {
       goalList: list,
       goalCategoryStats: Object.entries(catStats)
-        .map(([name, count]) => ({ name, count, pct: (count / totalAchieved) * 100 }))
+        .map(([name, count]) => ({ name, count, pct: (count / (totalAchieved || 1)) * 100 }))
         .sort((a, b) => b.count - a.count),
     };
-  }, [userGoals, goalFilter, orgUsers, goalDefinitions]);
+  }, [userGoals, orgUsers, goalDefinitions]);
 
   // ── 4. Project Efficiency (ROI) — all sprints ──
   const projectEfficiency = useMemo(() => {
@@ -314,9 +329,7 @@ export default function AdminDashboardClient({
         </div>
         <div className="inline-flex p-1 bg-slate-100/80 rounded-2xl overflow-x-auto max-w-full">
           {[
-            { id: "recognition", label: "Recognition", icon: Zap },
-            { id: "sprint",      label: "Sprints",     icon: Trophy },
-            { id: "goals",       label: "Practice",    icon: Target },
+            { id: "points",      label: "Points",      icon: Coins },
             { id: "projects",    label: "ROI",         icon: Briefcase },
             { id: "quality",     label: "Quality",     icon: ShieldAlert },
             { id: "utilization", label: "Health",      icon: Activity },
@@ -336,10 +349,34 @@ export default function AdminDashboardClient({
         </div>
       </div>
 
+      {/* Sub-tabs for Points */}
+      {tab === "points" && (
+        <div className="flex items-center gap-2 p-1 bg-slate-50/50 rounded-xl w-fit">
+          {[
+            { id: "recognition", label: "Recognition", icon: Zap },
+            { id: "sprint",      label: "Sprints",     icon: Trophy },
+            { id: "goals",       label: "Goals",       icon: Target },
+          ].map(st => (
+            <button
+              key={st.id}
+              onClick={() => { setSubTab(st.id as typeof subTab); setViewMode("list"); }}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all",
+                subTab === st.id ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-100" : "text-slate-500 hover:text-slate-700",
+              )}
+            >
+              <st.icon className="h-3.5 w-3.5" />
+              {st.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+
       {/* Filters row */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          {tab === "recognition" && (
+          {tab === "points" && subTab === "recognition" && (
             <select className={selectClass}
               value={recognitionFilter.type === "all" ? "all" : recognitionFilter.monthValue}
               onChange={e => e.target.value === "all"
@@ -352,18 +389,17 @@ export default function AdminDashboardClient({
             </select>
           )}
 
-          {tab === "sprint" && (
+          {tab === "points" && subTab === "sprint" && (
             <select className={selectClass} value={sprintFilter} onChange={e => setSprintFilter(e.target.value)}>
               <option value="all_time">All Time Points</option>
               {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           )}
 
-          {tab === "goals" && (
-            <select className={cn(selectClass, "max-w-[300px]")} value={goalFilter} onChange={e => setGoalFilter(e.target.value)}>
-              <option value="all">Explore Achievements</option>
-              {goalDefinitions.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
-            </select>
+          {tab === "points" && subTab === "goals" && (
+            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
+              <Medal className="h-3 w-3" /> All-time achievement records
+            </div>
           )}
 
           {tab === "quality" && (
@@ -395,14 +431,14 @@ export default function AdminDashboardClient({
 
         <div className="flex flex-col items-end gap-1 text-right">
           <p className="text-xs font-medium text-slate-400 italic max-w-xs leading-tight">
-            {tab === "recognition"  && "Track team recognition points and extra performance bonuses across any time period."}
-            {tab === "sprint"       && "Cumulative performance audit: Base points plus net wins and deductions per sprint."}
-            {tab === "goals"        && "Team growth heatmap: Tracking certifications, professional development, and contribution goals."}
+            {tab === "points" && subTab === "recognition"  && "Track team recognition points and extra performance bonuses across any time period."}
+            {tab === "points" && subTab === "sprint"       && "Cumulative performance audit: Base points plus net wins and deductions per sprint."}
+            {tab === "points" && subTab === "goals"        && "Achievement leaderboard: Ranking professionals by lifetime goal points earned."}
             {tab === "projects"     && "Project efficiency index: Comparing team effort (allocation) vs. actual recognised results."}
             {tab === "quality"      && "Systemic issue monitor: Tracking bugs, absences, and communication audit trends."}
             {tab === "utilization"  && "Resource utilisation audit: Team workload and burnout risk across sprints."}
           </p>
-          {(tab === "recognition" || tab === "sprint" || tab === "quality") && (
+          {(tab === "points" || tab === "quality") && (
             <div className="flex p-0.5 bg-slate-100/60 rounded-lg">
               <button onClick={() => setViewMode("list")} className={cn("p-1.5 rounded-md transition-all", viewMode === "list" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}><ListOrdered className="h-4 w-4" /></button>
               <button onClick={() => setViewMode("graph")} className={cn("p-1.5 rounded-md transition-all", viewMode === "graph" ? "bg-white text-violet-600 shadow-sm" : "text-slate-400")}><BarChart3 className="h-4 w-4" /></button>
@@ -414,62 +450,68 @@ export default function AdminDashboardClient({
       {/* ── Main content ── */}
       <div className="space-y-6">
 
-        {/* RECOGNITION */}
-        {tab === "recognition" && (viewMode === "list"
-          ? <RankingList data={recognitionRanking} subtext="kudos received" unit="pts" />
-          : <RankingGraph data={recognitionRanking} unit="pts" />
-        )}
+        {/* POINTS HUB CONTENT */}
+        {tab === "points" && (
+          <div className="space-y-6">
+            {subTab === "recognition" && (viewMode === "list"
+              ? <RankingList data={recognitionRanking} subtext="kudos received" unit="pts" />
+              : <RankingGraph data={recognitionRanking} unit="pts" />
+            )}
 
-        {/* SPRINT */}
-        {tab === "sprint" && (viewMode === "list"
-          ? <RankingList data={sprintRanking} subtext="net performance" unit="pts" />
-          : <RankingGraph data={sprintRanking} unit="pts" />
-        )}
+            {subTab === "sprint" && (viewMode === "list"
+              ? <RankingList data={sprintRanking} subtext="net performance" unit="pts" />
+              : <RankingGraph data={sprintRanking} unit="pts" />
+            )}
 
-        {/* PRACTICE GROWTH */}
-        {tab === "goals" && (
-          <div className="space-y-10">
-            {goalFilter === "all" && (
-              <div className="bg-white border border-slate-100 rounded-[2.5rem] p-10 shadow-sm">
-                <h3 className="text-xl font-black text-slate-900 mb-8">Practice Focus Heatmap</h3>
-                <div className="flex flex-col md:flex-row gap-10 items-center">
-                  <div className="flex-1 w-full space-y-5">
-                    {goalCategoryStats.map(cat => (
-                      <div key={cat.name} className="space-y-2">
-                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
-                          <span>{cat.name}</span>
-                          <span className="text-slate-900">{cat.count} logs</span>
+            {subTab === "goals" && (
+              <div className="space-y-10">
+                {viewMode === "list" 
+                  ? <RankingList data={goalsRanking.map(r => ({ profile: r.profile, total: r.total }))} subtext="goal achievement points" unit="pts" />
+                  : <RankingGraph data={goalsRanking.map(r => ({ profile: r.profile, total: r.total }))} unit="pts" />
+                }
+                
+                <div className="bg-white border border-slate-100 rounded-[2.5rem] p-10 shadow-sm">
+                  <h3 className="text-xl font-black text-slate-900 mb-8">Practice Focus Heatmap</h3>
+                  <div className="flex flex-col md:flex-row gap-10 items-center">
+                    <div className="flex-1 w-full space-y-5">
+                      {goalCategoryStats.map(cat => (
+                        <div key={cat.name} className="space-y-2">
+                          <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
+                            <span>{cat.name}</span>
+                            <span className="text-slate-900">{cat.count} logs</span>
+                          </div>
+                          <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden">
+                            <div style={{ width: `${cat.pct}%` }} className={cn("h-full transition-all duration-1000", CATEGORY_COLORS[cat.name] || "bg-slate-300")} />
+                          </div>
                         </div>
-                        <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden">
-                          <div style={{ width: `${cat.pct}%` }} className={cn("h-full transition-all duration-1000", CATEGORY_COLORS[cat.name] || "bg-slate-300")} />
-                        </div>
+                      ))}
+                    </div>
+                    <div className="w-full md:w-64 aspect-square rounded-full border-[16px] border-slate-50 flex items-center justify-center">
+                      <div className="text-center">
+                        <p className="text-4xl font-black text-slate-900">{userGoals.filter(ug => ug.status === "achieved").length}</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">Total logs</p>
                       </div>
-                    ))}
-                  </div>
-                  <div className="w-full md:w-64 aspect-square rounded-full border-[16px] border-slate-50 flex items-center justify-center">
-                    <div className="text-center">
-                      <p className="text-4xl font-black text-slate-900">{userGoals.length}</p>
-                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">Total logs</p>
                     </div>
                   </div>
                 </div>
+
+                <div className="grid gap-4">
+                  {goalList.slice(0, 10).map(ug => (
+                    <div key={ug.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex items-center gap-6 text-left">
+                      <Avatar className="h-12 w-12"><AvatarImage src={ug.user?.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(ug.user?.full_name || "?")}</AvatarFallback></Avatar>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-black text-slate-900 truncate">{ug.user?.full_name}</h4>
+                        <p className="text-xs text-slate-500 font-bold truncate mt-0.5">{ug.goal?.title}</p>
+                      </div>
+                      <div className="text-right whitespace-nowrap">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Logged</p>
+                        <p className="text-sm font-black text-slate-700 mt-1">{new Date(ug.created_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-            <div className="grid gap-4">
-              {goalList.slice(0, 15).map(ug => (
-                <div key={ug.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex items-center gap-6">
-                  <Avatar className="h-12 w-12"><AvatarImage src={ug.user?.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(ug.user?.full_name || "?")}</AvatarFallback></Avatar>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-black text-slate-900 truncate">{ug.user?.full_name}</h4>
-                    <p className="text-xs text-slate-500 font-bold truncate mt-0.5">{ug.goal?.title}</p>
-                  </div>
-                  <div className="text-right whitespace-nowrap">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Logged</p>
-                    <p className="text-sm font-black text-slate-700 mt-1">{new Date(ug.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 

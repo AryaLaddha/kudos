@@ -45,41 +45,39 @@ export default async function LeaderboardPage() {
       .limit(500),
   ]);
 
-  // Collect all unique receiver IDs across all posts
-  const allReceiverIds = new Set<string>();
-  for (const e of entries ?? []) {
-    for (const id of (e.receiver_ids ?? [])) allReceiverIds.add(id);
-  }
+  // Fetch ALL profiles in this organization
+  const { data: allProfiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url, job_title")
+    .eq("org_id", currentProfile.org_id)
+    .order("full_name");
 
-  // Fetch profiles for all receivers
+  // Create a profile map for quick lookups
   const profileMap = new Map<string, { full_name: string; avatar_url: string | null; job_title: string | null }>();
-  if (allReceiverIds.size > 0) {
-    const { data: receiverProfiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url, job_title")
-      .in("id", [...allReceiverIds]);
-    for (const p of receiverProfiles ?? []) profileMap.set(p.id, p);
+  for (const p of allProfiles ?? []) {
+    profileMap.set(p.id, p);
   }
 
-  // Aggregate points per receiver — each receiver in receiver_ids gets `points`
-  const totals = new Map<string, { name: string; avatar: string | null; title: string | null; points: number; recognitions: number }>();
+  // Aggregate points per receiver — everyone starts at 0
+  const totals = new Map<string, { id: string; name: string; avatar: string | null; title: string | null; points: number; recognitions: number }>();
+  
+  for (const p of allProfiles ?? []) {
+    totals.set(p.id, {
+      id: p.id,
+      name: p.full_name,
+      avatar: p.avatar_url,
+      title: p.job_title,
+      points: 0,
+      recognitions: 0,
+    });
+  }
 
   for (const e of entries ?? []) {
     for (const receiverId of (e.receiver_ids ?? [])) {
-      const profile = profileMap.get(receiverId);
-      if (!profile) continue;
       const existing = totals.get(receiverId);
       if (existing) {
         existing.points += e.points;
         existing.recognitions += 1;
-      } else {
-        totals.set(receiverId, {
-          name: profile.full_name,
-          avatar: profile.avatar_url,
-          title: profile.job_title,
-          points: e.points,
-          recognitions: 1,
-        });
       }
     }
   }
@@ -95,8 +93,7 @@ export default async function LeaderboardPage() {
     }
   }
 
-  const ranked = Array.from(totals.entries())
-    .map(([id, data]) => ({ id, ...data }))
+  const ranked = Array.from(totals.values())
     .sort((a, b) => b.points - a.points);
 
   const monthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;

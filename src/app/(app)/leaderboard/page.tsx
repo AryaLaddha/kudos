@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 export const revalidate = 300; // Revalidate every 5 minutes — leaderboard doesn't need real-time
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Trophy, Medal } from "lucide-react";
+import { LeaderboardFilter } from "@/components/app/LeaderboardFilter";
 import { cn } from "@/lib/utils";
 
 function getInitials(name: string) {
@@ -12,7 +13,17 @@ function getInitials(name: string) {
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-export default async function LeaderboardPage() {
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; year?: string; period?: string }>;
+}) {
+  const params = await searchParams;
+  const isAllTime = params.period === "all";
+  const now = new Date();
+  const month = parseInt(params.month ?? now.getMonth().toString());
+  const year = parseInt(params.year ?? now.getFullYear().toString());
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
@@ -25,25 +36,28 @@ export default async function LeaderboardPage() {
 
   if (!currentProfile?.org_id) redirect("/feed");
 
-  // Points received this month per person in the org
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  // Filter setup
+  let queryR = supabase
+    .from("recognitions")
+    .select("id, receiver_ids, points")
+    .eq("org_id", currentProfile.org_id)
+    .limit(1000);
 
-  const [{ data: entries }, { data: tipEntries }] = await Promise.all([
-    supabase
-      .from("recognitions")
-      .select("id, receiver_ids, points")
-      .eq("org_id", currentProfile.org_id)
-      .gte("created_at", monthStart)
-      .limit(500),
-    supabase
-      .from("comments")
-      .select("recognition_id, points_tip, recognitions!inner(receiver_ids, org_id)")
-      .eq("recognitions.org_id", currentProfile.org_id)
-      .gte("created_at", monthStart)
-      .gt("points_tip", 0)
-      .limit(500),
-  ]);
+  let queryC = supabase
+    .from("comments")
+    .select("recognition_id, points_tip, recognitions!inner(receiver_ids, org_id)")
+    .eq("recognitions.org_id", currentProfile.org_id)
+    .gt("points_tip", 0)
+    .limit(1000);
+
+  if (!isAllTime) {
+    const monthStart = new Date(year, month, 1).toISOString();
+    const nextMonth = new Date(year, month + 1, 1).toISOString();
+    queryR = queryR.gte("created_at", monthStart).lt("created_at", nextMonth);
+    queryC = queryC.gte("created_at", monthStart).lt("created_at", nextMonth);
+  }
+
+  const [{ data: entries }, { data: tipEntries }] = await Promise.all([queryR, queryC]);
 
   // Fetch ALL profiles in this organization
   const { data: allProfiles } = await supabase
@@ -96,36 +110,38 @@ export default async function LeaderboardPage() {
   const ranked = Array.from(totals.values())
     .sort((a, b) => b.points - a.points);
 
-  const monthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
-
-  const rankStyles = [
-    { bg: "bg-amber-50 border-amber-200", badge: "bg-amber-400 text-white", label: "1st" },
-    { bg: "bg-slate-50 border-slate-200", badge: "bg-slate-400 text-white", label: "2nd" },
-    { bg: "bg-orange-50 border-orange-200", badge: "bg-orange-400 text-white", label: "3rd" },
-  ];
+  const monthLabel = isAllTime ? "All-Time" : `${MONTH_NAMES[month]} ${year}`;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-20">
       {/* Header */}
-      <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100">
-          <Trophy className="h-5 w-5 text-amber-500" />
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100">
+            <Trophy className="h-5 w-5 text-amber-500" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900">Leaderboard</h1>
+            <p className="text-sm text-slate-500">{isAllTime ? "Master performance records" : "Most recognized this month"} · {monthLabel}</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Leaderboard</h1>
-          <p className="text-sm text-slate-500">Most recognised this month · {monthLabel}</p>
-        </div>
+        <LeaderboardFilter />
       </div>
 
       {ranked.length === 0 ? (
         <div className="rounded-2xl border border-slate-100 bg-white p-12 text-center shadow-sm">
           <Trophy className="mx-auto h-10 w-10 text-slate-200 mb-3" />
-          <p className="text-slate-500 font-medium">No recognitions yet this month</p>
-          <p className="text-sm text-slate-400 mt-1">Be the first to give kudos!</p>
+          <p className="text-slate-500 font-medium">No activity for this period</p>
+          <p className="text-sm text-slate-400 mt-1">Start giving kudos to build the board!</p>
         </div>
       ) : (
         <div className="space-y-3">
           {ranked.map((person, i) => {
+            const rankStyles = [
+              { bg: "bg-amber-50 border-amber-200", badge: "bg-amber-400 text-white", label: "1st" },
+              { bg: "bg-slate-50 border-slate-200", badge: "bg-slate-400 text-white", label: "2nd" },
+              { bg: "bg-orange-50 border-orange-200", badge: "bg-orange-400 text-white", label: "3rd" },
+            ];
             const style = rankStyles[i] ?? { bg: "bg-white border-slate-100", badge: "bg-indigo-100 text-indigo-700", label: `${i + 1}th` };
             const isTop3 = i < 3;
 

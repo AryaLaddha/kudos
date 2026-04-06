@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export const revalidate = 300; // Revalidate every 5 minutes — leaderboard doesn't need real-time
+export const revalidate = 300;
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Trophy, Medal } from "lucide-react";
+import { Trophy, Medal, Zap, BarChart3, Coins } from "lucide-react";
 import { LeaderboardFilter } from "@/components/app/LeaderboardFilter";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 function getInitials(name: string) {
@@ -16,7 +17,7 @@ const MONTH_NAMES = ["January","February","March","April","May","June","July","A
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string; period?: string }>;
+  searchParams: Promise<{ month?: string; year?: string; period?: string; tab?: string }>;
 }) {
   const params = await searchParams;
   const isAllTime = params.period === "all";
@@ -36,19 +37,11 @@ export default async function LeaderboardPage({
 
   if (!currentProfile?.org_id) redirect("/feed");
 
-  // Filter setup
-  let queryR = supabase
-    .from("recognitions")
-    .select("id, receiver_ids, points")
-    .eq("org_id", currentProfile.org_id)
-    .limit(1000);
+  const activeTab = params.tab === "sprint" ? "sprint" : "recognition";
 
-  let queryC = supabase
-    .from("comments")
-    .select("recognition_id, points_tip, recognitions!inner(receiver_ids, org_id)")
-    .eq("recognitions.org_id", currentProfile.org_id)
-    .gt("points_tip", 0)
-    .limit(1000);
+  // ── RECOGNITION DATA ──
+  let queryR = supabase.from("recognitions").select("receiver_ids, points").eq("org_id", currentProfile.org_id);
+  let queryC = supabase.from("comments").select("points_tip, recognitions!inner(receiver_ids, org_id)").eq("recognitions.org_id", currentProfile.org_id).gt("points_tip", 0);
 
   if (!isAllTime) {
     const monthStart = new Date(year, month, 1).toISOString();
@@ -57,52 +50,57 @@ export default async function LeaderboardPage({
     queryC = queryC.gte("created_at", monthStart).lt("created_at", nextMonth);
   }
 
-  const [{ data: entries }, { data: tipEntries }] = await Promise.all([queryR, queryC]);
-
-  // Fetch ALL profiles in this organization
-  const { data: allProfiles } = await supabase
-    .from("profiles")
-    .select("id, full_name, avatar_url, job_title")
-    .eq("org_id", currentProfile.org_id)
-    .order("full_name");
-
-  // Create a profile map for quick lookups
-  const profileMap = new Map<string, { full_name: string; avatar_url: string | null; job_title: string | null }>();
-  for (const p of allProfiles ?? []) {
-    profileMap.set(p.id, p);
-  }
-
-  // Aggregate points per receiver — everyone starts at 0
-  const totals = new Map<string, { id: string; name: string; avatar: string | null; title: string | null; points: number; recognitions: number }>();
+  // ── SPRINT DATA ──
+  // Only completed sprints for everyone
+  let querySprints = supabase.from("sprints").select("id").eq("org_id", currentProfile.org_id).eq("status", "completed");
   
-  for (const p of allProfiles ?? []) {
-    totals.set(p.id, {
-      id: p.id,
-      name: p.full_name,
-      avatar: p.avatar_url,
-      title: p.job_title,
-      points: 0,
-      recognitions: 0,
-    });
+  if (!isAllTime) {
+    const monthStart = new Date(year, month, 1).toISOString();
+    const nextMonth = new Date(year, month + 1, 1).toISOString();
+    querySprints = querySprints.gte("end_date", monthStart).lt("end_date", nextMonth);
   }
 
-  for (const e of entries ?? []) {
-    for (const receiverId of (e.receiver_ids ?? [])) {
-      const existing = totals.get(receiverId);
-      if (existing) {
-        existing.points += e.points;
-        existing.recognitions += 1;
+  const { data: sprints } = await querySprints;
+  const sprintIds = (sprints ?? []).map(s => s.id);
+
+  // Fetch all data in parallel
+  const [{ data: entries }, { data: tipEntries }, { data: sprintEntries }, { data: allProfiles }] = await Promise.all([
+    queryR,
+    queryC,
+    sprintIds.length > 0 
+      ? supabase.from("sprint_participants").select("user_id, base_points, scores").in("sprint_id", sprintIds)
+      : Promise.resolve({ data: [] }),
+    supabase.from("profiles").select("id, full_name, avatar_url, job_title").eq("org_id", currentProfile.org_id).order("full_name")
+  ]);
+
+  // Aggregate based on active tab
+  const totals = new Map<string, { id: string; name: string; avatar: string | null; title: string | null; points: number; count: number }>();
+  for (const p of allProfiles ?? []) {
+    totals.set(p.id, { id: p.id, name: p.full_name, avatar: p.avatar_url, title: p.job_title, points: 0, count: 0 });
+  }
+
+  if (activeTab === "recognition") {
+    for (const e of entries ?? []) {
+      for (const receiverId of (e.receiver_ids ?? [])) {
+        const existing = totals.get(receiverId);
+        if (existing) { existing.points += e.points; existing.count += 1; }
       }
     }
-  }
-
-  // Add tip points — tips go to all receivers of the recognition
-  for (const tip of tipEntries ?? []) {
-    const rec = tip.recognitions as unknown as { receiver_ids: string[] };
-    for (const receiverId of (rec?.receiver_ids ?? [])) {
-      const existing = totals.get(receiverId);
+    for (const tip of tipEntries ?? []) {
+      const rec = tip.recognitions as unknown as { receiver_ids: string[] };
+      for (const receiverId of (rec?.receiver_ids ?? [])) {
+        const existing = totals.get(receiverId);
+        if (existing) existing.points += tip.points_tip ?? 0;
+      }
+    }
+  } else {
+    for (const entry of sprintEntries ?? []) {
+      const existing = totals.get(entry.user_id);
       if (existing) {
-        existing.points += tip.points_tip ?? 0;
+        const scores = entry.scores as Record<string, number> || {};
+        const totalAwarded = Object.values(scores).reduce((acc, v) => acc + v, 0);
+        existing.points += (entry.base_points ?? 20) + totalAwarded;
+        existing.count += 1;
       }
     }
   }
@@ -114,18 +112,46 @@ export default async function LeaderboardPage({
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-20">
-      {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100">
-            <Trophy className="h-5 w-5 text-amber-500" />
+      {/* Header with Tab Switcher */}
+      <div className="mb-8 flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 shadow-sm">
+              <Coins className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Points Hub</h1>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                {activeTab === "recognition" ? `Top Recognition · ${monthLabel}` : `Sprint Leaders · ${monthLabel}`}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">Leaderboard</h1>
-            <p className="text-sm text-slate-500">{isAllTime ? "Master performance records" : "Most recognized this month"} · {monthLabel}</p>
-          </div>
+          <LeaderboardFilter />
         </div>
-        <LeaderboardFilter />
+
+        {/* Tab Selection */}
+        <div className="flex gap-1 p-1 bg-slate-100/80 rounded-xl w-full sm:w-fit">
+          <Link
+            href={`/leaderboard?tab=recognition${params.period ? `&period=${params.period}` : ""}${params.month ? `&month=${params.month}&year=${params.year}` : ""}`}
+            className={cn(
+              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all",
+              activeTab === "recognition" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            <Zap className={cn("h-3.5 w-3.5", activeTab === "recognition" ? "text-indigo-600" : "text-slate-400")} />
+            RECOGNITION
+          </Link>
+          <Link
+            href={`/leaderboard?tab=sprint${params.period ? `&period=${params.period}` : ""}${params.month ? `&month=${params.month}&year=${params.year}` : ""}`}
+            className={cn(
+              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all",
+              activeTab === "sprint" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            <Trophy className={cn("h-3.5 w-3.5", activeTab === "sprint" ? "text-indigo-600" : "text-slate-400")} />
+            SPRINTS
+          </Link>
+        </div>
       </div>
 
       {ranked.length === 0 ? (
@@ -177,11 +203,14 @@ export default async function LeaderboardPage({
 
                 {/* Stats */}
                 <div className="text-right flex-shrink-0">
-                  <p className={cn("text-lg font-extrabold", isTop3 && i === 0 ? "text-amber-500" : "text-indigo-600")}>
-                    +{person.points} pts
+                  <p className={cn("text-lg font-extrabold", isTop3 && i === 0 ? "text-indigo-600" : "text-slate-600")}>
+                    {person.points >= 0 ? "+" : ""}{activeTab === "sprint" ? Math.round(person.points) : person.points} pts
                   </p>
-                  <p className="text-xs text-slate-400">
-                    {person.recognitions} {person.recognitions === 1 ? "recognition" : "recognitions"}
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                    {activeTab === "recognition" 
+                      ? `${person.count} ${person.count === 1 ? "recognition" : "recognitions"}` 
+                      : `${person.count} ${person.count === 1 ? "sprint" : "sprints"}`
+                    }
                   </p>
                 </div>
               </div>

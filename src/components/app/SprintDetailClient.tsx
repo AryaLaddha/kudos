@@ -266,28 +266,28 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => startTransition(() => router.push("/sprints"))}
-          className="text-slate-500 hover:text-slate-700 transition-colors"
+          className="text-slate-500 hover:text-slate-700 transition-colors flex-shrink-0"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-violet-100">
             <Zap className="h-5 w-5 text-violet-600" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-extrabold text-slate-900">{sprint.name}</h1>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 truncate">{sprint.name}</h1>
               <div className={cn(
-                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex-shrink-0",
                 sprint.status === "completed" ? "bg-slate-100 text-slate-500" : "bg-green-100 text-green-700"
               )}>
                 {sprint.status === "completed" ? "Completed" : "In Progress"}
               </div>
             </div>
-            <p className="text-sm text-slate-500">{formatDate(sprint.start_date)} – {formatDate(sprint.end_date)}</p>
+            <p className="text-sm text-slate-500 truncate">{formatDate(sprint.start_date)} – {formatDate(sprint.end_date)}</p>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -295,7 +295,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
             className="h-9 px-3 gap-2"
           >
             {sprint.status === "completed" ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
-            {sprint.status === "completed" ? "Re-open Sprint" : "Complete Sprint"}
+            <span className="hidden sm:inline">{sprint.status === "completed" ? "Re-open Sprint" : "Complete Sprint"}</span>
           </Button>
           <Button
             variant="ghost"
@@ -429,7 +429,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
       {tab === "grid" && (
         <div>
           {/* Add participant */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
               <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{participants.length} Participants</h2>
               <Button

@@ -334,48 +334,52 @@ export default function AdminDashboardClient({
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Admin Insights</h1>
           <p className="text-slate-500 mt-1 font-medium italic">Strategic reporting and team health monitoring</p>
         </div>
-        <div className="inline-flex p-1 bg-slate-100/80 rounded-2xl overflow-x-auto max-w-full">
-          {[
-            { id: "points",      label: "Points",      icon: Coins },
-            { id: "projects",    label: "ROI",         icon: Briefcase },
-            { id: "quality",     label: "Quality",     icon: ShieldAlert },
-            { id: "utilization", label: "Health",      icon: Activity },
-          ].map(t => (
-            <button
-              key={t.id}
-              onClick={() => { setTab(t.id as typeof tab); setViewMode("list"); }}
-              className={cn(
-                "px-4 py-2.5 rounded-xl text-[13px] font-bold flex items-center gap-2 transition-all whitespace-nowrap",
-                tab === t.id ? "bg-white text-violet-600 shadow-sm" : "text-slate-500 hover:text-slate-700",
-              )}
-            >
-              <t.icon className="h-4 w-4" />
-              {t.label}
-            </button>
-          ))}
+        <div className="overflow-x-auto w-full md:w-auto">
+          <div className="inline-flex p-1 bg-slate-100/80 rounded-2xl min-w-max">
+            {[
+              { id: "points",      label: "Points",      icon: Coins },
+              { id: "projects",    label: "ROI",         icon: Briefcase },
+              { id: "quality",     label: "Quality",     icon: ShieldAlert },
+              { id: "utilization", label: "Health",      icon: Activity },
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => { setTab(t.id as typeof tab); setViewMode("list"); }}
+                className={cn(
+                  "px-4 py-2.5 rounded-xl text-[13px] font-bold flex items-center gap-2 transition-all whitespace-nowrap",
+                  tab === t.id ? "bg-white text-violet-600 shadow-sm" : "text-slate-500 hover:text-slate-700",
+                )}
+              >
+                <t.icon className="h-4 w-4" />
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Sub-tabs for Points */}
       {tab === "points" && (
-        <div className="flex items-center gap-2 p-1 bg-slate-50/50 rounded-xl w-fit">
-          {[
-            { id: "recognition", label: "Recognition", icon: Zap },
-            { id: "sprint",      label: "Sprints",     icon: Trophy },
-            { id: "goals",       label: "Goals",       icon: Target },
-          ].map(st => (
-            <button
-              key={st.id}
-              onClick={() => { setSubTab(st.id as typeof subTab); setViewMode("list"); }}
-              className={cn(
-                "px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all",
-                subTab === st.id ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-100" : "text-slate-500 hover:text-slate-700",
-              )}
-            >
-              <st.icon className="h-3.5 w-3.5" />
-              {st.label}
-            </button>
-          ))}
+        <div className="overflow-x-auto">
+          <div className="inline-flex items-center gap-2 p-1 bg-slate-50/50 rounded-xl min-w-max">
+            {[
+              { id: "recognition", label: "Recognition", icon: Zap },
+              { id: "sprint",      label: "Sprints",     icon: Trophy },
+              { id: "goals",       label: "Goals",       icon: Target },
+            ].map(st => (
+              <button
+                key={st.id}
+                onClick={() => { setSubTab(st.id as typeof subTab); setViewMode("list"); }}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all",
+                  subTab === st.id ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-100" : "text-slate-500 hover:text-slate-700",
+                )}
+              >
+                <st.icon className="h-3.5 w-3.5" />
+                {st.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -757,9 +761,9 @@ function RankingList({ data, subtext, unit }: { data: { profile: Profile; total:
               <h3 className="text-sm font-black text-slate-900 truncate tracking-tight">{row.profile.full_name}</h3>
               <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{row.profile.job_title || "Team Member"}</p>
             </div>
-            <div className="text-right">
-              <p className={cn("text-lg font-black leading-none", i === 0 ? "text-amber-600" : "text-violet-600")}>{Math.round(row.total)}{unit}</p>
-              <span className="text-[9px] text-slate-400 uppercase font-black">{subtext}</span>
+            <div className="text-right flex-shrink-0">
+              <p className={cn("text-lg font-black leading-none whitespace-nowrap", i === 0 ? "text-amber-600" : "text-violet-600")}>{Math.round(row.total)}{unit}</p>
+              <span className="text-[9px] text-slate-400 uppercase font-black whitespace-nowrap">{subtext}</span>
             </div>
           </div>
         ))}

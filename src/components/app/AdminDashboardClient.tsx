@@ -27,7 +27,7 @@ interface Sprint {
   end_date: string;
   status: "active" | "completed";
 }
-interface Project { id: string; name: string; }
+interface Project { id: string; name: string; is_archived?: boolean; }
 interface Profile { id: string; full_name: string; avatar_url: string | null; job_title?: string | null; }
 interface Participant {
   sprint_id: string;
@@ -197,7 +197,14 @@ export default function AdminDashboardClient({
   // ── 4. Project Efficiency (ROI) — all sprints ──
   const projectEfficiency = useMemo(() => {
     const stats: Record<string, { id: string; name: string; totalEffort: number; totalRecognition: number }> = {};
-    projects.forEach(p => { stats[p.id] = { id: p.id, name: p.name, totalEffort: 0, totalRecognition: 0 }; });
+    projects.forEach(p => { 
+      stats[p.id] = { 
+        id: p.id, 
+        name: p.is_archived ? `${p.name} (Archived)` : p.name, 
+        totalEffort: 0, 
+        totalRecognition: 0 
+      }; 
+    });
     participants.forEach(p => {
       if (!p.profile) return;
       const scores = p.scores ?? {};

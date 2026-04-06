@@ -16,13 +16,26 @@ async function requireAdminClient() {
 
 export async function getProjects() {
   const { supabase, orgId } = await requireAdminClient();
-  const { data } = await supabase.from("projects").select("*").eq("org_id", orgId).order("name");
+  const { data } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("is_archived", false)
+    .order("name");
   return data ?? [];
 }
 
 export async function createProject(name: string) {
   const { supabase, orgId } = await requireAdminClient();
   const { error } = await supabase.from("projects").insert({ name, org_id: orgId });
+  if (error) return { error: error.message };
+  revalidatePath("/sprints");
+  return {};
+}
+
+export async function archiveProject(id: string) {
+  const { supabase } = await requireAdminClient();
+  const { error } = await supabase.from("projects").update({ is_archived: true }).eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/sprints");
   return {};
@@ -264,7 +277,8 @@ export async function getAdminAnalytics() {
     { data: userGoals },
     { data: recognitions }
   ] = await Promise.all([
-    supabase.from("projects").select("id, name").eq("org_id", orgId).order("name"),
+    // In analytics, we fetch ALL projects (including archived) so historical ROI is accurate
+    supabase.from("projects").select("id, name, is_archived").eq("org_id", orgId).order("name"),
     sprintIds.length > 0
       ? supabase.from("sprint_participants").select("sprint_id, user_id, base_points, scores, project_allocations, profile:profiles(id, full_name, avatar_url, job_title)").in("sprint_id", sprintIds)
       : Promise.resolve({ data: [] }),

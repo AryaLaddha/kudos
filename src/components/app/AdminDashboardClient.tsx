@@ -763,7 +763,7 @@ function RankingList({ data, subtext, unit }: { data: { profile: Profile; total:
             </div>
             <div className="text-right flex-shrink-0">
               <p className={cn("text-lg font-black leading-none whitespace-nowrap", i === 0 ? "text-amber-600" : "text-violet-600")}>{Math.round(row.total)}{unit}</p>
-              <span className="text-[9px] text-slate-400 uppercase font-black whitespace-nowrap">{subtext}</span>
+              <span className="hidden sm:block text-[9px] text-slate-400 uppercase font-black whitespace-nowrap">{subtext}</span>
             </div>
           </div>
         ))}

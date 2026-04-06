@@ -295,6 +295,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
             className="h-9 px-3 gap-2"
           >
             {sprint.status === "completed" ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
+            <span className="sm:hidden">{sprint.status === "completed" ? "Re-open" : "Complete"}</span>
             <span className="hidden sm:inline">{sprint.status === "completed" ? "Re-open Sprint" : "Complete Sprint"}</span>
           </Button>
           <Button
@@ -367,7 +368,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                     )}>
                       {i === 0 ? <Trophy className="h-4 w-4" /> : i + 1}
                     </div>
-                    <Avatar className="h-8 w-8">
+                    <Avatar className="h-8 w-8 flex-shrink-0">
                       <AvatarImage src={p.profile.avatar_url ?? undefined} />
                       <AvatarFallback className="bg-violet-100 text-violet-700 text-xs font-bold">
                         {getInitials(p.profile.full_name)}
@@ -377,17 +378,17 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                       <p className="text-sm font-semibold text-slate-900 truncate">{p.profile.full_name}</p>
                     </div>
 
-                    {/* Individual Mini Pie */}
-                    <div className="flex-shrink-0">
+                    {/* Individual Mini Pie — hidden on mobile to give names more room */}
+                    <div className="flex-shrink-0 hidden sm:block">
                       {renderPie(
                         projects.map(proj => ({ name: proj.name, val: p.project_allocations[proj.id] || 0 })).filter(d => d.val > 0),
                         10
                       )}
                     </div>
 
-                    <div className="text-right">
-                      <p className={cn("text-base font-extrabold", i === 0 ? "text-amber-600" : "text-violet-600")}>{p.total} pts</p>
-                      <p className="text-[10px] text-slate-400">base: {p.base_points}</p>
+                    <div className="text-right flex-shrink-0">
+                      <p className={cn("text-base font-extrabold whitespace-nowrap", i === 0 ? "text-amber-600" : "text-violet-600")}>{p.total} pts</p>
+                      <p className="text-[10px] text-slate-400 whitespace-nowrap">base: {p.base_points}</p>
                     </div>
                   </div>
                 ))}
@@ -478,8 +479,114 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
             </div>
           )}
 
-          {/* Scrollable grid */}
-          <div className="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
+          {/* ── Mobile card view (sm and below) ── */}
+          <div className="sm:hidden space-y-3">
+            {participants.length === 0 && (
+              <p className="py-8 text-center text-sm text-slate-400">Add people to the sprint to get started.</p>
+            )}
+            {participants.map(p => {
+              const total = grandTotal(p, wonCols, dedCols);
+              const isSaving = savingId === p.user_id;
+              const currentAlloc = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
+              return (
+                <div key={p.user_id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  {/* Card header */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarImage src={p.profile.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-[9px] font-bold bg-violet-100 text-violet-700">{getInitials(p.profile.full_name)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm">{p.profile.full_name}</p>
+                        <p className="text-xs font-bold text-violet-600">Total: {total} pts</p>
+                      </div>
+                    </div>
+                    <button onClick={() => handleRemove(p.user_id)} className="text-slate-300 hover:text-red-400 transition-colors p-1">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Editable fields */}
+                  <div className="p-4 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Base Pts</label>
+                      <input
+                        type="number"
+                        value={p.base_points}
+                        onChange={e => setBase(p.user_id, Number(e.target.value))}
+                        className="w-full rounded-lg border border-slate-200 text-center text-sm py-1.5 outline-none focus:border-violet-400"
+                      />
+                    </div>
+                    {wonCols.map(c => (
+                      <div key={c.id}>
+                        <label className="text-[10px] font-bold text-green-600 uppercase tracking-wide block mb-1">+ {c.name}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={p.scores[c.id] || ""}
+                          onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
+                          placeholder="—"
+                          className="w-full rounded-lg border border-green-200 text-center text-sm py-1.5 outline-none focus:border-green-400 bg-white"
+                        />
+                      </div>
+                    ))}
+                    {dedCols.map(c => (
+                      <div key={c.id}>
+                        <label className="text-[10px] font-bold text-red-500 uppercase tracking-wide block mb-1">− {c.name}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={p.scores[c.id] || ""}
+                          onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
+                          placeholder="—"
+                          className="w-full rounded-lg border border-red-200 text-center text-sm py-1.5 outline-none focus:border-red-400 bg-white"
+                        />
+                      </div>
+                    ))}
+                    {projects.map(proj => (
+                      <div key={proj.id}>
+                        <label className="text-[10px] font-bold text-violet-600 uppercase tracking-wide block mb-1">{proj.name} %</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={p.project_allocations[proj.id] || ""}
+                          onChange={e => setAllocation(p.user_id, proj.id, Number(e.target.value))}
+                          placeholder="—"
+                          className={cn(
+                            "w-full rounded-lg border text-center text-sm py-1.5 outline-none bg-white",
+                            currentAlloc > 100 ? "border-red-400 text-red-600" : "border-violet-200 focus:border-violet-400"
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Card footer */}
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+                    <span className={cn(
+                      "text-xs font-bold",
+                      currentAlloc > 100 ? "text-red-500" : currentAlloc === 100 ? "text-green-600" : "text-slate-400"
+                    )}>
+                      Allocation: {currentAlloc}%
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => saveParticipant(p)}
+                      disabled={isSaving}
+                      className="h-7 px-4 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1"
+                    >
+                      {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── Desktop scrollable table (hidden on mobile) ── */}
+          <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
             <table className="min-w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">

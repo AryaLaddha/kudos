@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, Target, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, Target, Trash2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -65,6 +65,15 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
   const [showAddUser, setShowAddUser] = useState(false);
   const [tab, setTab] = useState<"grid" | "analytics">("analytics");
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
+
+  function toggleCard(userId: string) {
+    setCollapsedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId); else next.add(userId);
+      return next;
+    });
+  }
 
   const wonCols = sprint.columns?.won ?? [];
   const dedCols = sprint.columns?.deducted ?? [];
@@ -490,8 +499,11 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
               const currentAlloc = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
               return (
                 <div key={p.user_id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  {/* Card header */}
-                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                  {/* Accordion header — always visible, tap to collapse */}
+                  <button
+                    onClick={() => toggleCard(p.user_id)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100 text-left"
+                  >
                     <div className="flex items-center gap-2">
                       <Avatar className="h-8 w-8 flex-shrink-0">
                         <AvatarImage src={p.profile.avatar_url ?? undefined} />
@@ -502,84 +514,98 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                         <p className="text-xs font-bold text-violet-600">Total: {total} pts</p>
                       </div>
                     </div>
-                    <button onClick={() => handleRemove(p.user_id)} className="text-slate-300 hover:text-red-400 transition-colors p-1">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {/* Editable fields */}
-                  <div className="p-4 grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Base Pts</label>
-                      <input
-                        type="number"
-                        value={p.base_points}
-                        onChange={e => setBase(p.user_id, Number(e.target.value))}
-                        className="w-full rounded-lg border border-slate-200 text-center text-sm py-1.5 outline-none focus:border-violet-400"
-                      />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={e => { e.stopPropagation(); handleRemove(p.user_id); }}
+                        className="text-slate-300 hover:text-red-400 transition-colors p-1"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <ChevronDown className={cn(
+                        "h-4 w-4 text-slate-400 transition-transform duration-200 flex-shrink-0",
+                        collapsedCards.has(p.user_id) ? "-rotate-90" : "rotate-0"
+                      )} />
                     </div>
-                    {wonCols.map(c => (
-                      <div key={c.id}>
-                        <label className="text-[10px] font-bold text-green-600 uppercase tracking-wide block mb-1">+ {c.name}</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={p.scores[c.id] || ""}
-                          onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
-                          placeholder="—"
-                          className="w-full rounded-lg border border-green-200 text-center text-sm py-1.5 outline-none focus:border-green-400 bg-white"
-                        />
-                      </div>
-                    ))}
-                    {dedCols.map(c => (
-                      <div key={c.id}>
-                        <label className="text-[10px] font-bold text-red-500 uppercase tracking-wide block mb-1">− {c.name}</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={p.scores[c.id] || ""}
-                          onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
-                          placeholder="—"
-                          className="w-full rounded-lg border border-red-200 text-center text-sm py-1.5 outline-none focus:border-red-400 bg-white"
-                        />
-                      </div>
-                    ))}
-                    {projects.map(proj => (
-                      <div key={proj.id}>
-                        <label className="text-[10px] font-bold text-violet-600 uppercase tracking-wide block mb-1">{proj.name} %</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={p.project_allocations[proj.id] || ""}
-                          onChange={e => setAllocation(p.user_id, proj.id, Number(e.target.value))}
-                          placeholder="—"
-                          className={cn(
-                            "w-full rounded-lg border text-center text-sm py-1.5 outline-none bg-white",
-                            currentAlloc > 100 ? "border-red-400 text-red-600" : "border-violet-200 focus:border-violet-400"
-                          )}
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  </button>
 
-                  {/* Card footer */}
-                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-                    <span className={cn(
-                      "text-xs font-bold",
-                      currentAlloc > 100 ? "text-red-500" : currentAlloc === 100 ? "text-green-600" : "text-slate-400"
-                    )}>
-                      Allocation: {currentAlloc}%
-                    </span>
-                    <Button
-                      size="sm"
-                      onClick={() => saveParticipant(p)}
-                      disabled={isSaving}
-                      className="h-7 px-4 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1"
-                    >
-                      {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                    </Button>
-                  </div>
+                  {/* Collapsible body */}
+                  {!collapsedCards.has(p.user_id) && (
+                    <>
+                      {/* Editable fields */}
+                      <div className="p-4 grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Base Pts</label>
+                          <input
+                            type="number"
+                            value={p.base_points}
+                            onChange={e => setBase(p.user_id, Number(e.target.value))}
+                            className="w-full rounded-lg border border-slate-200 text-center text-sm py-1.5 outline-none focus:border-violet-400"
+                          />
+                        </div>
+                        {wonCols.map(c => (
+                          <div key={c.id}>
+                            <label className="text-[10px] font-bold text-green-600 uppercase tracking-wide block mb-1">+ {c.name}</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={p.scores[c.id] || ""}
+                              onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
+                              placeholder="—"
+                              className="w-full rounded-lg border border-green-200 text-center text-sm py-1.5 outline-none focus:border-green-400 bg-white"
+                            />
+                          </div>
+                        ))}
+                        {dedCols.map(c => (
+                          <div key={c.id}>
+                            <label className="text-[10px] font-bold text-red-500 uppercase tracking-wide block mb-1">− {c.name}</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={p.scores[c.id] || ""}
+                              onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
+                              placeholder="—"
+                              className="w-full rounded-lg border border-red-200 text-center text-sm py-1.5 outline-none focus:border-red-400 bg-white"
+                            />
+                          </div>
+                        ))}
+                        {projects.map(proj => (
+                          <div key={proj.id}>
+                            <label className="text-[10px] font-bold text-violet-600 uppercase tracking-wide block mb-1">{proj.name} %</label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={p.project_allocations[proj.id] || ""}
+                              onChange={e => setAllocation(p.user_id, proj.id, Number(e.target.value))}
+                              placeholder="—"
+                              className={cn(
+                                "w-full rounded-lg border text-center text-sm py-1.5 outline-none bg-white",
+                                currentAlloc > 100 ? "border-red-400 text-red-600" : "border-violet-200 focus:border-violet-400"
+                              )}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Card footer */}
+                      <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+                        <span className={cn(
+                          "text-xs font-bold",
+                          currentAlloc > 100 ? "text-red-500" : currentAlloc === 100 ? "text-green-600" : "text-slate-400"
+                        )}>
+                          Allocation: {currentAlloc}%
+                        </span>
+                        <Button
+                          size="sm"
+                          onClick={() => saveParticipant(p)}
+                          disabled={isSaving}
+                          className="h-7 px-4 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1"
+                        >
+                          {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}

@@ -335,7 +335,7 @@ export default function AdminDashboardClient({
           <p className="text-slate-500 mt-1 font-medium italic">Strategic reporting and team health monitoring</p>
         </div>
         <div className="overflow-x-auto w-full md:w-auto">
-          <div className="inline-flex p-1 bg-slate-100/80 rounded-2xl min-w-max">
+          <div className="flex w-max p-1 bg-slate-100/80 rounded-2xl">
             {[
               { id: "points",      label: "Points",      icon: Coins },
               { id: "projects",    label: "ROI",         icon: Briefcase },
@@ -361,7 +361,7 @@ export default function AdminDashboardClient({
       {/* Sub-tabs for Points */}
       {tab === "points" && (
         <div className="overflow-x-auto">
-          <div className="inline-flex items-center gap-2 p-1 bg-slate-50/50 rounded-xl min-w-max">
+          <div className="flex w-max items-center gap-2 p-1 bg-slate-50/50 rounded-xl">
             {[
               { id: "recognition", label: "Recognition", icon: Zap },
               { id: "sprint",      label: "Sprints",     icon: Trophy },
@@ -754,15 +754,15 @@ function RankingList({ data, subtext, unit }: { data: { profile: Profile; total:
     <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
       <div className="grid divide-y divide-slate-50">
         {data.map((row, i) => (
-          <div key={row.profile.id} className="flex items-center gap-4 p-5 hover:bg-slate-50/50 transition-colors">
+          <div key={row.profile.id} className="flex items-center gap-3 px-4 py-3 sm:gap-4 sm:p-5 hover:bg-slate-50/50 transition-colors">
             <div className={cn("flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-xs font-black", i === 0 ? "bg-amber-100 text-amber-600" : "bg-slate-50 text-slate-400")}>{i + 1}</div>
-            <Avatar className="h-10 w-10"><AvatarImage src={row.profile.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(row.profile.full_name)}</AvatarFallback></Avatar>
+            <Avatar className="h-9 w-9 flex-shrink-0 sm:h-10 sm:w-10"><AvatarImage src={row.profile.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(row.profile.full_name)}</AvatarFallback></Avatar>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-black text-slate-900 truncate tracking-tight">{row.profile.full_name}</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{row.profile.job_title || "Team Member"}</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5 truncate">{row.profile.job_title || "Team Member"}</p>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className={cn("text-lg font-black leading-none whitespace-nowrap", i === 0 ? "text-amber-600" : "text-violet-600")}>{Math.round(row.total)}{unit}</p>
+            <div className="text-right flex-shrink-0 pl-2">
+              <p className={cn("text-base sm:text-lg font-black leading-none whitespace-nowrap", i === 0 ? "text-amber-600" : "text-violet-600")}>{Math.round(row.total)}{unit}</p>
               <span className="hidden sm:block text-[9px] text-slate-400 uppercase font-black whitespace-nowrap">{subtext}</span>
             </div>
           </div>

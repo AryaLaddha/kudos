@@ -182,7 +182,7 @@ export default function SprintsClient({ sprints, projects }: Props) {
               key={sprint.id}
               onClick={() => startTransition(() => router.push(`/sprints/${sprint.id}`))}
               className={cn(
-                "w-full text-left rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 relative group",
+                "w-full text-left rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 relative group cursor-pointer",
                 active ? "border-violet-200 bg-violet-50/30" : "border-slate-100 bg-white"
               )}
             >

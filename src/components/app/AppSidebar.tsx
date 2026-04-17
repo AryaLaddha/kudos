@@ -110,14 +110,14 @@ export default function AppSidebar({ user, profile }: Props) {
             <Coins className="h-3.5 w-3.5 text-indigo-500" />
             <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Your balance</span>
           </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between">
-              <span className="text-xl font-extrabold text-indigo-600">{profile?.points_balance ?? 0} pts</span>
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wide">received</span>
+          <div className="flex flex-col gap-1.5">
+            <div>
+              <span className="text-xl font-extrabold text-indigo-600">{profile?.points_balance ?? 0} pts </span>
+              <span className="text-xs font-medium text-indigo-400">received</span>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-xl font-extrabold text-indigo-600">{profile?.monthly_allowance ?? 200} pts</span>
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wide">to give this month</span>
+            <div>
+              <span className="text-xl font-extrabold text-indigo-600">{profile?.monthly_allowance ?? 200} pts </span>
+              <span className="text-xs font-medium text-indigo-400">to give this month</span>
             </div>
           </div>
         </div>

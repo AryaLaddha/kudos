@@ -11,7 +11,8 @@ import {
   Loader2,
   AlertCircle,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Search
 } from "lucide-react";
 import { type GoalDefinition } from "@/types";
 import {
@@ -47,7 +48,7 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
   const [newCategoryInput, setNewCategoryInput] = useState("");
   const [isNewCategory, setIsNewCategory] = useState(false);
 
@@ -57,6 +58,10 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
     return cats;
   }, [goals]);
 
+  const [openCategories, setOpenCategories] = useState<Set<string>>(
+    () => new Set(initialGoals.map(g => g.category))
+  );
+
   // Form states
   const [formData, setFormData] = useState({
     title: "",
@@ -64,14 +69,17 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
     category: categories[0] ?? ""
   });
 
+  const searchLower = search.toLowerCase().trim();
+
   const goalsByCategory = useMemo(() => {
     const map: Record<string, GoalDefinition[]> = {};
     for (const goal of goals) {
+      if (searchLower && !goal.title.toLowerCase().includes(searchLower) && !goal.category.toLowerCase().includes(searchLower)) continue;
       if (!map[goal.category]) map[goal.category] = [];
       map[goal.category].push(goal);
     }
     return map;
-  }, [goals]);
+  }, [goals, searchLower]);
 
   const toggleCategory = (cat: string) => {
     setOpenCategories(prev => {
@@ -201,6 +209,23 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="relative mb-6">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search goals or categories…"
+          className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium text-slate-900 shadow-sm"
+        />
+        {search && (
+          <button onClick={() => setSearch("")} className="absolute right-4 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       {error && (
         <div className="mb-6 flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-2xl border border-red-100">
           <AlertCircle className="h-5 w-5 flex-shrink-0" />
@@ -326,7 +351,12 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {categories.map(cat => {
+          {categories.filter(cat => goalsByCategory[cat]?.length > 0).length === 0 && (
+            <div className="bg-white border border-slate-100 rounded-2xl px-8 py-12 text-center">
+              <p className="text-slate-500 font-bold">No goals match "{search}"</p>
+            </div>
+          )}
+          {categories.filter(cat => goalsByCategory[cat]?.length > 0).map(cat => {
             const color = getCategoryColor(cat, categories);
             const catGoals = goalsByCategory[cat] ?? [];
             const isOpen = openCategories.has(cat);

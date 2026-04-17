@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Heart, ArrowLeft, X, Coins } from "lucide-react";
+import { Heart, ArrowLeft, X, Coins, Send } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -68,6 +68,7 @@ export default function GiveKudosPage() {
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // @mention autocomplete state
   const [mentionDropdown, setMentionDropdown] = useState<{ query: string; start: number } | null>(null);
@@ -142,7 +143,7 @@ export default function GiveKudosPage() {
     setHashtags(hashtags.filter((h) => h !== tag));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!currentUser || recipients.length === 0) {
       toast.error("Mention at least one teammate with @name.");
@@ -164,7 +165,11 @@ export default function GiveKudosPage() {
       toast.error(`You only have ${balance} pts available, but this costs ${totalCost} pts.`);
       return;
     }
+    setShowConfirm(true);
+  }
 
+  async function handleConfirmedSubmit() {
+    if (!currentUser) return;
     setSubmitting(true);
     const { error } = await supabase.rpc("send_multi_recognition", {
       p_org_id: currentUser.org_id ?? "00000000-0000-0000-0000-000000000000",
@@ -175,6 +180,7 @@ export default function GiveKudosPage() {
     });
 
     if (error) {
+      setShowConfirm(false);
       if (error.message.includes("insufficient_points")) {
         toast.error("You don't have enough points.");
       } else {
@@ -381,6 +387,91 @@ export default function GiveKudosPage() {
           </p>
         )}
       </form>
+
+      {/* Confirmation dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100">
+                  <Heart className="h-4.5 w-4.5 text-indigo-600" />
+                </div>
+                <h2 className="text-lg font-extrabold text-slate-900">Review your kudos</h2>
+              </div>
+              <p className="text-sm text-slate-500">
+                Take a moment to make sure this recognition is as meaningful as it can be.
+              </p>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-5">
+              {/* Who & points */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {recipients.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2 rounded-full bg-indigo-50 border border-indigo-100 pl-1 pr-3 py-1">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={r.avatar_url ?? undefined} />
+                      <AvatarFallback className="bg-indigo-200 text-indigo-700 text-[10px] font-bold">{getInitials(r.full_name)}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-semibold text-slate-800">{r.full_name}</span>
+                    <span className="text-xs font-bold text-indigo-600">+{effectivePoints} pts</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Message preview */}
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Your message</p>
+                <p className="text-sm text-slate-700 leading-relaxed">{cleanMessage}</p>
+                {hashtags.length > 0 && (
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {hashtags.map(h => (
+                      <span key={h} className="text-[11px] font-medium text-indigo-500">#{h}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Guidance note */}
+              <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 space-y-1.5">
+                <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Before you send</p>
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  A great kudos message does three things: it names <strong>what</strong> the person did, explains <strong>why it mattered</strong>, and describes the <strong>impact</strong> it had — on the team, the client, or the work itself. Vague praise feels hollow; specific recognition is what people remember.
+                </p>
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  Once sent, this will be visible to your entire organisation on the feed and cannot be edited or undone.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/60">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowConfirm(false)}
+                disabled={submitting}
+                className="px-6"
+              >
+                Go back & edit
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmedSubmit}
+                disabled={submitting}
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6"
+              >
+                {submitting
+                  ? "Sending…"
+                  : <><Send className="h-4 w-4" /> Send Kudos</>
+                }
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

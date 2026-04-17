@@ -10,8 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { GOALS, GOAL_CATEGORIES, GoalDefinition } from "@/lib/goals";
-import { EnrichedUserGoal } from "@/types";
+import { EnrichedUserGoal, GoalDefinition } from "@/types";
 import { addGoal } from "@/app/(app)/goals/actions";
 import { toast } from "sonner";
 import { CheckCircle2, Search } from "lucide-react";
@@ -21,9 +20,10 @@ interface GoalsPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   status: "aim" | "achieved";
-  existingGoalIds: string[]; // goal_ids already in this bucket
+  existingGoalIds: string[];
   orgId: string;
   onSuccess: (goal: EnrichedUserGoal) => void;
+  goalDefinitions: GoalDefinition[];
 }
 
 export default function GoalsPicker({
@@ -33,6 +33,7 @@ export default function GoalsPicker({
   existingGoalIds,
   orgId,
   onSuccess,
+  goalDefinitions,
 }: GoalsPickerProps) {
   const [selectedGoal, setSelectedGoal] = useState<GoalDefinition | null>(null);
   const [description, setDescription] = useState("");
@@ -115,8 +116,8 @@ export default function GoalsPicker({
 
         {/* Scrollable goal list */}
         <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
-          {GOAL_CATEGORIES.map((cat) => {
-            const catGoals = GOALS.filter(
+          {Array.from(new Set(goalDefinitions.map(g => g.category))).map((cat) => {
+            const catGoals = goalDefinitions.filter(
               (g) =>
                 g.category === cat &&
                 !existingSet.has(g.id) &&
@@ -165,13 +166,13 @@ export default function GoalsPicker({
           })}
 
           {searchLower
-            ? GOALS.every(
+            ? goalDefinitions.every(
                 (g) => existingSet.has(g.id) || !g.title.toLowerCase().includes(searchLower)
               ) && (
                 <p className="text-sm text-slate-500 text-center py-6">No goals match your search.</p>
               )
-            : GOAL_CATEGORIES.every(
-                (cat) => GOALS.filter((g) => g.category === cat && !existingSet.has(g.id)).length === 0,
+            : Array.from(new Set(goalDefinitions.map(g => g.category))).every(
+                (cat) => goalDefinitions.filter((g) => g.category === cat && !existingSet.has(g.id)).length === 0,
               ) && (
                 <p className="text-sm text-slate-500 text-center py-6">
                   You&apos;ve added all available goals in this section.

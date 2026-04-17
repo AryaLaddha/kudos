@@ -2,12 +2,20 @@ import { requireAdmin } from "@/lib/auth";
 import AdminDashboardClient from "@/components/app/AdminDashboardClient";
 import { getAdminAnalytics } from "@/app/(app)/sprints/actions";
 import { GOALS } from "@/lib/goals";
+import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/types";
 
 export default async function AdminPage() {
   await requireAdmin();
 
   const { sprints, projects, participants, orgUsers, userGoals, recognitions } = await getAdminAnalytics();
+
+  const supabase = await createClient();
+  const { data: dbGoals } = await supabase
+    .from("goals")
+    .select("*");
+  
+  const goalDefinitions = dbGoals && dbGoals.length > 0 ? dbGoals : GOALS;
 
   // Supabase infers to-one joins as arrays — normalise profile to single object
   // Also guard against null scores/project_allocations and drop orphaned rows (deleted user)
@@ -27,7 +35,7 @@ export default async function AdminPage() {
       participants={normalisedParticipants}
       orgUsers={orgUsers}
       userGoals={userGoals}
-      goalDefinitions={GOALS}
+      goalDefinitions={goalDefinitions}
       recognitions={recognitions}
     />
   );

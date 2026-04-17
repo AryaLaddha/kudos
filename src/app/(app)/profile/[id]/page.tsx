@@ -9,7 +9,7 @@ import RecognitionCard from "@/components/app/RecognitionCard";
 import Pagination from "@/components/app/Pagination";
 import ProfileGoalsSection from "@/components/app/ProfileGoalsSection";
 import type { Recognition, Profile, EnrichedUserGoal } from "@/types";
-import { getGoalById } from "@/lib/goals";
+import { GOALS, getGoalById } from "@/lib/goals";
 import { cn } from "@/lib/utils";
 
 // Pages using cookies() + searchParams are already dynamic — no need for force-dynamic
@@ -106,6 +106,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const canSeeGoals = isOwn || viewerIsAdmin;
   const initials = profile.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
+  // Fetch dynamic definitions
+  const { data: dbDefinitions } = await supabase
+    .from("goals")
+    .select("*")
+    .eq("org_id", profile.org_id);
+  const definitions = dbDefinitions || [];
+
   // Fetch achieved goals if viewer is the owner or an admin
   let achievedGoals: EnrichedUserGoal[] = [];
   if (canSeeGoals) {
@@ -117,7 +124,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       .order("created_at", { ascending: false });
 
     achievedGoals = (rawGoals ?? []).flatMap((g) => {
-      const def = getGoalById(g.goal_id);
+      const def = definitions.find((d) => d.id === g.goal_id) || getGoalById(g.goal_id);
       if (!def) return [];
       return [{ ...g, title: def.title, category: def.category, points: def.points }];
     });
@@ -281,6 +288,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           isOwn={isOwn}
           targetUserId={id}
           orgId={profile.org_id ?? ""}
+          goalDefinitions={definitions.length > 0 ? definitions : GOALS}
         />
       )}
 

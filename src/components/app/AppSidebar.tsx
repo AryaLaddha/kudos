@@ -20,6 +20,7 @@ const navItems = [
 
 const adminNavItems = [
   { href: "/sprints", label: "Sprints", icon: Zap },
+  { href: "/admin/goals", label: "Goals Management", icon: Target },
   { href: "/admin", label: "Admin", icon: ShieldCheck },
 ];
 

@@ -15,6 +15,7 @@ interface GoalsPageClientProps {
   aimGoals: EnrichedUserGoal[];
   totalPoints: number;
   orgId: string;
+  goalDefinitions: any[];
 }
 
 export default function GoalsPageClient({
@@ -22,6 +23,7 @@ export default function GoalsPageClient({
   aimGoals: initialAim,
   totalPoints: initialPoints,
   orgId,
+  goalDefinitions,
 }: GoalsPageClientProps) {
   const router = useRouter();
   const [achievedGoals, setAchievedGoals] = useState(initialAchieved);
@@ -183,6 +185,7 @@ export default function GoalsPageClient({
         existingGoalIds={pickerStatus === "achieved" ? [] : aimIds}
         orgId={orgId}
         onSuccess={handleGoalAdded}
+        goalDefinitions={goalDefinitions}
       />
 
       {/* Achievement celebration overlay */}

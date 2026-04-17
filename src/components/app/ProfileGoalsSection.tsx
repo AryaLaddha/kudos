@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { GOALS, GOAL_CATEGORIES, type GoalDefinition } from "@/lib/goals";
-import type { EnrichedUserGoal } from "@/types";
+import { GoalDefinition, EnrichedUserGoal } from "@/types";
 import { adminAddGoalForUser, adminDeleteGoal, deleteGoal } from "@/app/(app)/goals/actions";
 import GoalsPicker from "@/components/app/GoalsPicker";
 import { toast } from "sonner";
@@ -24,6 +23,7 @@ interface Props {
   isOwn: boolean;
   targetUserId: string;
   orgId: string;
+  goalDefinitions: GoalDefinition[];
 }
 
 export default function ProfileGoalsSection({
@@ -32,6 +32,7 @@ export default function ProfileGoalsSection({
   isOwn,
   targetUserId,
   orgId,
+  goalDefinitions,
 }: Props) {
   const [goals, setGoals] = useState(initialGoals);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -148,6 +149,7 @@ export default function ProfileGoalsSection({
           targetUserId={targetUserId}
           orgId={orgId}
           onSuccess={handleGoalAdded}
+          goalDefinitions={goalDefinitions}
         />
       )}
 
@@ -160,6 +162,7 @@ export default function ProfileGoalsSection({
           existingGoalIds={existingIds}
           orgId={orgId}
           onSuccess={handleGoalAdded}
+          goalDefinitions={goalDefinitions}
         />
       )}
     </div>
@@ -175,6 +178,7 @@ interface PickerProps {
   targetUserId: string;
   orgId: string;
   onSuccess: (goal: EnrichedUserGoal) => void;
+  goalDefinitions: GoalDefinition[];
 }
 
 function AdminGoalsPicker({
@@ -184,6 +188,7 @@ function AdminGoalsPicker({
   targetUserId,
   orgId,
   onSuccess,
+  goalDefinitions,
 }: PickerProps) {
   const [selectedGoal, setSelectedGoal] = useState<GoalDefinition | null>(null);
   const [description, setDescription] = useState("");
@@ -192,7 +197,7 @@ function AdminGoalsPicker({
 
   const existingSet = new Set(existingGoalIds);
   const searchLower = search.toLowerCase().trim();
-  const allAdded = GOALS.every((g) => existingSet.has(g.id));
+  const allAdded = goalDefinitions.every((g) => existingSet.has(g.id));
 
   function handleClose(value: boolean) {
     if (!value) {
@@ -272,8 +277,8 @@ function AdminGoalsPicker({
               All available goals have been logged for this user.
             </p>
           ) : (
-            GOAL_CATEGORIES.map((cat) => {
-              const catGoals = GOALS.filter(
+            Array.from(new Set(goalDefinitions.map(g => g.category))).map((cat) => {
+              const catGoals = goalDefinitions.filter(
                 (g) =>
                   g.category === cat &&
                   !existingSet.has(g.id) &&
@@ -330,7 +335,7 @@ function AdminGoalsPicker({
               );
             })
           )}
-          {!allAdded && searchLower && GOALS.every(
+          {!allAdded && searchLower && goalDefinitions.every(
             (g) => existingSet.has(g.id) || !g.title.toLowerCase().includes(searchLower)
           ) && (
             <p className="text-sm text-slate-500 text-center py-6">No goals match your search.</p>

@@ -12,10 +12,24 @@ export async function addGoal(
   description: string,
   orgId: string,
 ): Promise<{ error?: string; id?: string; created_at?: string }> {
-  // Validate goal exists in static list (prevents fake goal_ids)
+  const supabase = await createClient();
+
+  // Verify authenticated user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return { error: "Not authenticated." };
+  }
+
+  // Validate goal exists (static OR dynamic)
   const goalDef = getGoalById(goalId);
   if (!goalDef) {
-    return { error: "Invalid goal." };
+    const { data: dbGoal } = await supabase
+      .from("goals")
+      .select("id")
+      .eq("id", goalId)
+      .single();
+    
+    if (!dbGoal) return { error: "Invalid goal." };
   }
 
   // Validate status
@@ -30,14 +44,6 @@ export async function addGoal(
   }
   if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
     return { error: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer.` };
-  }
-
-  const supabase = await createClient();
-
-  // Verify authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return { error: "Not authenticated." };
   }
 
   // Verify org_id matches the caller's own org (prevents cross-org writes)
@@ -111,19 +117,27 @@ export async function adminAddGoalForUser(
 ): Promise<{ error?: string; id?: string; created_at?: string }> {
   if (!targetUserId) return { error: "Invalid user." };
 
+  const supabase = await createClient();
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { error: "Not authenticated." };
+
   const goalDef = getGoalById(goalId);
-  if (!goalDef) return { error: "Invalid goal." };
+  if (!goalDef) {
+    const { data: dbGoal } = await supabase
+      .from("goals")
+      .select("id")
+      .eq("id", goalId)
+      .single();
+    
+    if (!dbGoal) return { error: "Invalid goal." };
+  }
 
   const trimmed = description.trim();
   if (!trimmed) return { error: "Description is required." };
   if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
     return { error: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer.` };
   }
-
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return { error: "Not authenticated." };
 
   // Verify caller is an admin
   const { data: callerProfile } = await supabase

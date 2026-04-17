@@ -76,6 +76,15 @@ export type UserGoal = {
   created_at: string;
 };
 
+export type GoalDefinition = {
+  id: string;
+  org_id: string;
+  category: string;
+  title: string;
+  points: number;
+  created_at: string;
+};
+
 export type EnrichedUserGoal = UserGoal & {
   title: string;
   category: string;

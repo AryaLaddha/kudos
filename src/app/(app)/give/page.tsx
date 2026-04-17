@@ -438,10 +438,10 @@ export default function GiveKudosPage() {
               <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 space-y-1.5">
                 <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Before you send</p>
                 <p className="text-sm text-amber-800 leading-relaxed">
-                  A great kudos message does three things: it names <strong>what</strong> the person did, explains <strong>why it mattered</strong>, and describes the <strong>impact</strong> it had — on the team, the client, or the work itself. Vague praise feels hollow; specific recognition is what people remember.
+                  A great kudos message does three things: it names <strong>what</strong> the person did, explains <strong>why it mattered</strong>, and describes the <strong>impact</strong> it had — on the team or the work itself. Vague praise feels hollow; specific recognition is what people remember.
                 </p>
                 <p className="text-sm text-amber-800 leading-relaxed">
-                  Once sent, this will be visible to your entire organisation on the feed and cannot be edited or undone.
+                  Please ensure your message incorporates the above before sending your kudos.
                 </p>
               </div>
             </div>

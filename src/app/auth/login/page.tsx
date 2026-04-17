@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, Eye, EyeOff, ArrowRight, Heart, Zap, Star, AlertCircle } from "lucide-react";
@@ -38,6 +38,19 @@ const RECENT_KUDOS = [
   },
 ];
 
+function InactiveBanner() {
+  const searchParams = useSearchParams();
+  if (searchParams.get("inactive") !== "1") return null;
+  return (
+    <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+      <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+      <p className="text-sm font-medium text-red-700">
+        Your account has been deactivated. Please contact your administrator.
+      </p>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,8 +59,6 @@ export default function LoginPage() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const isInactive = searchParams.get("inactive") === "1";
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent) {
@@ -146,14 +157,9 @@ export default function LoginPage() {
           </Link>
 
           {/* Inactive account banner */}
-          {isInactive && (
-            <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
-              <p className="text-sm font-medium text-red-700">
-                Your account has been deactivated. Please contact your administrator.
-              </p>
-            </div>
-          )}
+          <Suspense fallback={null}>
+            <InactiveBanner />
+          </Suspense>
 
           {/* Heading */}
           <div className="mb-8">

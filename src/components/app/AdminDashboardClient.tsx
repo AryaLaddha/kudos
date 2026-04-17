@@ -145,9 +145,7 @@ export default function AdminDashboardClient({
       if (!p.profile) return;
       const scores = p.scores ?? {};
       if (!stats[p.user_id]) stats[p.user_id] = { profile: p.profile, total: 0 };
-      const won = Object.values(scores).reduce((s, v) => s + (v > 0 ? v : 0), 0);
-      const ded = Object.values(scores).reduce((s, v) => s + (v < 0 ? Math.abs(v) : 0), 0);
-      const net = p.base_points + won - ded;
+      const net = p.base_points + Object.values(scores).reduce((s, v) => s + (v || 0), 0);
       if (sprintFilter === "all_time") stats[p.user_id].total += net;
       else stats[p.user_id].total = net;
     });

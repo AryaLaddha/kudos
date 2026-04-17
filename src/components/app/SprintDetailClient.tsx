@@ -47,10 +47,8 @@ function getInitials(n: string) { return n.split(" ").map(p => p[0]).join("").to
 function formatDate(d: string) { return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
 
 // Compute grand total for a participant
-function grandTotal(p: Participant, wonCols: Column[], dedCols: Column[]) {
-  const won = wonCols.reduce((s, c) => s + (p.scores[c.id] || 0), 0);
-  const ded = dedCols.reduce((s, c) => s + (p.scores[c.id] || 0), 0);
-  return p.base_points + won - ded;
+function grandTotal(p: Participant) {
+  return p.base_points + Object.values(p.scores).reduce((s, v) => s + (v || 0), 0);
 }
 
 // ── Component ─────────────────────────────────────────────────
@@ -134,12 +132,12 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
   // ── Analytics ─────────────────────────────────────────────
   const ranked = useMemo(() =>
     [...participants]
-      .map(p => ({ ...p, total: grandTotal(p, wonCols, dedCols) }))
+      .map(p => ({ ...p, total: grandTotal(p) }))
       .sort((a, b) => {
         if (b.total !== a.total) return b.total - a.total;
         return a.profile.full_name.localeCompare(b.profile.full_name);
       }),
-    [participants, wonCols, dedCols]
+    [participants]
   );
 
   async function handleToggleStatus() {
@@ -351,7 +349,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
               <p className="py-8 text-center text-sm text-slate-400">Add people to the sprint to get started.</p>
             )}
             {participants.map(p => {
-              const total = grandTotal(p, wonCols, dedCols);
+              const total = grandTotal(p);
               const isSaving = savingId === p.user_id;
               return (
                 <div key={p.user_id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -415,7 +413,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                             <label className="text-[10px] font-bold text-red-500 uppercase tracking-wide block mb-1">− {c.name}</label>
                             <input
                               type="number"
-                              min={0}
+                              max={0}
                               value={p.scores[c.id] || ""}
                               onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
                               placeholder="—"
@@ -490,7 +488,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                   </tr>
                 )}
                 {participants.map((p, rowIdx) => {
-                  const total = grandTotal(p, wonCols, dedCols);
+                  const total = grandTotal(p);
                   const isSaving = savingId === p.user_id;
                   const rowBg = rowIdx % 2 === 0 ? "bg-white" : "bg-slate-50";
                   return (
@@ -535,7 +533,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                         <td key={c.id} className="px-2 py-2 text-center bg-red-50/30 border-l border-red-100">
                           <input
                             type="number"
-                            min={0}
+                            max={0}
                             value={p.scores[c.id] || ""}
                             onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
                             placeholder="—"

@@ -211,12 +211,11 @@ export async function updateParticipantScores(
   userId: string,
   scores: Record<string, number>,
   basePoints: number,
-  projectAllocations: Record<string, number>
 ) {
   const { supabase } = await requireAdminClient();
   const { error } = await supabase
     .from("sprint_participants")
-    .update({ scores, base_points: basePoints, project_allocations: projectAllocations })
+    .update({ scores, base_points: basePoints })
     .eq("sprint_id", sprintId)
     .eq("user_id", userId);
   if (error) return { error: error.message };
@@ -230,11 +229,10 @@ export async function updateAllParticipants(
     user_id: string;
     scores: Record<string, number>;
     base_points: number;
-    project_allocations: Record<string, number>;
   }[]
 ) {
   const { supabase } = await requireAdminClient();
-  
+
   // Upsert all records (Supabase upsert works with bulk arrays)
   const { error } = await supabase
     .from("sprint_participants")
@@ -243,7 +241,6 @@ export async function updateAllParticipants(
       user_id: p.user_id,
       scores: p.scores,
       base_points: p.base_points,
-      project_allocations: p.project_allocations
     })), { onConflict: "sprint_id,user_id" });
 
   if (error) return { error: error.message };

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, Target, Trash2, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -34,15 +34,12 @@ interface Participant {
   user_id: string;
   base_points: number;
   scores: Record<string, number>;
-  project_allocations: Record<string, number>;
   profile: Profile;
 }
-interface Project { id: string; name: string; }
 
 interface Props {
   sprint: Sprint;
   participants: Participant[];
-  projects: Project[];
   orgUsers: Profile[];
 }
 
@@ -58,9 +55,9 @@ function grandTotal(p: Participant, wonCols: Column[], dedCols: Column[]) {
 
 // ── Component ─────────────────────────────────────────────────
 
-export default function SprintDetailClient({ sprint, participants: initParticipants, projects, orgUsers }: Props) {
+export default function SprintDetailClient({ sprint, participants: initParticipants, orgUsers }: Props) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [participants, setParticipants] = useState<Participant[]>(initParticipants);
   const [showAddUser, setShowAddUser] = useState(false);
   const [tab, setTab] = useState<"grid" | "analytics">("analytics");
@@ -91,20 +88,9 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
     );
   }
 
-  function setAllocation(userId: string, projectId: string, value: number) {
-    setParticipants(prev =>
-      prev.map(p => p.user_id === userId ? { ...p, project_allocations: { ...p.project_allocations, [projectId]: value } } : p)
-    );
-  }
-
   async function saveParticipant(p: Participant) {
-    const totalAlloc = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
-    if (totalAlloc > 100) {
-      toast.error(`${p.profile.full_name} has ${totalAlloc}% allocation. Maximum is 100%.`);
-      return;
-    }
     setSavingId(p.user_id);
-    const res = await updateParticipantScores(sprint.id, p.user_id, p.scores, p.base_points, p.project_allocations);
+    const res = await updateParticipantScores(sprint.id, p.user_id, p.scores, p.base_points);
     setSavingId(null);
     if ("error" in res && res.error) toast.error(res.error);
     else toast.success(`Saved ${p.profile.full_name}`);
@@ -121,7 +107,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
     const user = orgUsers.find(u => u.id === userId)!;
     setParticipants(prev => [...prev, {
       id: userId, sprint_id: sprint.id, user_id: userId,
-      base_points: basePoints, scores: {}, project_allocations: {},
+      base_points: basePoints, scores: {},
       profile: user,
     }]);
     setShowAddUser(false);
@@ -164,21 +150,11 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
   }
 
   async function handleSaveAll() {
-    const overAllocated = participants.find(p => {
-      const total = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
-      return total > 100;
-    });
-    if (overAllocated) {
-      toast.error(`Cannot save. ${overAllocated.profile.full_name} exceeds 100% allocation.`);
-      return;
-    }
-
     setSavingId("ALL");
     const res = await updateAllParticipants(sprint.id, participants.map(p => ({
       user_id: p.user_id,
       scores: p.scores,
       base_points: p.base_points,
-      project_allocations: p.project_allocations
     })));
     setSavingId(null);
     if ("error" in res && res.error) toast.error(res.error);
@@ -186,88 +162,6 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
   }
 
   const winner = ranked[0];
-
-  // Pie chart data per project (total % across participants)
-  const projectTotals = useMemo(() => projects.map(proj => {
-    const total = participants.reduce((s, p) => s + (p.project_allocations[proj.id] || 0), 0);
-    return { ...proj, total };
-  }).filter(p => p.total > 0), [participants, projects]);
-
-  const PIE_COLORS = ["#7c3aed", "#06b6d4", "#f59e0b", "#10b981", "#f43f5e", "#3b82f6", "#a855f7", "#84cc16"];
-
-  const pieTotal = projectTotals.reduce((s, p) => s + p.total, 0);
-  let cumAngle = 0;
-  const slices = projectTotals.map((p, i) => {
-    const pct = pieTotal > 0 ? p.total / pieTotal : 0;
-    const start = cumAngle;
-    cumAngle += pct * 360;
-    return { ...p, pct, startAngle: start, endAngle: cumAngle, color: PIE_COLORS[i % PIE_COLORS.length] };
-  });
-
-  function polarToXY(angle: number, r: number) {
-    const rad = (angle - 90) * (Math.PI / 180);
-    return { x: 50 + r * Math.cos(rad), y: 50 + r * Math.sin(rad) };
-  }
-
-  function describeSlice(start: number, end: number, r: number) {
-    const s = polarToXY(start, r);
-    const e = polarToXY(end, r);
-    const large = end - start > 180 ? 1 : 0;
-    if (end - start >= 360) {
-      return `M 50 50 L 50 ${50 - r} A ${r} ${r} 0 1 1 49.99 ${50 - r} Z`;
-    }
-    return `M 50 50 L ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y} Z`;
-  }
-
-  function renderPie(data: { name: string; val: number }[], size: number = 48) {
-    const currentTotal = data.reduce((s, d) => s + d.val, 0);
-    if (currentTotal === 0) return null;
-
-    // Normalize to 100% max. If less than 100, add a "Bench" slice.
-    const pieData = [...data];
-    if (currentTotal < 100) {
-      pieData.push({ name: "Unallocated", val: 100 - currentTotal });
-    }
-    const finalTotal = Math.max(100, currentTotal);
-    
-    let cumAngle = 0;
-    return (
-      <div className="group relative flex items-center gap-2">
-        <svg viewBox="0 0 100 100" className={cn("flex-shrink-0 cursor-help", size === 48 ? "h-48 w-48" : "h-10 w-10")}>
-          {pieData.map((d, i) => {
-            const pct = d.val / finalTotal;
-            const start = cumAngle;
-            cumAngle += pct * 360;
-            const isBench = d.name === "Unallocated";
-            const color = isBench ? "#f1f5f9" : PIE_COLORS[i % PIE_COLORS.length];
-            return (
-              <g key={i} className="peer">
-                <path
-                  d={describeSlice(start, cumAngle, 40)}
-                  fill={color}
-                  className="transition-opacity hover:opacity-80"
-                />
-                <title>{d.name}: {Math.round(pct * 100)}%</title>
-              </g>
-            );
-          })}
-          <circle cx="50" cy="50" r={size === 48 ? 22 : 20} fill="white" />
-        </svg>
-        
-        {/* Simple legend on hover for mini pies */}
-        {size !== 48 && (
-          <div className="hidden group-hover:flex flex-col absolute right-full mr-2 z-50 bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-lg whitespace-nowrap">
-            {pieData.map((d, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.name === "Unallocated" ? "#64748b" : PIE_COLORS[i % PIE_COLORS.length] }} />
-                <span>{d.name}: {Math.round((d.val / finalTotal) * 100)}%</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-full px-4 sm:px-6 py-6 sm:py-8">
@@ -312,7 +206,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
             onClick={handleDeleteSprint}
             className="text-slate-400 hover:text-red-500 hover:bg-red-50 gap-2 h-9 px-3"
           >
-            <Trash2 className="h-4 w-4" />
+            <X className="h-4 w-4" />
             <span className="hidden sm:inline">Delete</span>
           </Button>
         </div>
@@ -386,49 +280,12 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-900 truncate">{p.profile.full_name}</p>
                     </div>
-
-                    {/* Individual Mini Pie — hidden on mobile to give names more room */}
-                    <div className="flex-shrink-0 hidden sm:block">
-                      {renderPie(
-                        projects.map(proj => ({ name: proj.name, val: p.project_allocations[proj.id] || 0 })).filter(d => d.val > 0),
-                        10
-                      )}
-                    </div>
-
                     <div className="text-right flex-shrink-0">
                       <p className={cn("text-base font-extrabold whitespace-nowrap", i === 0 ? "text-amber-600" : "text-violet-600")}>{p.total} pts</p>
                       <p className="text-[10px] text-slate-400 whitespace-nowrap">base: {p.base_points}</p>
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-          </div>
-
-          {/* Project Allocation Pie Chart */}
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-5">
-              <Target className="h-4 w-4 text-slate-400" />
-              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">Project Allocation Overview</h2>
-            </div>
-            {slices.length === 0 ? (
-              <div className="py-12 flex flex-col items-center justify-center text-center">
-                <Target className="h-10 w-10 text-slate-100 mb-2" />
-                <p className="text-sm font-medium text-slate-400">No project allocations saved yet.</p>
-                <p className="text-xs text-slate-400 mt-1">Assign percentages in the Grid Tracker to see the distribution.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col sm:flex-row items-center gap-8">
-                {renderPie(projectTotals.map(p => ({ name: p.name, val: p.total })), 48)}
-                <div className="flex flex-col gap-2">
-                  {slices.map((s, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                      <span className="text-sm font-medium text-slate-700">{s.name}</span>
-                      <span className="text-sm text-slate-400 ml-1">{Math.round(s.pct * 100)}%</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
           </div>
@@ -496,10 +353,9 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
             {participants.map(p => {
               const total = grandTotal(p, wonCols, dedCols);
               const isSaving = savingId === p.user_id;
-              const currentAlloc = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
               return (
                 <div key={p.user_id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  {/* Accordion header — always visible, tap to collapse */}
+                  {/* Accordion header */}
                   <button
                     onClick={() => toggleCard(p.user_id)}
                     className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100 text-left"
@@ -531,7 +387,6 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                   {/* Collapsible body */}
                   {!collapsedCards.has(p.user_id) && (
                     <>
-                      {/* Editable fields */}
                       <div className="p-4 grid grid-cols-2 gap-3">
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Base Pts</label>
@@ -568,33 +423,9 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                             />
                           </div>
                         ))}
-                        {projects.map(proj => (
-                          <div key={proj.id}>
-                            <label className="text-[10px] font-bold text-violet-600 uppercase tracking-wide block mb-1">{proj.name} %</label>
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={p.project_allocations[proj.id] || ""}
-                              onChange={e => setAllocation(p.user_id, proj.id, Number(e.target.value))}
-                              placeholder="—"
-                              className={cn(
-                                "w-full rounded-lg border text-center text-sm py-1.5 outline-none bg-white",
-                                currentAlloc > 100 ? "border-red-400 text-red-600" : "border-violet-200 focus:border-violet-400"
-                              )}
-                            />
-                          </div>
-                        ))}
                       </div>
 
-                      {/* Card footer */}
-                      <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-                        <span className={cn(
-                          "text-xs font-bold",
-                          currentAlloc > 100 ? "text-red-500" : currentAlloc === 100 ? "text-green-600" : "text-slate-400"
-                        )}>
-                          Allocation: {currentAlloc}%
-                        </span>
+                      <div className="flex items-center justify-end px-4 py-3 border-t border-slate-100 bg-slate-50/50">
                         <Button
                           size="sm"
                           onClick={() => saveParticipant(p)}
@@ -630,13 +461,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                       Points Deducted
                     </th>
                   )}
-                  {projects.length > 0 && (
-                    <th colSpan={projects.length} className="px-3 py-2 text-center text-xs font-bold text-violet-700 bg-violet-50 border-l border-slate-200">
-                      Project Allocation %
-                    </th>
-                  )}
                   <th className="px-3 py-3 text-center text-xs font-bold text-slate-800 bg-yellow-50 border-l border-slate-200">Grand Total</th>
-                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 bg-slate-50">Total %</th>
                   <th className="px-3 py-3 bg-slate-50"></th>
                 </tr>
                 <tr className="bg-white border-b border-slate-100">
@@ -652,13 +477,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                       {c.name}
                     </th>
                   ))}
-                  {projects.map(p => (
-                    <th key={p.id} className="px-2 py-1 text-center text-[10px] text-violet-600 font-medium bg-violet-50/60 border-l border-violet-100">
-                      {p.name}
-                    </th>
-                  ))}
                   <th className="px-2 py-1 bg-yellow-50/60 border-l border-yellow-100"></th>
-                  <th className="px-2 py-1 bg-slate-50/60 font-mono text-[9px] text-slate-400">sum</th>
                   <th></th>
                 </tr>
               </thead>
@@ -674,7 +493,6 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                   const total = grandTotal(p, wonCols, dedCols);
                   const isSaving = savingId === p.user_id;
                   const rowBg = rowIdx % 2 === 0 ? "bg-white" : "bg-slate-50";
-                  const currentAlloc = Object.values(p.project_allocations).reduce((a, b) => a + b, 0);
                   return (
                     <tr key={p.user_id} className={cn("border-b border-slate-100 hover:bg-slate-100/50 transition-colors", rowBg)}>
                       {/* Name */}
@@ -726,37 +544,9 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                         </td>
                       ))}
 
-                      {/* Project allocations */}
-                      {projects.map(proj => (
-                        <td key={proj.id} className="px-2 py-2 text-center bg-violet-50/30 border-l border-violet-100">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={p.project_allocations[proj.id] || ""}
-                            onChange={e => setAllocation(p.user_id, proj.id, Number(e.target.value))}
-                            placeholder="—"
-                            className={cn(
-                              "w-14 rounded-lg border text-center text-sm py-1 outline-none bg-white",
-                              currentAlloc > 100 ? "border-red-400 text-red-600" : "border-violet-200 focus:border-violet-400"
-                            )}
-                          />
-                        </td>
-                      ))}
-
                       {/* Grand total */}
                       <td className="px-3 py-2 text-center font-extrabold text-slate-900 bg-yellow-50/50 border-l border-yellow-100">
                         {total}
-                      </td>
-
-                      {/* Live Allocation Sum */}
-                      <td className="px-1 py-2 text-center border-l border-slate-100 bg-slate-50/50">
-                        <span className={cn(
-                          "text-xs font-bold",
-                          currentAlloc > 100 ? "text-red-500" : currentAlloc === 100 ? "text-green-600" : "text-slate-400"
-                        )}>
-                          {currentAlloc}%
-                        </span>
                       </td>
 
                       {/* Actions */}

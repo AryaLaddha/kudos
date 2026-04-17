@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, Plus, Calendar, Users, Loader2, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createSprint, createProject, deleteProject, deleteSprint } from "@/app/(app)/sprints/actions";
+import { createSprint, deleteSprint } from "@/app/(app)/sprints/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -17,31 +17,18 @@ interface Sprint {
   sprint_participants: { count: number }[];
 }
 
-interface Project {
-  id: string;
-  name: string;
-}
-
 interface Props {
   sprints: Sprint[];
-  projects: Project[];
 }
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function isActive(sprint: Sprint) {
-  const now = new Date();
-  return new Date(sprint.start_date) <= now && new Date(sprint.end_date) >= now;
-}
-
-export default function SprintsClient({ sprints, projects }: Props) {
+export default function SprintsClient({ sprints }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showCreate, setShowCreate] = useState(false);
-  const [showProjectForm, setShowProjectForm] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
 
   // Create sprint form state
   const [formName, setFormName] = useState("");
@@ -67,21 +54,6 @@ export default function SprintsClient({ sprints, projects }: Props) {
       startTransition(() => router.refresh());
     }
     setCreating(false);
-  }
-
-  async function handleAddProject(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newProjectName.trim()) return;
-    const res = await createProject(newProjectName.trim());
-    if ("error" in res && res.error) toast.error(res.error);
-    else { toast.success("Project added!"); setNewProjectName(""); startTransition(() => router.refresh()); }
-    setShowProjectForm(false);
-  }
-
-  async function handleDeleteProject(id: string) {
-    const res = await deleteProject(id);
-    if ("error" in res && res.error) toast.error(res.error);
-    else startTransition(() => router.refresh());
   }
 
   async function handleDeleteSprint(id: string, name: string) {
@@ -166,7 +138,7 @@ export default function SprintsClient({ sprints, projects }: Props) {
       )}
 
       {/* Sprint Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 mb-10">
+      <div className="grid gap-4 sm:grid-cols-2">
         {sprints.length === 0 && (
           <div className="col-span-2 rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center">
             <Zap className="mx-auto h-10 w-10 text-slate-200 mb-3" />
@@ -220,44 +192,6 @@ export default function SprintsClient({ sprints, projects }: Props) {
             </button>
           );
         })}
-      </div>
-
-      {/* Projects Management */}
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">Projects</h2>
-          <Button size="sm" variant="outline" onClick={() => setShowProjectForm(v => !v)} className="gap-1.5 text-xs h-8">
-            <Plus className="h-3.5 w-3.5" />
-            Add Project
-          </Button>
-        </div>
-        {showProjectForm && (
-          <form onSubmit={handleAddProject} className="flex gap-2 mb-4">
-            <input
-              autoFocus
-              value={newProjectName}
-              onChange={e => setNewProjectName(e.target.value)}
-              placeholder="Project name..."
-              className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-violet-400"
-            />
-            <Button type="submit" size="sm" className="bg-violet-600 text-white hover:bg-violet-700">Save</Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => { setShowProjectForm(false); setNewProjectName(""); }}>Cancel</Button>
-          </form>
-        )}
-        {projects.length === 0 ? (
-          <p className="text-sm text-slate-400">No projects yet. Add one to track allocations.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {projects.map(p => (
-              <div key={p.id} className="flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-100 px-3 py-1.5 text-sm font-medium text-violet-700">
-                {p.name}
-                <button onClick={() => handleDeleteProject(p.id)} className="text-violet-400 hover:text-violet-700 ml-0.5">
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

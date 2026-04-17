@@ -18,6 +18,7 @@ export type Profile = {
   monthly_allowance?: number;
   points_balance?: number;
   is_admin?: boolean;
+  is_active?: boolean;
   created_at: string;
 };
 

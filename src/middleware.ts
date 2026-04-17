@@ -45,6 +45,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Block inactive users — sign them out and redirect to login
+  if (user && !isPublicPage) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_active")
+      .eq("id", user.id)
+      .single();
+
+    if (profile && profile.is_active === false) {
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/login";
+      url.searchParams.set("inactive", "1");
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }
 

@@ -128,7 +128,7 @@ export default function AppSidebar({ user, profile }: Props) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-2 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
           {navItems.map((item) => {
             const active = pathname === item.href || pendingHref === item.href;
             const loading = isPending && pendingHref === item.href;

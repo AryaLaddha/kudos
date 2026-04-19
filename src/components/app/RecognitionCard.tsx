@@ -198,7 +198,6 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
   }
 
   const timeAgo = formatDistanceToNow(new Date(recognition.created_at));
-  const isDemo = recognition.id.startsWith("demo-");
   const { message: previewMessage, tip: previewTip } = parseCommentTip(commentText);
 
   // Show 2 most recent comments on card (already sorted desc)
@@ -260,7 +259,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
           {/* Header */}
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
-              <Link href={isDemo ? "#" : `/profile/${recognition.giver_id}`}>
+              <Link href={`/profile/${recognition.giver_id}`}>
                 <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
                   <AvatarImage src={giver?.avatar_url ?? undefined} />
                   <AvatarFallback className="bg-violet-100 text-violet-700 text-xs font-bold">
@@ -270,7 +269,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
               </Link>
               <div className="flex items-center gap-1.5 text-sm flex-wrap">
                 <Link
-                  href={isDemo ? "#" : `/profile/${recognition.giver_id}`}
+                  href={`/profile/${recognition.giver_id}`}
                   className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
                 >
                   {giver?.full_name || "Someone"}
@@ -280,7 +279,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                   <span key={r.id} className="inline-flex items-center gap-1">
                     {i > 0 && <span className="text-slate-400">&amp;</span>}
                     <Link
-                      href={isDemo ? "#" : `/profile/${r.id}`}
+                      href={`/profile/${r.id}`}
                       className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
                     >
                       {r.full_name}
@@ -303,7 +302,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
           <div className="flex gap-3 mb-4">
             <div className="flex flex-col gap-1">
               {receivers.slice(0, 3).map((r) => (
-                <Link key={r.id} href={isDemo ? "#" : `/profile/${r.id}`}>
+                <Link key={r.id} href={`/profile/${r.id}`}>
                   <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
                     <AvatarImage src={r.avatar_url ?? undefined} />
                     <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
@@ -313,7 +312,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                 </Link>
               ))}
               {receivers.length === 0 && (
-                <Link href={isDemo ? "#" : `/profile/${recognition.receiver_id}`}>
+                <Link href={`/profile/${recognition.receiver_id}`}>
                   <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
                     <AvatarImage src={receiver?.avatar_url ?? undefined} />
                     <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
@@ -385,29 +384,27 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
               );
             })}
 
-            {!isDemo && (
-              <button
-                onClick={() => setShowCommentBox((v) => !v)}
-                className={cn(
-                  "ml-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                  showCommentBox
-                    ? "border-indigo-200 bg-indigo-50 text-indigo-600"
-                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                )}
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-                {comments.length === 0
-                  ? "Comment"
-                  : comments.length === 1
-                  ? "1 comment"
-                  : `${comments.length} comments`}
-              </button>
-            )}
+            <button
+              onClick={() => setShowCommentBox((v) => !v)}
+              className={cn(
+                "ml-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                showCommentBox
+                  ? "border-indigo-200 bg-indigo-50 text-indigo-600"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              )}
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              {comments.length === 0
+                ? "Comment"
+                : comments.length === 1
+                ? "1 comment"
+                : `${comments.length} comments`}
+            </button>
           </div>
         </div>
 
         {/* Comments preview section */}
-        {!isDemo && (comments.length > 0 || showCommentBox) && (
+        {(comments.length > 0 || showCommentBox) && (
           <div className="border-t border-slate-100 px-4 sm:px-6 py-4 space-y-3">
             {/* 2 most recent comments */}
             {previewComments.map((comment) => (

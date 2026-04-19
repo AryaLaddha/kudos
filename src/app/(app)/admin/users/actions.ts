@@ -152,7 +152,7 @@ export async function inviteUser(formData: {
         org_id: adminProfile.org_id,
         full_name: full_name ?? "",
         ...(department ? { department } : {}),
-        ...(job_title  ? { job_title }  : {}),
+        ...(job_title ? { job_title } : {}),
       });
   }
 
@@ -186,7 +186,7 @@ export async function inviteUser(formData: {
             'Authorization': `Bearer ${resendApiKey}`
           },
           body: JSON.stringify({
-             // Make sure this matches a verified domain in your Resend account (e.g. noreply@scape.com.au)
+            // Make sure this matches a verified domain in your Resend account (e.g. noreply@scape.com.au)
             from: 'Kudos <noreply@resend.dev>', // Change the domain here if Resend complains
             to: [email],
             subject: 'You have been invited to Kudos',
@@ -210,7 +210,7 @@ export async function inviteUser(formData: {
         console.error("Failed to send email via Resend API", e);
       }
     } else {
-       console.warn("RESEND_API_KEY not found in environment variables. Email could not be sent.");
+      console.warn("RESEND_API_KEY not found in environment variables. Email could not be sent.");
     }
   }
 

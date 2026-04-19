@@ -167,7 +167,7 @@ export async function inviteUser(formData: {
     type: 'recovery',
     email: email,
     options: {
-      redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password`,
+      redirectTo: `${appUrl}/auth/recover`,
     }
   });
 

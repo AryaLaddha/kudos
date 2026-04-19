@@ -10,39 +10,40 @@ export default function RecoverPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // On the client, Supabase's JS SDK will automatically parse the #access_token
-    // from the URL fragment and establish the local session.
-    const initializeRecovery = async () => {
-      try {
-        const supabase = createClient();
-        
-        // Let the SDK process the hash fragment
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          setError(error.message);
-          return;
-        }
+    const supabase = createClient();
+    
+    // 1. Immediately check if there is a flat-out error in the hash
+    const hash = window.location.hash;
+    if (hash && hash.includes("error_code=otp_expired")) {
+      setError("This recovery link has expired or has already been used. Please ask your admin for a new link.");
+      return;
+    }
 
-        if (session) {
-          // Success! They are authenticated. Send them to reset password.
+    // 2. Listen for the SDK to parse the hash fragment securely
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+          // The SDK successfully consumed the token in the URL!
           router.push("/auth/reset-password");
-        } else {
-          // If no session but there's a hash, maybe it needs a moment
-          // Or maybe the token was already consumed.
-          const hash = window.location.hash;
-          if (hash && hash.includes("error_code=otp_expired")) {
-            setError("This recovery link has expired or has already been used. Please ask your admin for a new link.");
-          } else if (!hash) {
-             setError("No recovery token found in the URL.");
-          }
+        } else if (event === "USER_UPDATED") {
+          router.push("/auth/reset-password");
         }
-      } catch (err: any) {
-        setError(err?.message || "An unexpected error occurred.");
       }
-    };
+    );
 
-    initializeRecovery();
+    // 3. Fallback: If after 3 seconds the auth state hasn't changed
+    // and there's no session, it means the URL was likely completely invalid.
+    const timeout = setTimeout(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+         setError("Recovery failed. Ensure you copied the exact link and that it hasn't expired.");
+      }
+    }, 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, [router]);
 
   return (

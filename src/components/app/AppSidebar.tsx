@@ -116,7 +116,7 @@ export default function AppSidebar({ user, profile }: Props) {
               <span className="text-xs font-medium text-indigo-400">received</span>
             </div>
             <div>
-              <span className="text-xl font-extrabold text-indigo-600">{profile?.monthly_allowance ?? 50} pts</span>
+              <span className="text-xl font-extrabold text-indigo-600">{profile?.monthly_allowance ?? 50} pts </span>
               <span className="text-xs font-medium text-indigo-400">to give this month</span>
             </div>
           </div>

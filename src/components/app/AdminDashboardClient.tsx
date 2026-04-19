@@ -141,7 +141,13 @@ export default function AdminDashboardClient({
   // ── 2. Sprint Leaderboard ──
   const sprintRanking = useMemo(() => {
     let filtered = participants;
-    if (sprintFilter !== "all_time") filtered = participants.filter(p => p.sprint_id === sprintFilter);
+    if (sprintFilter !== "all_time") {
+      filtered = participants.filter(p => p.sprint_id === sprintFilter);
+    } else {
+      const completedSprintIds = new Set(sprints.filter(s => s.status === "completed").map(s => s.id));
+      filtered = participants.filter(p => completedSprintIds.has(p.sprint_id));
+    }
+
     const stats: Record<string, { profile: Profile; total: number }> = {};
     filtered.forEach(p => {
       if (!p.profile) return;
@@ -152,7 +158,7 @@ export default function AdminDashboardClient({
       else stats[p.user_id].total = net;
     });
     return Object.values(stats).sort((a, b) => b.total - a.total);
-  }, [participants, sprintFilter]);
+  }, [participants, sprintFilter, sprints]);
 
   // ── 3. Goals Leaderboard & Heatmap ──
   const { goalsRanking, goalList, goalCategoryStats, totalAchievedGoals } = useMemo(() => {
@@ -213,10 +219,10 @@ export default function AdminDashboardClient({
       });
     });
 
-    // 2. Sprint (If month filter: include sprints ENDING in that month, else all sprints)
-    let validSprints = sprints;
+    // 2. Sprint
+    let validSprints = sprints.filter(s => s.status === "completed");
     if (overallFilter.type === "month" && overallFilter.monthValue) {
-      validSprints = sprints.filter(s => s.end_date?.startsWith(overallFilter.monthValue!) && s.status === "completed");
+      validSprints = validSprints.filter(s => s.end_date?.startsWith(overallFilter.monthValue!));
     }
     const validSprintIds = new Set(validSprints.map(s => s.id));
     

@@ -11,11 +11,26 @@ export default function RecoverPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    
+
     // 1. Immediately check if there is a flat-out error in the hash
     const hash = window.location.hash;
     if (hash && hash.includes("error_code=otp_expired")) {
       setError("This recovery link has expired or has already been used. Please ask your admin for a new link.");
+      return;
+    }
+
+    // Check if Supabase used PKCE flow instead of Implicit flow
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (!error) {
+          router.push("/auth/reset-password");
+        } else {
+          setError(error.message);
+        }
+      });
+      // Skip the rest if we have a PKCE code
       return;
     }
 
@@ -36,7 +51,7 @@ export default function RecoverPage() {
     const timeout = setTimeout(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-         setError("Recovery failed. Ensure you copied the exact link and that it hasn't expired.");
+        setError("Recovery failed. Ensure you copied the exact link and that it hasn't expired.");
       }
     }, 3000);
 
@@ -53,8 +68,13 @@ export default function RecoverPage() {
           <>
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 mb-4 font-bold text-xl">!</div>
             <h1 className="text-xl font-bold text-slate-900 mb-2">Recovery Failed</h1>
-            <p className="text-sm text-slate-500 mb-6">{error}</p>
-            <button 
+            <p className="text-sm text-slate-500 mb-2">{error}</p>
+            <div className="text-[10px] text-left w-full bg-slate-100 p-3 rounded text-slate-600 font-mono break-all mb-6">
+              <b>Debug Info:</b><br />
+              URL: {typeof window !== 'undefined' ? window.location.href : 'SSR'}<br />
+              Hash: {typeof window !== 'undefined' && window.location.hash ? window.location.hash.substring(0, 40) + '...' : 'none'}<br />
+            </div>
+            <button
               onClick={() => router.push("/auth/login")}
               className="px-6 py-2 bg-slate-900 text-white rounded-lg font-medium text-sm hover:bg-slate-800"
             >

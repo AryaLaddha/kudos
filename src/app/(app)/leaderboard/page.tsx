@@ -135,7 +135,8 @@ export default async function LeaderboardPage({
   // Only show people with points > 0; for recognition keep zeros off the board
   const ranked = Array.from(totals.values())
     .filter(p => p.points > 0)
-    .sort((a, b) => b.points - a.points);
+    .sort((a, b) => b.points - a.points)
+    .slice(0, 5);
 
   // Labels for the subheading
   const selectedSprintName = sprintIsAll

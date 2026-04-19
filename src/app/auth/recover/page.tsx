@@ -19,7 +19,29 @@ export default function RecoverPage() {
       return;
     }
 
-    // Check if Supabase used PKCE flow instead of Implicit flow
+    // Modern Supabase SSR strictly expects PKCE (?code=) and often ignores
+    // implicit flow hash fragments. We manually parse the hash and set the session!
+    if (hash && hash.includes("access_token=")) {
+      const params = new URLSearchParams(hash.substring(1)); // Remove the '#'
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+
+      if (accessToken && refreshToken) {
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        }).then(({ error }) => {
+          if (!error) {
+            router.push("/auth/reset-password");
+          } else {
+            setError(error.message);
+          }
+        });
+        return; // Success or explicit failure, don't wait for timeout
+      }
+    }
+
+    // Fallback: Check if Supabase used PKCE flow instead of Implicit flow
     const searchParams = new URLSearchParams(window.location.search);
     const code = searchParams.get("code");
     if (code) {
@@ -30,35 +52,20 @@ export default function RecoverPage() {
           setError(error.message);
         }
       });
-      // Skip the rest if we have a PKCE code
-      return;
+      return; // Skip the rest if we have a PKCE code
     }
 
-    // 2. Listen for the SDK to parse the hash fragment securely
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
-          // The SDK successfully consumed the token in the URL!
-          router.push("/auth/reset-password");
-        } else if (event === "USER_UPDATED") {
-          router.push("/auth/reset-password");
-        }
-      }
-    );
-
-    // 3. Fallback: If after 3 seconds the auth state hasn't changed
-    // and there's no session, it means the URL was likely completely invalid.
+    // 3. Fallback timeout if the token is utterly unparseable
     const timeout = setTimeout(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        setError("Recovery failed. Ensure you copied the exact link and that it hasn't expired.");
+         setError("Recovery failed. No valid access token or PKCE code was found in the URL.");
+      } else {
+         router.push("/auth/reset-password");
       }
-    }, 3000);
+    }, 2000);
 
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeout);
-    };
+    return () => clearTimeout(timeout);
   }, [router]);
 
   return (

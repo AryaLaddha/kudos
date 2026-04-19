@@ -102,7 +102,7 @@ export async function inviteUser(formData: {
   full_name?: string;
   department?: string;
   job_title?: string;
-}): Promise<{ error?: string }> {
+}): Promise<{ error?: string; setupLink?: string }> {
   if (!(await isAdmin())) return { error: "Not authorized" };
 
   const { email, full_name, department, job_title } = formData;

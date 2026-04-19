@@ -142,17 +142,18 @@ export async function inviteUser(formData: {
     return { error: createError.message };
   }
 
-  // 2. Patch the profile row (the handle_new_user trigger created a bare one).
+  // 2. Insert or update the profile row 
+  // (In case the handle_new_user trigger silently failed to insert the profile, we UPSERT it here)
   if (created?.user?.id) {
     await adminClient
       .from("profiles")
-      .update({
+      .upsert({
+        id: created.user.id,
         org_id: adminProfile.org_id,
         full_name: full_name ?? "",
         ...(department ? { department } : {}),
         ...(job_title  ? { job_title }  : {}),
-      })
-      .eq("id", created.user.id);
+      });
   }
 
   // 3. Send Supabase's native password-reset email.

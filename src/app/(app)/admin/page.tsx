@@ -15,7 +15,7 @@ export default async function AdminPage() {
     .from("goals")
     .select("*");
   
-  const goalDefinitions = dbGoals && dbGoals.length > 0 ? dbGoals : GOALS;
+  const goalDefinitions = [...GOALS, ...(dbGoals || [])];
 
   // Supabase infers to-one joins as arrays — normalise profile to single object
   // Also guard against null scores/project_allocations and drop orphaned rows (deleted user)

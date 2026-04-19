@@ -21,6 +21,12 @@ import {
   deleteGoalDefinition
 } from "@/app/(app)/admin/goals/actions";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Props {
   initialGoals: GoalDefinition[];
@@ -236,91 +242,97 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
         </div>
       )}
 
-      {/* Add/Edit Form */}
-      {(isAdding || editingId) && (
-        <div className="mb-10 p-8 bg-white border-2 border-indigo-100 rounded-[2.5rem] shadow-xl shadow-indigo-50/50 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-indigo-50 rounded-xl">
-              {editingId ? <Pencil className="h-5 w-5 text-indigo-600" /> : <Plus className="h-5 w-5 text-indigo-600" />}
-            </div>
-            <h2 className="text-xl font-black text-slate-900">{editingId ? "Edit Goal" : "Create New Goal"}</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-            <div className="md:col-span-12 space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Goal Title</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={e => setFormData({ ...formData, title: e.target.value })}
-                placeholder="e.g. Complete a new certification"
-                className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium text-slate-900"
-              />
-            </div>
-
-            <div className="md:col-span-8 space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</label>
-              {!isNewCategory ? (
-                <div className="flex gap-2">
-                  <select
-                    value={formData.category}
-                    onChange={e => setFormData({ ...formData, category: e.target.value })}
-                    className="flex-1 px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-bold text-slate-700 appearance-none cursor-pointer"
-                  >
-                    {allCategories.length === 0 && (
-                      <option value="">— no categories yet —</option>
-                    )}
-                    {allCategories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => { setIsNewCategory(true); setNewCategoryInput(""); }}
-                    className="flex items-center gap-1.5 px-4 py-3.5 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-all whitespace-nowrap text-sm"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    New category
-                  </button>
+      {/* Add/Edit Dialog */}
+      <Dialog open={isAdding || editingId !== null} onOpenChange={(open) => { if (!open) cancelForm(); }}>
+        <DialogContent showCloseButton={false} className="sm:max-w-2xl p-0 overflow-hidden">
+          <div className="p-8">
+            <DialogHeader className="mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 rounded-xl">
+                  {editingId ? <Pencil className="h-5 w-5 text-indigo-600" /> : <Plus className="h-5 w-5 text-indigo-600" />}
                 </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newCategoryInput}
-                    onChange={e => setNewCategoryInput(e.target.value)}
-                    placeholder="e.g. Leadership & Mentoring"
-                    autoFocus
-                    className="flex-1 px-5 py-3.5 rounded-2xl bg-slate-50 border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium text-slate-900"
-                  />
-                  {allCategories.length > 0 && (
+                <DialogTitle className="text-xl font-black text-slate-900">
+                  {editingId ? "Edit Goal" : "Create New Goal"}
+                </DialogTitle>
+              </div>
+            </DialogHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              <div className="md:col-span-12 space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Goal Title</label>
+                <textarea
+                  value={formData.title}
+                  onChange={e => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="e.g. Complete a new certification"
+                  rows={3}
+                  className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium text-slate-900 resize-none"
+                />
+              </div>
+
+              <div className="md:col-span-8 space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</label>
+                {!isNewCategory ? (
+                  <div className="flex gap-2">
+                    <select
+                      value={formData.category}
+                      onChange={e => setFormData({ ...formData, category: e.target.value })}
+                      className="flex-1 px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-bold text-slate-700 appearance-none cursor-pointer"
+                    >
+                      {allCategories.length === 0 && (
+                        <option value="">— no categories yet —</option>
+                      )}
+                      {allCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
                     <button
                       type="button"
-                      onClick={() => { setIsNewCategory(false); setNewCategoryInput(""); }}
-                      className="px-4 py-3.5 rounded-2xl bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all text-sm"
+                      onClick={() => { setIsNewCategory(true); setNewCategoryInput(""); }}
+                      className="flex items-center gap-1.5 px-4 py-3.5 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-all whitespace-nowrap text-sm"
                     >
-                      Cancel
+                      <Plus className="h-3.5 w-3.5" />
+                      New category
                     </button>
-                  )}
-                </div>
-              )}
-            </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newCategoryInput}
+                      onChange={e => setNewCategoryInput(e.target.value)}
+                      placeholder="e.g. Leadership & Mentoring"
+                      autoFocus
+                      className="flex-1 px-5 py-3.5 rounded-2xl bg-slate-50 border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium text-slate-900"
+                    />
+                    {allCategories.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setIsNewCategory(false); setNewCategoryInput(""); }}
+                        className="px-4 py-3.5 rounded-2xl bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all text-sm"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
-            <div className="md:col-span-4 space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Points</label>
-              <input
-                type="number"
-                value={formData.points}
-                onChange={e => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
-                className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-bold text-slate-900"
-              />
+              <div className="md:col-span-4 space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Points</label>
+                <input
+                  type="number"
+                  value={formData.points}
+                  onChange={e => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
+                  className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-bold text-slate-900"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-slate-50">
+          <div className="flex items-center justify-end gap-3 px-8 py-5 border-t border-slate-100 bg-slate-50/60">
             <button
               onClick={cancelForm}
-              className="px-6 py-2.5 rounded-xl text-slate-500 font-bold hover:bg-slate-50 transition-all"
+              className="px-6 py-2.5 rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all"
             >
               Cancel
             </button>
@@ -333,8 +345,8 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
               {editingId ? "Update Goal" : "Create Goal"}
             </button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Goals List — accordion by category */}
       {goals.length === 0 ? (

@@ -13,7 +13,7 @@ create table if not exists organizations (
   id                uuid primary key default gen_random_uuid(),
   name              text not null,
   slug              text unique not null,
-  monthly_allowance int not null default 200,
+  monthly_allowance int not null default 50,
   price_per_seat    numeric(10,2) not null default 0,   -- £/seat for MRR calculation
   created_at        timestamptz not null default now()
 );
@@ -28,7 +28,7 @@ create table if not exists profiles (
   avatar_url        text,
   department        text,
   job_title         text,
-  monthly_allowance int not null default 200 check (monthly_allowance >= 0),
+  monthly_allowance int not null default 50 check (monthly_allowance >= 0),
   points_balance    int not null default 0   check (points_balance >= 0),
   is_admin          boolean not null default false,
   created_at        timestamptz not null default now()
@@ -203,7 +203,7 @@ create or replace function reset_monthly_allowances()
 returns void language plpgsql security definer
 as $$
 begin
-  update profiles set monthly_allowance = 200;
+  update profiles set monthly_allowance = 50;
 end;
 $$;
 

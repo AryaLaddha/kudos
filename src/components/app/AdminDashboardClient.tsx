@@ -98,9 +98,11 @@ export default function AdminDashboardClient({
   const latestSprintId = sprints[0]?.id ?? "all_time";
 
   const [tab, setTab] = useState<"points" | "projects" | "quality" | "utilization">("points");
-  const [subTab, setSubTab] = useState<"recognition" | "sprint" | "goals">("recognition");
+  const [subTab, setSubTab] = useState<"overall" | "recognition" | "sprint" | "goals">("overall");
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
 
+  const [overallFilter, setOverallFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
+  const [goalsFilter, setGoalsFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
   const [recognitionFilter, setRecognitionFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
   const [sprintFilter, setSprintFilter] = useState<string>("all_time");
   const [qualitySprintFilter, setQualitySprintFilter] = useState<string>(latestSprintId);
@@ -152,45 +154,104 @@ export default function AdminDashboardClient({
     return Object.values(stats).sort((a, b) => b.total - a.total);
   }, [participants, sprintFilter]);
 
-  // ── 3. Goals Leaderboard (All-time) ──
-  const goalsRanking = useMemo(() => {
+  // ── 3. Goals Leaderboard & Heatmap ──
+  const { goalsRanking, goalList, goalCategoryStats, totalAchievedGoals } = useMemo(() => {
+    let filteredGoals = userGoals.filter(ug => ug.status === "achieved");
+    
+    if (goalsFilter.type === "month" && goalsFilter.monthValue) {
+      filteredGoals = filteredGoals.filter(ug => ug.created_at.startsWith(goalsFilter.monthValue!));
+    }
+
     const stats: Record<string, { profile: Profile; total: number; count: number }> = {};
-    userGoals.filter(ug => ug.status === "achieved").forEach(ug => {
-      const profile = orgUsers.find(u => u.id === ug.user_id);
-      const def = goalDefinitions.find(g => g.id === ug.goal_id);
-      if (!profile || !def) return;
-      if (!stats[ug.user_id]) stats[ug.user_id] = { profile, total: 0, count: 0 };
-      stats[ug.user_id].total += def.points;
-      stats[ug.user_id].count += 1;
-    });
-    return Object.values(stats).sort((a, b) => b.total - a.total);
-  }, [userGoals, orgUsers, goalDefinitions]);
-
-  // ── 4. Practice & Category Heatmap ──
-  const { goalList, goalCategoryStats } = useMemo(() => {
-    const list = userGoals
-      .filter(ug => ug.status === "achieved")
-      .map(ug => ({
-        ...ug,
-        user: orgUsers.find(u => u.id === ug.user_id),
-        goal: goalDefinitions.find(g => g.id === ug.goal_id),
-      }))
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
     const catStats: Record<string, number> = {};
-    const totalAchieved = userGoals.filter(ug => ug.status === "achieved").length;
-    userGoals.filter(ug => ug.status === "achieved").forEach(ug => {
-      const g = goalDefinitions.find(def => def.id === ug.goal_id);
-      if (g) catStats[g.category] = (catStats[g.category] || 0) + 1;
-    });
+    
+    const list = filteredGoals.map(ug => {
+      const user = orgUsers.find(u => u.id === ug.user_id);
+      const goal = goalDefinitions.find(g => g.id === ug.goal_id);
+      
+      if (user && goal) {
+        if (!stats[ug.user_id]) stats[ug.user_id] = { profile: user, total: 0, count: 0 };
+        stats[ug.user_id].total += goal.points;
+        stats[ug.user_id].count += 1;
+        catStats[goal.category] = (catStats[goal.category] || 0) + 1;
+      }
+      return { ...ug, user, goal };
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const totalAchieved = filteredGoals.length;
 
     return {
+      goalsRanking: Object.values(stats).sort((a, b) => b.total - a.total),
       goalList: list,
       goalCategoryStats: Object.entries(catStats)
-        .map(([name, count]) => ({ name, count, pct: (count / (totalAchieved || 1)) * 100 }))
+        .map(([name, count]) => ({ name, count, pct: totalAchieved ? (count / totalAchieved) * 100 : 0 }))
         .sort((a, b) => b.count - a.count),
+      totalAchievedGoals: totalAchieved
     };
-  }, [userGoals, orgUsers, goalDefinitions]);
+  }, [userGoals, orgUsers, goalDefinitions, goalsFilter]);
+
+  // ── 4. Overall Master Leaderboard ──
+  const overallRanking = useMemo(() => {
+    const stats: Record<string, { profile: Profile; total: number; recognitionPoints: number; sprintPoints: number; goalPoints: number }> = {};
+    
+    orgUsers.forEach(u => {
+      stats[u.id] = { profile: u, total: 0, recognitionPoints: 0, sprintPoints: 0, goalPoints: 0 };
+    });
+
+    // 1. Recognition
+    let filteredRec = recognitions;
+    if (overallFilter.type === "month" && overallFilter.monthValue) {
+      filteredRec = recognitions.filter(r => r.created_at.startsWith(overallFilter.monthValue!));
+    }
+    filteredRec.forEach(r => {
+      const receivers = [...(r.receiver_id ? [r.receiver_id] : []), ...(r.receiver_ids ?? [])];
+      Array.from(new Set(receivers)).forEach(uid => {
+        if (stats[uid]) {
+          stats[uid].recognitionPoints += r.points;
+          stats[uid].total += r.points;
+        }
+      });
+    });
+
+    // 2. Sprint (If month filter: include sprints ENDING in that month, else all sprints)
+    let validSprints = sprints;
+    if (overallFilter.type === "month" && overallFilter.monthValue) {
+      validSprints = sprints.filter(s => s.end_date?.startsWith(overallFilter.monthValue!) && s.status === "completed");
+    }
+    const validSprintIds = new Set(validSprints.map(s => s.id));
+    
+    participants.filter(p => validSprintIds.has(p.sprint_id)).forEach(p => {
+       if (stats[p.user_id]) {
+         const scores = p.scores ?? {};
+         const net = p.base_points + Object.values(scores).reduce((s, v) => s + (v || 0), 0);
+         stats[p.user_id].sprintPoints += net;
+         stats[p.user_id].total += net;
+       }
+    });
+
+    // 3. Goals
+    let filteredGo = userGoals.filter(ug => ug.status === "achieved");
+    if (overallFilter.type === "month" && overallFilter.monthValue) {
+      filteredGo = filteredGo.filter(ug => ug.created_at.startsWith(overallFilter.monthValue!));
+    }
+    filteredGo.forEach(ug => {
+      if (stats[ug.user_id]) {
+        const goal = goalDefinitions.find(g => g.id === ug.goal_id);
+        if (goal) {
+          stats[ug.user_id].goalPoints += goal.points;
+          stats[ug.user_id].total += goal.points;
+        }
+      }
+    });
+
+    return Object.values(stats)
+      .filter(s => s.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .map(s => ({
+         ...s,
+         subtext: `Rec: ${s.recognitionPoints} | Spr: ${s.sprintPoints} | Gls: ${s.goalPoints}`
+      }));
+  }, [recognitions, participants, sprints, userGoals, orgUsers, goalDefinitions, overallFilter]);
 
   // ── 4. Project Efficiency (ROI) — all sprints ──
   const projectEfficiency = useMemo(() => {
@@ -316,11 +377,13 @@ export default function AdminDashboardClient({
   }, [sprints, participants, orgUsers, healthPersonFilter]);
 
   // ── Helpers ──
-  const monthOptions = useMemo(() => {
+  const overallMonthOptions = useMemo(() => {
     const months = new Set<string>();
-    recognitions.forEach(r => months.add(r.created_at.substring(0, 7)));
+    recognitions.forEach(r => r.created_at && months.add(r.created_at.substring(0, 7)));
+    sprints.forEach(s => s.end_date && months.add(s.end_date.substring(0, 7)));
+    userGoals.forEach(ug => ug.created_at && months.add(ug.created_at.substring(0, 7)));
     return Array.from(months).sort().reverse();
-  }, [recognitions]);
+  }, [recognitions, sprints, userGoals]);
 
   const selectClass = "bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 cursor-pointer";
 
@@ -356,30 +419,30 @@ export default function AdminDashboardClient({
         </div>
       </div>
 
-      {/* Sub-tabs for Points */}
-      {tab === "points" && (
-        <div className="overflow-x-auto">
-          <div className="flex w-max items-center gap-2 p-1 bg-slate-50/50 rounded-xl">
-            {[
-              { id: "recognition", label: "Recognition", icon: Zap },
-              { id: "sprint",      label: "Sprints",     icon: Trophy },
-              { id: "goals",       label: "Goals",       icon: Target },
-            ].map(st => (
-              <button
-                key={st.id}
-                onClick={() => { setSubTab(st.id as typeof subTab); setViewMode("list"); }}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all",
-                  subTab === st.id ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-100" : "text-slate-500 hover:text-slate-700",
-                )}
-              >
-                <st.icon className="h-3.5 w-3.5" />
-                {st.label}
-              </button>
-            ))}
+        {tab === "points" && (
+          <div className="overflow-x-auto">
+            <div className="flex w-max items-center gap-2 p-1 bg-slate-50/50 rounded-xl">
+              {[
+                { id: "overall",     label: "Overall",     icon: Medal },
+                { id: "recognition", label: "Recognition", icon: Zap },
+                { id: "sprint",      label: "Sprints",     icon: Trophy },
+                { id: "goals",       label: "Goals",       icon: Target },
+              ].map(st => (
+                <button
+                  key={st.id}
+                  onClick={() => { setSubTab(st.id as typeof subTab); setViewMode("list"); }}
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all",
+                    subTab === st.id ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-100" : "text-slate-500 hover:text-slate-700",
+                  )}
+                >
+                  <st.icon className="h-3.5 w-3.5" />
+                  {st.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
 
       {/* Filters row */}
@@ -392,7 +455,7 @@ export default function AdminDashboardClient({
                 ? setRecognitionFilter({ type: "all" })
                 : setRecognitionFilter({ type: "month", monthValue: e.target.value })}>
               <option value="all">All Time History</option>
-              {monthOptions.map(m => (
+              {overallMonthOptions.map(m => (
                 <option key={m} value={m}>{new Date(m + "-01").toLocaleString("en-US", { month: "long", year: "numeric" })}</option>
               ))}
             </select>
@@ -406,9 +469,29 @@ export default function AdminDashboardClient({
           )}
 
           {tab === "points" && subTab === "goals" && (
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
-              <Medal className="h-3 w-3" /> All-time achievement records
-            </div>
+            <select className={selectClass}
+              value={goalsFilter.type === "all" ? "all" : goalsFilter.monthValue}
+              onChange={e => e.target.value === "all"
+                ? setGoalsFilter({ type: "all" })
+                : setGoalsFilter({ type: "month", monthValue: e.target.value })}>
+              <option value="all">All Time Goals</option>
+              {overallMonthOptions.map(m => (
+                <option key={m} value={m}>{new Date(m + "-01").toLocaleString("en-US", { month: "long", year: "numeric" })}</option>
+              ))}
+            </select>
+          )}
+
+          {tab === "points" && subTab === "overall" && (
+            <select className={selectClass}
+              value={overallFilter.type === "all" ? "all" : overallFilter.monthValue}
+              onChange={e => e.target.value === "all"
+                ? setOverallFilter({ type: "all" })
+                : setOverallFilter({ type: "month", monthValue: e.target.value })}>
+              <option value="all">All Time Overall</option>
+              {overallMonthOptions.map(m => (
+                <option key={m} value={m}>{new Date(m + "-01").toLocaleString("en-US", { month: "long", year: "numeric" })}</option>
+              ))}
+            </select>
           )}
 
           {tab === "quality" && (
@@ -440,9 +523,10 @@ export default function AdminDashboardClient({
 
         <div className="flex flex-col items-end gap-1 text-right">
           <p className="text-xs font-medium text-slate-400 italic max-w-xs leading-tight">
+            {tab === "points" && subTab === "overall"      && "Total points amassed through Goals, Sprints, and Recognition combined."}
             {tab === "points" && subTab === "recognition"  && "Track team recognition points and extra performance bonuses across any time period."}
             {tab === "points" && subTab === "sprint"       && "Cumulative performance audit: Base points plus net wins and deductions per sprint."}
-            {tab === "points" && subTab === "goals"        && "Achievement leaderboard: Ranking professionals by lifetime goal points earned."}
+            {tab === "points" && subTab === "goals"        && "Achievement leaderboard: Ranking professionals by goal points earned."}
             {tab === "projects"     && "Project efficiency index: Comparing team effort (allocation) vs. actual recognised results."}
             {tab === "quality"      && "Systemic issue monitor: Tracking bugs, absences, and communication audit trends."}
             {tab === "utilization"  && "Resource utilisation audit: Team workload and burnout risk across sprints."}
@@ -462,6 +546,27 @@ export default function AdminDashboardClient({
         {/* POINTS HUB CONTENT */}
         {tab === "points" && (
           <div className="space-y-6">
+            {subTab === "overall" && (
+              <div className="space-y-6">
+                <div className="bg-white border border-slate-100 rounded-[2.5rem] p-6 sm:p-10 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 mb-1">
+                      {overallFilter.type === "all" ? "All Time Total Points" : `Total Points for ${new Date(overallFilter.monthValue! + "-01").toLocaleString("en-US", { month: "long", year: "numeric" })}`}
+                    </h3>
+                    <p className="text-sm text-slate-500 font-medium">Combined sum of Recognition, Sprint Performance, and Achieved Goals.</p>
+                  </div>
+                  <div className="text-4xl sm:text-5xl font-black text-indigo-600 bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100/50">
+                    {overallRanking.reduce((sum, r) => sum + r.total, 0).toLocaleString()}
+                    <span className="text-lg text-slate-400 ml-2">pts</span>
+                  </div>
+                </div>
+                {viewMode === "list"
+                  ? <RankingList data={overallRanking} unit="pts" />
+                  : <RankingGraph data={overallRanking} unit="pts" />
+                }
+              </div>
+            )}
+
             {subTab === "recognition" && (viewMode === "list"
               ? <RankingList data={recognitionRanking} subtext="kudos received" unit="pts" />
               : <RankingGraph data={recognitionRanking} unit="pts" />
@@ -483,21 +588,25 @@ export default function AdminDashboardClient({
                   <h3 className="text-xl font-black text-slate-900 mb-8">Practice Focus Heatmap</h3>
                   <div className="flex flex-col md:flex-row gap-10 items-center">
                     <div className="flex-1 w-full space-y-5">
-                      {goalCategoryStats.map(cat => (
-                        <div key={cat.name} className="space-y-2">
-                          <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
-                            <span>{cat.name}</span>
-                            <span className="text-slate-900">{cat.count} logs</span>
+                      {goalCategoryStats.length === 0 ? (
+                        <div className="text-sm text-slate-400 italic">No goals completed in this period.</div>
+                      ) : (
+                        goalCategoryStats.map(cat => (
+                          <div key={cat.name} className="space-y-2">
+                            <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500">
+                              <span>{cat.name}</span>
+                              <span className="text-slate-900">{cat.count} logs</span>
+                            </div>
+                            <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden">
+                              <div style={{ width: `${cat.pct}%` }} className={cn("h-full transition-all duration-1000", CATEGORY_COLORS[cat.name] || "bg-slate-300")} />
+                            </div>
                           </div>
-                          <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden">
-                            <div style={{ width: `${cat.pct}%` }} className={cn("h-full transition-all duration-1000", CATEGORY_COLORS[cat.name] || "bg-slate-300")} />
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
-                    <div className="w-full md:w-64 aspect-square rounded-full border-[16px] border-slate-50 flex items-center justify-center">
-                      <div className="text-center">
-                        <p className="text-4xl font-black text-slate-900">{userGoals.filter(ug => ug.status === "achieved").length}</p>
+                    <div className="w-full md:w-64 aspect-square rounded-full border-[16px] border-slate-50 flex items-center justify-center relative">
+                      <div className="text-center absolute">
+                        <p className="text-4xl font-black text-slate-900">{totalAchievedGoals}</p>
                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">Total logs</p>
                       </div>
                     </div>
@@ -746,7 +855,7 @@ export default function AdminDashboardClient({
 
 // ── Sub-components ────────────────────────────────────────────
 
-function RankingList({ data, subtext, unit }: { data: { profile: Profile; total: number }[]; subtext: string; unit: string }) {
+function RankingList({ data, subtext, unit }: { data: { profile: Profile; total: number; subtext?: string }[]; subtext?: string; unit: string }) {
   if (data.length === 0) return <div className="text-center py-20 text-slate-300 italic border border-dashed border-slate-200 rounded-3xl">Empty leaderboard.</div>;
   return (
     <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
@@ -761,7 +870,9 @@ function RankingList({ data, subtext, unit }: { data: { profile: Profile; total:
             </div>
             <div className="text-right flex-shrink-0 pl-2">
               <p className={cn("text-base sm:text-lg font-black leading-none whitespace-nowrap", i === 0 ? "text-amber-600" : "text-violet-600")}>{Math.round(row.total)}{unit}</p>
-              <span className="hidden sm:block text-[9px] text-slate-400 uppercase font-black whitespace-nowrap">{subtext}</span>
+              <span className="hidden sm:block text-[9px] text-slate-400 uppercase font-black whitespace-nowrap pt-0.5">
+                {row.subtext || subtext}
+              </span>
             </div>
           </div>
         ))}

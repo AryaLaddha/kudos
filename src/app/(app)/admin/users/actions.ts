@@ -102,7 +102,7 @@ export async function inviteUser(formData: {
   full_name?: string;
   department?: string;
   job_title?: string;
-}): Promise<{ error?: string }> {
+}): Promise<{ error?: string; setupLink?: string }> {
   if (!(await isAdmin())) return { error: "Not authorized" };
 
   const { email, full_name, department, job_title } = formData;
@@ -156,8 +156,8 @@ export async function inviteUser(formData: {
       });
   }
 
-  // 3. Generate a setup link and email it directly using Resend's REST API.
-  // This bypasses Supabase's internal SMTP forwarder which is failing for you.
+  // 3. Generate a setup link.
+  // We return this to the frontend so the admin can copy and share it directly.
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("supabase.co", "vercel.app") ??
@@ -173,47 +173,10 @@ export async function inviteUser(formData: {
 
   if (linkError || !linkData?.properties?.action_link) {
     console.warn("Could not generate setup link:", linkError?.message);
-  } else {
-    // Send email directly using Resend
-    const resendApiKey = process.env.RESEND_API_KEY; // You need to add this to Vercel env
-    if (resendApiKey) {
-      try {
-        const setupLink = linkData.properties.action_link;
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${resendApiKey}`
-          },
-          body: JSON.stringify({
-            // Make sure this matches a verified domain in your Resend account (e.g. noreply@scape.com.au)
-            from: 'Kudos <noreply@resend.dev>', // Change the domain here if Resend complains
-            to: [email],
-            subject: 'You have been invited to Kudos',
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                <h2 style="color: #4f46e5;">Welcome to Kudos!</h2>
-                <p>Hi ${full_name || 'there'},</p>
-                <p>You have been invited to join the Kudos platform.</p>
-                <p>Click the button below to set up your password and access your account:</p>
-                <div style="margin: 30px 0;">
-                  <a href="${setupLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Set Your Password</a>
-                </div>
-                <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:<br/>
-                <a href="${setupLink}" style="color: #4f46e5; word-break: break-all;">${setupLink}</a></p>
-              </div>
-            `
-          })
-        });
-        console.log("Resend API email sent successfully");
-      } catch (e) {
-        console.error("Failed to send email via Resend API", e);
-      }
-    } else {
-      console.warn("RESEND_API_KEY not found in environment variables. Email could not be sent.");
-    }
   }
 
   revalidatePath("/admin/users");
-  return {};
+  return {
+    setupLink: linkData?.properties?.action_link
+  };
 }

@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Mail,
   Shield,
+  Copy,
 } from "lucide-react";
 import { type Profile } from "@/types";
 import { setUserActive, setUserAdmin, inviteUser } from "@/app/(app)/admin/users/actions";
@@ -42,6 +43,8 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
   const [invitePending, startInviteTransition] = useTransition();
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [setupLink, setSetupLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const searchLower = search.toLowerCase().trim();
   const filtered = useMemo(() => {
@@ -109,6 +112,8 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
     setInviteRole("");
     setInviteError(null);
     setInviteSuccess(false);
+    setSetupLink(null);
+    setCopied(false);
   }
 
   function handleInviteSubmit(e: React.FormEvent) {
@@ -125,6 +130,9 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
         setInviteError(result.error);
       } else {
         setInviteSuccess(true);
+        if (result.setupLink) {
+          setSetupLink(result.setupLink);
+        }
         // Optimistically append so the admin sees the new row immediately
         const placeholder: UserRow = {
           id: `pending-${Date.now()}`,
@@ -141,9 +149,20 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
           email: inviteEmail.trim(),
         };
         setUsers(prev => [...prev, placeholder]);
-        setTimeout(closeInviteModal, 1800);
+        
+        // If there's NO link, we auto-close. If there's a link, we stay open so they can copy it.
+        if (!result.setupLink) {
+          setTimeout(closeInviteModal, 1800);
+        }
       }
     });
+  }
+
+  function handleCopyLink() {
+    if (!setupLink) return;
+    navigator.clipboard.writeText(setupLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -382,20 +401,59 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
             {/* Modal body */}
             <div className="px-7 py-6">
               {inviteSuccess ? (
-                <div className="flex flex-col items-center gap-4 py-6 text-center">
+                <div className="flex flex-col items-center gap-4 py-4 text-center">
                   <div className="p-4 rounded-full bg-emerald-50">
                     <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                   </div>
-                  <div>
+                  <div className="w-full">
                     <p className="font-black text-slate-900 text-lg">Account created!</p>
                     <p className="text-sm text-slate-500 mt-1">
-                      A password-setup email has been sent to
+                      {setupLink ? "The account is ready. Send this setup link to:" : "A password-setup email has been sent to"}
                     </p>
                     <p className="text-sm font-bold text-slate-700 mt-0.5">{inviteEmail}</p>
-                    <p className="text-xs text-slate-400 mt-3">
-                      They can also use <span className="font-semibold">Forgot password</span> on the login page at any time.
-                    </p>
+
+                    {setupLink && (
+                      <div className="mt-6 space-y-3">
+                        <div className="relative group">
+                          <input
+                            readOnly
+                            value={setupLink}
+                            className="w-full pl-4 pr-12 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-500 outline-none"
+                          />
+                          <button
+                            onClick={handleCopyLink}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 shadow-sm transition-all"
+                          >
+                            {copied ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <button
+                          onClick={handleCopyLink}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-indigo-100 shadow-lg hover:bg-indigo-700 transition-all"
+                        >
+                          {copied ? "Copied Link!" : "Copy Setup Link"}
+                        </button>
+                        <p className="text-[10px] text-slate-400 font-medium">
+                          This is a one-time secure link. Send it to the user so they can set their password.
+                        </p>
+                      </div>
+                    )}
+
+                    {!setupLink && (
+                      <p className="text-xs text-slate-400 mt-6 pt-6 border-t border-slate-50">
+                        They can also use <span className="font-semibold text-slate-600 underline">Forgot password</span> on the login page at any time.
+                      </p>
+                    )}
                   </div>
+                  
+                  {setupLink && (
+                    <button
+                      onClick={closeInviteModal}
+                      className="mt-4 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      Done
+                    </button>
+                  )}
                 </div>
               ) : (
                 <form onSubmit={handleInviteSubmit} className="space-y-4">

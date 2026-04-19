@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { WorkstationLoader } from "@/components/app/WorkstationLoader";
 
 const RECENT_KUDOS = [
   {
@@ -56,6 +57,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showLoader, setShowLoader] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const router = useRouter();
@@ -67,12 +69,16 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       toast.error("Invalid email or password.");
+      setLoading(false);
     } else {
       toast.success("Welcome back! 👋");
       router.refresh();
-      router.push("/feed");
+      setShowLoader(true);
     }
-    setLoading(false);
+  }
+
+  if (showLoader) {
+    return <WorkstationLoader onComplete={() => router.push("/feed")} />;
   }
 
   return (

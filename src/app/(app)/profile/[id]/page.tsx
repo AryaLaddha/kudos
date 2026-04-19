@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Coins, Heart, Star } from "lucide-react";
+import { ArrowLeft, Coins, Heart, Star, Mail } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,11 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     .single();
 
   if (!profile) notFound();
+
+  // Fetch email from auth.users via admin client
+  const adminClient = createAdminClient();
+  const { data: { user: profileUser } } = await adminClient.auth.admin.getUserById(id);
+  const profileEmail = profileUser?.email ?? null;
 
   // Check if the viewer is an admin
   const { data: viewerProfile } = await supabase
@@ -168,6 +174,12 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               <div>
                 <h1 className="text-xl font-extrabold text-slate-900">{profile.full_name}</h1>
                 {profile.job_title && <p className="text-sm text-slate-500 mt-0.5">{profile.job_title}</p>}
+                {profileEmail && (
+                  <p className="flex items-center gap-1.5 text-sm text-slate-400 mt-1">
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    {profileEmail}
+                  </p>
+                )}
                 {profile.department && (
                   <Badge variant="secondary" className="mt-2 bg-slate-100 text-slate-600 border-0">
                     {profile.department}
@@ -193,7 +205,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               <Coins className="h-4 w-4 text-indigo-500" />
               <span className="text-xl font-extrabold text-slate-900">{profile.points_balance}</span>
             </div>
-            <p className="text-xs text-slate-400">Points balance</p>
+            <p className="text-xs text-slate-400">Points received</p>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5 mb-1">

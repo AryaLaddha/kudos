@@ -102,7 +102,7 @@ export async function inviteUser(formData: {
   full_name?: string;
   department?: string;
   job_title?: string;
-}): Promise<{ error?: string; setupLink?: string }> {
+}): Promise<{ error?: string }> {
   if (!(await isAdmin())) return { error: "Not authorized" };
 
   const { email, full_name, department, job_title } = formData;
@@ -155,27 +155,24 @@ export async function inviteUser(formData: {
       .eq("id", created.user.id);
   }
 
-  // 3. Generate a setup link instead of relying on Supabase SMTP
-  // This avoids the 500 error when SMTP is rate-limited or failing.
+  // 3. Send Supabase's native password-reset email.
+  //    This uses the "Reset Password" template already configured in your
+  //    Supabase project — no extra email provider needed.
+  //    The user clicks the link, sets their own password, and is in.
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("supabase.co", "vercel.app") ??
-    "http://localhost:3000";
+    "";
 
-  const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-    type: 'recovery',
-    email: email,
-    options: {
-      redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password`,
-    }
+  const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
+    redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password`,
   });
 
-  if (linkError) {
-    console.warn("Could not generate setup link:", linkError.message);
+  if (resetError) {
+    // Non-fatal: user was created, they can still use "Forgot password" themselves.
+    console.warn("Could not send reset email (user was still created):", resetError.message);
   }
 
   revalidatePath("/admin/users");
-  return { 
-    setupLink: linkData?.properties?.action_link 
-  };
+  return {};
 }

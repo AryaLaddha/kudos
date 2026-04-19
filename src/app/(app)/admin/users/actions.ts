@@ -155,24 +155,27 @@ export async function inviteUser(formData: {
       .eq("id", created.user.id);
   }
 
-  // 3. Send Supabase's native password-reset email.
-  //    This uses the "Reset Password" template already configured in your
-  //    Supabase project — no extra email provider needed.
-  //    The user clicks the link, sets their own password, and is in.
+  // 3. Generate a setup link instead of relying on Supabase SMTP
+  // This avoids the 500 error when SMTP is rate-limited or failing.
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("supabase.co", "vercel.app") ??
-    "";
+    "http://localhost:3000";
 
-  const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email, {
-    redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password`,
+  const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+    type: 'recovery',
+    email: email,
+    options: {
+      redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password`,
+    }
   });
 
-  if (resetError) {
-    // Non-fatal: user was created, they can still use "Forgot password" themselves.
-    console.warn("Could not send reset email (user was still created):", resetError.message);
+  if (linkError) {
+    console.warn("Could not generate setup link:", linkError.message);
   }
 
   revalidatePath("/admin/users");
-  return {};
+  return { 
+    setupLink: linkData?.properties?.action_link 
+  };
 }

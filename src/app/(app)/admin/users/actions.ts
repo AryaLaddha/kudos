@@ -158,10 +158,10 @@ export async function inviteUser(formData: {
 
   // 3. Generate a setup link.
   // We return this to the frontend so the admin can copy and share it directly.
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("supabase.co", "vercel.app") ??
-    "http://localhost:3000";
+    (vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000");
 
   const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
     type: 'recovery',

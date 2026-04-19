@@ -45,6 +45,7 @@ export type Reaction = {
   user_id: string;
   emoji: string;
   created_at: string;
+  user?: Pick<Profile, "id" | "full_name">;
 };
 
 export type Comment = {

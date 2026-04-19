@@ -146,7 +146,8 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
         .select()
         .single();
       if (!error && data) {
-        setReactions((prev) => [...(prev ?? []), data]);
+        const appendedReaction = { ...data, user: currentUserProfile ? { id: currentUserProfile.id, full_name: currentUserProfile.full_name } : undefined };
+        setReactions((prev) => [...(prev ?? []), appendedReaction]);
       } else if (error) {
         toast.error("Couldn't add reaction. Please try again.");
       }
@@ -347,9 +348,16 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
               const count = getReactionCount(emoji);
               const reacted = hasReacted(emoji);
               if (count === 0 && !reacted) return null;
+              
+              const rawReactors = reactions?.filter(r => r.emoji === emoji).map(r => r.user?.full_name || "Someone") || [];
+              // Deduplicate in case of quick multi-clicks in dev mode
+              const reactors = Array.from(new Set(rawReactors));
+              const reactorList = reactors.length > 8 ? [...reactors.slice(0, 8), `and ${reactors.length - 8} more`].join(", ") : reactors.join(", ");
+
               return (
                 <button
                   key={emoji}
+                  title={reactorList}
                   onClick={() => toggleReaction(emoji)}
                   className={cn(
                     "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",

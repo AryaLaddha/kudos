@@ -65,7 +65,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       id, org_id, giver_id, receiver_id, receiver_ids, message, points, hashtags, created_at,
       giver:profiles!recognitions_giver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, created_at),
       receiver:profiles!recognitions_receiver_id_fkey(id, full_name, avatar_url, job_title, department, org_id, created_at),
-      reactions(id, recognition_id, user_id, emoji, created_at),
+      reactions(id, recognition_id, user_id, emoji, created_at, user:profiles(id, full_name)),
       comments(id, recognition_id, user_id, message, points_tip, created_at, user:profiles(id, full_name, avatar_url))
     `)
     .order("created_at", { ascending: false })

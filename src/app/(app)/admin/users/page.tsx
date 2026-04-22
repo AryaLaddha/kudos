@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth";
+import { requireUserManager } from "@/lib/auth";
 import { getOrgUsers } from "./actions";
 import UsersManagementClient from "@/components/app/UsersManagementClient";
 import { createClient } from "@/lib/supabase/server";
@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default async function AdminUsersPage() {
-  await requireAdmin();
+  await requireUserManager();
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

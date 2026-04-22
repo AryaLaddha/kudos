@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth";
+import { requireSprintManager } from "@/lib/auth";
 import { getSprintById, getSprintParticipants, getOrgUsers } from "@/app/(app)/sprints/actions";
 import { notFound } from "next/navigation";
 import SprintDetailClient from "@/components/app/SprintDetailClient";
@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default async function SprintDetailPage({ params }: Props) {
-  await requireAdmin();
+  await requireSprintManager();
   const { id } = await params;
 
   const [sprint, participants, orgUsers] = await Promise.all([

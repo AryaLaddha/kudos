@@ -18,19 +18,21 @@ const navItems = [
   { href: "/goals", label: "Goals", icon: Target },
 ];
 
-const adminNavItems = [
-  { href: "/sprints", label: "Sprints", icon: Zap },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/goals", label: "Goals Management", icon: Target },
-  { href: "/admin", label: "Admin", icon: ShieldCheck },
+const allAdminNavItems = [
+  { href: "/sprints", label: "Sprints", icon: Zap, permission: "sprints" as const },
+  { href: "/admin/users", label: "Users", icon: Users, permission: "users" as const },
+  { href: "/admin/goals", label: "Goals Management", icon: Target, permission: "admin" as const },
+  { href: "/admin", label: "Admin", icon: ShieldCheck, permission: "admin" as const },
 ];
 
 interface Props {
   user: SupabaseUser;
   profile: Profile | null;
+  canManageUsers: boolean;
+  canManageSprints: boolean;
 }
 
-export default function AppSidebar({ user, profile }: Props) {
+export default function AppSidebar({ user, profile, canManageUsers, canManageSprints }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -168,32 +170,39 @@ export default function AppSidebar({ user, profile }: Props) {
             My Profile
           </button>
 
-          {/* Admin-only nav items */}
-          {profile?.is_admin && (
+          {/* Scoped nav items */}
+          {(profile?.is_admin || canManageUsers || canManageSprints) && (
             <>
               <Separator className="my-2" />
-              {adminNavItems.map((item) => {
-                const active = pathname === item.href || pendingHref === item.href;
-                const loading = isPending && pendingHref === item.href;
-                return (
-                  <button
-                    key={item.href}
-                    onClick={() => handleNav(item.href)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                      active
-                        ? "bg-violet-50 text-violet-700"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    )}
-                  >
-                    {loading
-                      ? <Loader2 className="h-4 w-4 text-violet-500 animate-spin" />
-                      : <item.icon className={cn("h-4 w-4", active ? "text-violet-600" : "text-slate-400")} />
-                    }
-                    {item.label}
-                  </button>
-                );
-              })}
+              {allAdminNavItems
+                .filter(item => {
+                  if (item.permission === "admin") return profile?.is_admin;
+                  if (item.permission === "users") return canManageUsers;
+                  if (item.permission === "sprints") return canManageSprints;
+                  return false;
+                })
+                .map((item) => {
+                  const active = pathname === item.href || pendingHref === item.href;
+                  const loading = isPending && pendingHref === item.href;
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={() => handleNav(item.href)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                        active
+                          ? "bg-violet-50 text-violet-700"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      )}
+                    >
+                      {loading
+                        ? <Loader2 className="h-4 w-4 text-violet-500 animate-spin" />
+                        : <item.icon className={cn("h-4 w-4", active ? "text-violet-600" : "text-slate-400")} />
+                      }
+                      {item.label}
+                    </button>
+                  );
+                })}
             </>
           )}
         </nav>
@@ -208,11 +217,15 @@ export default function AppSidebar({ user, profile }: Props) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
-                {profile?.is_admin && (
+                {profile?.is_admin ? (
                   <span className="flex-shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-600">
                     Admin
                   </span>
-                )}
+                ) : (canManageUsers || canManageSprints) ? (
+                  <span className="flex-shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Manager
+                  </span>
+                ) : null}
               </div>
               <p className="text-xs text-slate-400 truncate">{user.email}</p>
             </div>

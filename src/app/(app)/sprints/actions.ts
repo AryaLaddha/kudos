@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { canManageSprints } from "@/lib/auth";
 
 async function requireAdminClient() {
   const supabase = await createClient();
@@ -10,6 +11,16 @@ async function requireAdminClient() {
   const { data: profile } = await supabase.from("profiles").select("is_admin, org_id").eq("id", user.id).single();
   if (!profile?.is_admin) throw new Error("Forbidden");
   return { supabase, user, orgId: profile.org_id! };
+}
+
+async function requireSprintClient() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+  const { data: profile } = await supabase.from("profiles").select("is_admin, org_id").eq("id", user.id).single();
+  const allowed = profile?.is_admin || await canManageSprints();
+  if (!allowed) throw new Error("Forbidden");
+  return { supabase, user, orgId: profile!.org_id! };
 }
 
 // ── PROJECTS ───────────────────────────────────────────────────
@@ -52,7 +63,7 @@ export async function deleteProject(id: string) {
 // ── SPRINTS ────────────────────────────────────────────────────
 
 export async function getSprints() {
-  const { supabase, orgId } = await requireAdminClient();
+  const { supabase, orgId } = await requireSprintClient();
   const { data } = await supabase
     .from("sprints")
     .select("*, sprint_participants(count)")
@@ -67,7 +78,7 @@ export async function createSprint(payload: {
   end_date: string;
   base_points: number;
 }) {
-  const { supabase, orgId } = await requireAdminClient();
+  const { supabase, orgId } = await requireSprintClient();
   const { data, error } = await supabase
     .from("sprints")
     .insert({
@@ -120,7 +131,7 @@ export async function createSprint(payload: {
 }
 
 export async function deleteSprint(id: string) {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
   const { error } = await supabase.from("sprints").delete().eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/sprints");
@@ -128,7 +139,7 @@ export async function deleteSprint(id: string) {
 }
 
 export async function getSprintById(id: string) {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
   const { data } = await supabase
     .from("sprints")
     .select("*")
@@ -138,7 +149,7 @@ export async function getSprintById(id: string) {
 }
 
 export async function updateSprintColumns(id: string, columns: object) {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
   const { error } = await supabase.from("sprints").update({ columns }).eq("id", id);
   if (error) return { error: error.message };
   revalidatePath(`/sprints/${id}`);
@@ -146,7 +157,7 @@ export async function updateSprintColumns(id: string, columns: object) {
 }
 
 export async function updateSprintStatus(id: string, status: "active" | "completed") {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
   const { error } = await supabase.from("sprints").update({ status }).eq("id", id);
   if (error) return { error: error.message };
   revalidatePath(`/sprints/${id}`);
@@ -157,7 +168,7 @@ export async function updateSprintStatus(id: string, status: "active" | "complet
 // ── SPRINT PARTICIPANTS ────────────────────────────────────────
 
 export async function getSprintParticipants(sprintId: string) {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
   const { data } = await supabase
     .from("sprint_participants")
     .select("*, profile:profiles(id, full_name, avatar_url, job_title)")
@@ -171,7 +182,7 @@ export async function getSprintParticipants(sprintId: string) {
 }
 
 export async function getOrgUsers() {
-  const { supabase, orgId } = await requireAdminClient();
+  const { supabase, orgId } = await requireSprintClient();
   const { data } = await supabase
     .from("profiles")
     .select("id, full_name, avatar_url, job_title")
@@ -181,7 +192,7 @@ export async function getOrgUsers() {
 }
 
 export async function addParticipant(sprintId: string, userId: string, basePoints: number) {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
   const { error } = await supabase.from("sprint_participants").upsert({
     sprint_id: sprintId,
     user_id: userId,
@@ -195,7 +206,7 @@ export async function addParticipant(sprintId: string, userId: string, basePoint
 }
 
 export async function removeParticipant(sprintId: string, userId: string) {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
   const { error } = await supabase
     .from("sprint_participants")
     .delete()
@@ -212,7 +223,7 @@ export async function updateParticipantScores(
   scores: Record<string, number>,
   basePoints: number,
 ) {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
   const { error } = await supabase
     .from("sprint_participants")
     .update({ scores, base_points: basePoints })
@@ -231,7 +242,7 @@ export async function updateAllParticipants(
     base_points: number;
   }[]
 ) {
-  const { supabase } = await requireAdminClient();
+  const { supabase } = await requireSprintClient();
 
   // Upsert all records (Supabase upsert works with bulk arrays)
   const { error } = await supabase

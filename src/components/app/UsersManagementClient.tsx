@@ -13,9 +13,10 @@ import {
   Mail,
   Shield,
   Copy,
+  Link2,
 } from "lucide-react";
 import { type Profile } from "@/types";
-import { setUserActive, setUserAdmin, inviteUser } from "@/app/(app)/admin/users/actions";
+import { setUserActive, setUserAdmin, inviteUser, generateLoginLink } from "@/app/(app)/admin/users/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,13 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [setupLink, setSetupLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Get login link modal state
+  const [linkModalUser, setLinkModalUser] = useState<UserRow | null>(null);
+  const [linkResult, setLinkResult] = useState<string | null>(null);
+  const [linkPending, setLinkPending] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const searchLower = search.toLowerCase().trim();
   const filtered = useMemo(() => {
@@ -156,6 +164,36 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
         }
       }
     });
+  }
+
+  function closeLinkModal() {
+    setLinkModalUser(null);
+    setLinkResult(null);
+    setLinkError(null);
+    setLinkCopied(false);
+  }
+
+  function handleGetLink(user: UserRow) {
+    setLinkModalUser(user);
+    setLinkResult(null);
+    setLinkError(null);
+    setLinkCopied(false);
+    setLinkPending(true);
+    generateLoginLink(user.id).then(result => {
+      setLinkPending(false);
+      if (result.error) {
+        setLinkError(result.error);
+      } else {
+        setLinkResult(result.setupLink ?? null);
+      }
+    });
+  }
+
+  function handleCopyLoginLink() {
+    if (!linkResult) return;
+    navigator.clipboard.writeText(linkResult);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   }
 
   function handleCopyLink() {
@@ -296,6 +334,20 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                   {/* Controls */}
                   <div className="flex-shrink-0 flex items-center gap-4">
 
+                    {/* Get login link */}
+                    <div className="flex flex-col items-center gap-1">
+                      <button
+                        onClick={() => handleGetLink(user)}
+                        title="Generate login link"
+                        className="flex items-center justify-center h-8 w-8 rounded-xl border-2 bg-slate-50 border-slate-200 text-slate-300 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-500 transition-all duration-200 focus:outline-none cursor-pointer"
+                      >
+                        <Link2 className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                        Link
+                      </span>
+                    </div>
+
                     {/* Admin toggle */}
                     <div className="flex flex-col items-center gap-1">
                       <button
@@ -367,6 +419,84 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
         <AlertCircle className="h-4 w-4 shrink-0" />
         <p className="text-xs font-medium">Inactive users are immediately signed out and cannot log back in until reactivated.</p>
       </div>
+
+      {/* ── Login Link Modal ─────────────────────────────────────── */}
+      {linkModalUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeLinkModal(); }}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+            style={{ animation: "slideUp 0.22s cubic-bezier(.22,1,.36,1)" }}
+          >
+            <div className="flex items-center justify-between px-7 pt-7 pb-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-50">
+                  <Link2 className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">Login Link</h2>
+                  <p className="text-xs text-slate-400 font-medium truncate max-w-[220px]">{linkModalUser.full_name || linkModalUser.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={closeLinkModal}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="px-7 py-6">
+              {linkPending && (
+                <div className="flex flex-col items-center gap-3 py-8">
+                  <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
+                  <p className="text-sm font-bold text-slate-500">Generating link…</p>
+                </div>
+              )}
+
+              {linkError && (
+                <div className="flex items-start gap-3 p-3.5 bg-red-50 text-red-700 rounded-2xl border border-red-100">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs font-bold">{linkError}</p>
+                </div>
+              )}
+
+              {linkResult && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-500 font-medium">
+                    Share this one-time link so the user can set their password:
+                  </p>
+                  <div className="relative">
+                    <input
+                      readOnly
+                      value={linkResult}
+                      className="w-full pl-4 pr-12 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-500 outline-none"
+                    />
+                    <button
+                      onClick={handleCopyLoginLink}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 shadow-sm transition-all"
+                    >
+                      {linkCopied ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleCopyLoginLink}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-indigo-100 shadow-lg hover:bg-indigo-700 transition-all"
+                  >
+                    {linkCopied ? "Copied!" : "Copy Link"}
+                  </button>
+                  <p className="text-[10px] text-slate-400 font-medium text-center">
+                    This is a one-time secure link. It expires once used.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Invite Modal ─────────────────────────────────────────── */}
       {showInvite && (

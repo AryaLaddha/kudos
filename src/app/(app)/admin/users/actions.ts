@@ -97,6 +97,51 @@ export async function setUserAdmin(
   return {};
 }
 
+export async function generateLoginLink(
+  userId: string
+): Promise<{ error?: string; setupLink?: string }> {
+  if (!(await isAdmin())) return { error: "Not authorized" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: adminProfile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!adminProfile?.org_id) return { error: "No organisation found for your account." };
+
+  const adminClient = createAdminClient();
+
+  // Fetch the target user's email via admin API
+  const { data: targetUser, error: fetchError } = await adminClient.auth.admin.getUserById(userId);
+  if (fetchError || !targetUser?.user?.email) {
+    return { error: "Could not find user." };
+  }
+
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000");
+
+  const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+    type: "recovery",
+    email: targetUser.user.email,
+    options: {
+      redirectTo: `${appUrl}/auth/recover`,
+    },
+  });
+
+  if (linkError || !linkData?.properties?.action_link) {
+    return { error: linkError?.message ?? "Could not generate link." };
+  }
+
+  return { setupLink: linkData.properties.action_link };
+}
+
 export async function inviteUser(formData: {
   email: string;
   full_name?: string;

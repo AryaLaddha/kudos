@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Coins, Heart, Star, Mail } from "lucide-react";
+import { ArrowLeft, Coins, Heart, Star, Mail, Trophy } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,6 +136,11 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     });
   }
 
+  // Sum of points from all achieved goals
+  const goalPointsTotal = canSeeGoals
+    ? achievedGoals.reduce((sum, g) => sum + (g.points ?? 0), 0)
+    : 0;
+
   // Top hashtags from all received recognitions (not paginated — use count query approach)
   const { data: allReceived } = await supabase
     .from("recognitions")
@@ -199,14 +204,23 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-100">
+        <div className={cn("grid gap-4 mt-6 pt-6 border-t border-slate-100", canSeeGoals ? "grid-cols-4" : "grid-cols-3")}>
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5 mb-1">
               <Coins className="h-4 w-4 text-indigo-500" />
               <span className="text-xl font-extrabold text-slate-900">{profile.points_balance}</span>
             </div>
-            <p className="text-xs text-slate-400">Points received</p>
+            <p className="text-xs text-slate-400">Recognition points</p>
           </div>
+          {canSeeGoals && (
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <Trophy className="h-4 w-4 text-amber-400" />
+                <span className="text-xl font-extrabold text-slate-900">{goalPointsTotal}</span>
+              </div>
+              <p className="text-xs text-slate-400">Goal points</p>
+            </div>
+          )}
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5 mb-1">
               <Star className="h-4 w-4 text-amber-400" />

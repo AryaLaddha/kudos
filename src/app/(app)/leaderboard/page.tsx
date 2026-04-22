@@ -40,7 +40,7 @@ export default async function LeaderboardPage({
   // ── Fetch all completed sprints for sprint tab filter (ordered latest first) ──
   const { data: completedSprints } = await supabase
     .from("sprints")
-    .select("id, name, start_date")
+    .select("id, name, start_date, end_date")
     .eq("org_id", currentProfile.org_id)
     .eq("status", "completed")
     .order("start_date", { ascending: false })
@@ -139,9 +139,18 @@ export default async function LeaderboardPage({
     .slice(0, 5);
 
   // Labels for the subheading
+  const selectedSprint = sprintIsAll ? null : completedSprintList.find(s => s.id === selectedSprintParam);
   const selectedSprintName = sprintIsAll
     ? "All Completed Sprints"
-    : completedSprintList.find(s => s.id === selectedSprintParam)?.name ?? "Sprint";
+    : selectedSprint?.name ?? "Sprint";
+
+  function formatSprintDate(d: string) {
+    return new Date(d).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  const sprintDateRange = selectedSprint?.start_date && selectedSprint?.end_date
+    ? `${formatSprintDate(selectedSprint.start_date)} – ${formatSprintDate(selectedSprint.end_date)}`
+    : null;
 
   const monthLabel = isAllTime
     ? "All-Time"
@@ -163,6 +172,9 @@ export default async function LeaderboardPage({
                   ? `Top Recognition · ${monthLabel}`
                   : `Sprint Leaders · ${selectedSprintName}`}
               </p>
+              {activeTab === "sprint" && sprintDateRange && (
+                <p className="text-xs text-slate-400 mt-0.5">{sprintDateRange}</p>
+              )}
             </div>
           </div>
 

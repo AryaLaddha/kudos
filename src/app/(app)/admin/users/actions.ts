@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAdmin } from "@/lib/auth";
+import { canManageUsers } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { Profile } from "@/types";
 
@@ -52,7 +52,7 @@ export async function setUserActive(
   userId: string,
   isActive: boolean
 ): Promise<{ error?: string }> {
-  if (!(await isAdmin())) return { error: "Not authorized" };
+  if (!(await canManageUsers())) return { error: "Not authorized" };
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_user_active", {
@@ -73,7 +73,7 @@ export async function setUserAdmin(
   userId: string,
   adminFlag: boolean
 ): Promise<{ error?: string }> {
-  if (!(await isAdmin())) return { error: "Not authorized" };
+  if (!(await canManageUsers())) return { error: "Not authorized" };
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_user_admin", {
@@ -100,7 +100,7 @@ export async function setUserAdmin(
 export async function generateLoginLink(
   userId: string
 ): Promise<{ error?: string; setupLink?: string }> {
-  if (!(await isAdmin())) return { error: "Not authorized" };
+  if (!(await canManageUsers())) return { error: "Not authorized" };
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -148,7 +148,7 @@ export async function inviteUser(formData: {
   department?: string;
   job_title?: string;
 }): Promise<{ error?: string; setupLink?: string }> {
-  if (!(await isAdmin())) return { error: "Not authorized" };
+  if (!(await canManageUsers())) return { error: "Not authorized" };
 
   const { email, full_name, department, job_title } = formData;
 

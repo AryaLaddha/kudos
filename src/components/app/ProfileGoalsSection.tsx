@@ -159,7 +159,6 @@ export default function ProfileGoalsSection({
           open={pickerOpen}
           onOpenChange={setPickerOpen}
           status="achieved"
-          existingGoalIds={existingIds}
           orgId={orgId}
           onSuccess={handleGoalAdded}
           goalDefinitions={goalDefinitions}

@@ -139,7 +139,10 @@ export async function generateLoginLink(
     return { error: linkError?.message ?? "Could not generate link." };
   }
 
-  return { setupLink: linkData.properties.action_link };
+  // Wrap in an intermediate page so messaging apps (Slack, Teams, email)
+  // don't consume the one-time Supabase token via link-preview crawling.
+  const encoded = Buffer.from(linkData.properties.action_link).toString("base64");
+  return { setupLink: `${appUrl}/auth/setup-account?t=${encoded}` };
 }
 
 export async function inviteUser(formData: {
@@ -221,7 +224,11 @@ export async function inviteUser(formData: {
   }
 
   revalidatePath("/admin/users");
-  return {
-    setupLink: linkData?.properties?.action_link
-  };
+
+  const rawLink = linkData?.properties?.action_link;
+  const wrappedLink = rawLink
+    ? `${appUrl}/auth/setup-account?t=${Buffer.from(rawLink).toString("base64")}`
+    : undefined;
+
+  return { setupLink: wrappedLink };
 }

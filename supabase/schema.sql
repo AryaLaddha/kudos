@@ -203,7 +203,7 @@ create or replace function reset_monthly_allowances()
 returns void language plpgsql security definer
 as $$
 begin
-  update profiles set monthly_allowance = 50;
+  update profiles set monthly_allowance = case when is_admin = true then 150 else 50 end;
 end;
 $$;
 
@@ -251,22 +251,22 @@ begin
     set monthly_allowance = monthly_allowance - total_cost
   where id = auth.uid();
 
-  for i in 1 .. array_length(p_receivers, 1) loop
-    -- Insert recognition (same message for all receivers; receiver_ids stores full list)
-    insert into recognitions (org_id, giver_id, receiver_id, receiver_ids, message, points, hashtags)
-    values (p_org_id, auth.uid(), p_receivers[i], p_receivers, p_message, p_points, p_hashtags)
-    returning id into rec_id;
+  -- Insert a single recognition row for the whole group
+  insert into recognitions (org_id, giver_id, receiver_id, receiver_ids, message, points, hashtags)
+  values (p_org_id, auth.uid(), p_receivers[1], p_receivers, p_message, p_points, p_hashtags)
+  returning id into rec_id;
 
-    -- Credit receiver's earned balance
+  -- Audit: given (one entry for the full cost)
+  insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
+  values (p_org_id, auth.uid(), rec_id, -total_cost, 'given');
+
+  for i in 1 .. array_length(p_receivers, 1) loop
+    -- Credit each receiver's earned balance
     update profiles
       set points_balance = points_balance + p_points
     where id = p_receivers[i];
 
-    -- Audit: given
-    insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
-    values (p_org_id, auth.uid(), rec_id, -p_points, 'given');
-
-    -- Audit: received
+    -- Audit: received (one entry per receiver)
     insert into point_transactions (org_id, user_id, recognition_id, amount, kind)
     values (p_org_id, p_receivers[i], rec_id, p_points, 'received');
   end loop;

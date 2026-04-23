@@ -55,8 +55,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const viewerIsAdmin = viewerProfile?.is_admin === true;
 
   // Count totals for tab labels and pagination
+  // Use contains() on receiver_ids array so multi-receiver posts show for all recipients
   const [{ count: receivedCount }, { count: givenCount }] = await Promise.all([
-    supabase.from("recognitions").select("id", { count: "exact", head: true }).eq("receiver_id", id),
+    supabase.from("recognitions").select("id", { count: "exact", head: true }).contains("receiver_ids", [id]),
     supabase.from("recognitions").select("id", { count: "exact", head: true }).eq("giver_id", id),
   ]);
 
@@ -79,7 +80,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
   const { data: recognitions } = await (
     activeTab === "received"
-      ? recognitionQuery.eq("receiver_id", id)
+      ? recognitionQuery.contains("receiver_ids", [id])
       : recognitionQuery.eq("giver_id", id)
   );
 

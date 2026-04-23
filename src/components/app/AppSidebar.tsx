@@ -16,12 +16,12 @@ const navItems = [
   { href: "/give", label: "Give Kudos", icon: Heart },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/goals", label: "Goals", icon: Target },
+  { href: "/admin/goals", label: "All Goals", icon: Target, adminLabel: "Goals Management" },
 ];
 
 const allAdminNavItems = [
   { href: "/sprints", label: "Sprints", icon: Zap, permission: "sprints" as const },
   { href: "/admin/users", label: "Users", icon: Users, permission: "users" as const },
-  { href: "/admin/goals", label: "Goals Management", icon: Target, permission: "admin" as const },
   { href: "/admin", label: "Admin", icon: ShieldCheck, permission: "admin" as const },
 ];
 
@@ -134,6 +134,7 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
           {navItems.map((item) => {
             const active = pathname === item.href || pendingHref === item.href;
             const loading = isPending && pendingHref === item.href;
+            const label = profile?.is_admin && "adminLabel" in item ? item.adminLabel : item.label;
             return (
               <button
                 key={item.href}
@@ -149,7 +150,7 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
                   ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
                   : <item.icon className={cn("h-4 w-4", active ? "text-indigo-600" : "text-slate-400")} />
                 }
-                {item.label}
+                {label}
               </button>
             );
           })}

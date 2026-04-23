@@ -392,6 +392,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                             type="number"
                             value={p.base_points}
                             onChange={e => setBase(p.user_id, Number(e.target.value))}
+                            onWheel={e => e.currentTarget.blur()}
                             className="w-full rounded-lg border border-slate-200 text-center text-sm py-1.5 outline-none focus:border-violet-400"
                           />
                         </div>
@@ -403,6 +404,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                               min={0}
                               value={p.scores[c.id] || ""}
                               onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
+                              onWheel={e => e.currentTarget.blur()}
                               placeholder="—"
                               className="w-full rounded-lg border border-green-200 text-center text-sm py-1.5 outline-none focus:border-green-400 bg-white"
                             />
@@ -416,6 +418,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                               max={0}
                               value={p.scores[c.id] || ""}
                               onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
+                              onWheel={e => e.currentTarget.blur()}
                               placeholder="—"
                               className="w-full rounded-lg border border-red-200 text-center text-sm py-1.5 outline-none focus:border-red-400 bg-white"
                             />
@@ -510,6 +513,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                           type="number"
                           value={p.base_points}
                           onChange={e => setBase(p.user_id, Number(e.target.value))}
+                          onWheel={e => e.currentTarget.blur()}
                           className="w-14 rounded-lg border border-slate-200 text-center text-sm py-1 outline-none focus:border-violet-400"
                         />
                       </td>
@@ -522,6 +526,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                             min={0}
                             value={p.scores[c.id] || ""}
                             onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
+                            onWheel={e => e.currentTarget.blur()}
                             placeholder="—"
                             className="w-14 rounded-lg border border-green-200 text-center text-sm py-1 outline-none focus:border-green-400 bg-white"
                           />
@@ -536,6 +541,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
                             max={0}
                             value={p.scores[c.id] || ""}
                             onChange={e => setScore(p.user_id, c.id, Number(e.target.value))}
+                            onWheel={e => e.currentTarget.blur()}
                             placeholder="—"
                             className="w-14 rounded-lg border border-red-200 text-center text-sm py-1 outline-none focus:border-red-400 bg-white"
                           />

@@ -30,6 +30,7 @@ import {
 
 interface Props {
   initialGoals: GoalDefinition[];
+  isAdmin: boolean;
 }
 
 const CATEGORY_COLORS = [
@@ -48,7 +49,7 @@ function getCategoryColor(category: string, categories: string[]) {
   return CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
 }
 
-export default function GoalsManagementClient({ initialGoals }: Props) {
+export default function GoalsManagementClient({ initialGoals, isAdmin }: Props) {
   const [goals, setGoals] = useState<GoalDefinition[]>(initialGoals);
   const [isPending, startTransition] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -200,19 +201,23 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <Target className="h-8 w-8 text-indigo-600" />
-            Goals Management
+            {isAdmin ? "Goals Management" : "All Goals"}
           </h1>
-          <p className="text-slate-500 mt-1 font-medium italic">Define what success looks like for your organization</p>
+          <p className="text-slate-500 mt-1 font-medium italic">
+            {isAdmin ? "Define what success looks like for your organization" : "Browse the goals available in your organization"}
+          </p>
         </div>
 
-        <button
-          onClick={openAddForm}
-          disabled={isPending || isAdding}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4" />
-          New Goal
-        </button>
+        {isAdmin && (
+          <button
+            onClick={openAddForm}
+            disabled={isPending || isAdding}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            New Goal
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -242,8 +247,8 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
         </div>
       )}
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={isAdding || editingId !== null} onOpenChange={(open) => { if (!open) cancelForm(); }}>
+      {/* Add/Edit Dialog — admin only */}
+      <Dialog open={isAdmin && (isAdding || editingId !== null)} onOpenChange={(open) => { if (!open) cancelForm(); }}>
         <DialogContent showCloseButton={false} className="sm:max-w-2xl p-0 overflow-hidden">
           <div className="p-8">
             <DialogHeader className="mb-6">
@@ -415,22 +420,24 @@ export default function GoalsManagementClient({ initialGoals }: Props) {
                         <span className="text-base font-black text-indigo-600 whitespace-nowrap shrink-0">
                           {goal.points} pts
                         </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => startEditing(goal)}
-                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-all"
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(goal.id)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                        {isAdmin && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => startEditing(goal)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-all"
+                              title="Edit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(goal.id)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-all"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

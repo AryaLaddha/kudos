@@ -70,10 +70,6 @@ export async function addGoal(
     .single();
 
   if (insertError) {
-    // Unique constraint: user already has this goal in this bucket
-    if (insertError.code === "23505") {
-      return { error: "You have already added this goal." };
-    }
     return { error: "Something went wrong. Please try again." };
   }
 

@@ -69,9 +69,6 @@ export default function GoalsPageClient({
     });
   }
 
-  // All goal IDs already used (across both buckets) — used to filter picker per bucket
-  const achievedIds = achievedGoals.map((g) => g.goal_id);
-  const aimIds = aimGoals.map((g) => g.goal_id);
 
   return (
     <>
@@ -182,7 +179,6 @@ export default function GoalsPageClient({
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         status={pickerStatus}
-        existingGoalIds={pickerStatus === "achieved" ? [] : aimIds}
         orgId={orgId}
         onSuccess={handleGoalAdded}
         goalDefinitions={goalDefinitions}

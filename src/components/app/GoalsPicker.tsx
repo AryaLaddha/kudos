@@ -20,7 +20,6 @@ interface GoalsPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   status: "aim" | "achieved";
-  existingGoalIds: string[];
   orgId: string;
   onSuccess: (goal: EnrichedUserGoal) => void;
   goalDefinitions: GoalDefinition[];
@@ -30,7 +29,6 @@ export default function GoalsPicker({
   open,
   onOpenChange,
   status,
-  existingGoalIds,
   orgId,
   onSuccess,
   goalDefinitions,
@@ -40,7 +38,6 @@ export default function GoalsPicker({
   const [search, setSearch] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  const existingSet = new Set(existingGoalIds);
   const searchLower = search.toLowerCase().trim();
 
   function handleClose(value: boolean) {
@@ -120,7 +117,6 @@ export default function GoalsPicker({
             const catGoals = goalDefinitions.filter(
               (g) =>
                 g.category === cat &&
-                !existingSet.has(g.id) &&
                 (!searchLower || g.title.toLowerCase().includes(searchLower)),
             );
             if (catGoals.length === 0) return null;
@@ -165,19 +161,11 @@ export default function GoalsPicker({
             );
           })}
 
-          {searchLower
-            ? goalDefinitions.every(
-                (g) => existingSet.has(g.id) || !g.title.toLowerCase().includes(searchLower)
-              ) && (
-                <p className="text-sm text-slate-500 text-center py-6">No goals match your search.</p>
-              )
-            : Array.from(new Set(goalDefinitions.map(g => g.category))).every(
-                (cat) => goalDefinitions.filter((g) => g.category === cat && !existingSet.has(g.id)).length === 0,
-              ) && (
-                <p className="text-sm text-slate-500 text-center py-6">
-                  You&apos;ve added all available goals in this section.
-                </p>
-              )}
+          {searchLower && goalDefinitions.every(
+            (g) => !g.title.toLowerCase().includes(searchLower)
+          ) && (
+            <p className="text-sm text-slate-500 text-center py-6">No goals match your search.</p>
+          )}
         </div>
 
         {/* Description — shown once a goal is selected */}

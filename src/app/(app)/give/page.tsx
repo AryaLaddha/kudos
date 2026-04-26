@@ -84,14 +84,21 @@ export default function GiveKudosPage() {
     const start = el.selectionStart;
     const end = el.selectionEnd;
     const text = el.value;
+    const selected = text.slice(start, end);
     const b2 = text.slice(start - 2, start);
     const a2 = text.slice(end, end + 2);
     const b1 = text.slice(start - 1, start);
     const a1 = text.slice(end, end + 1);
-    const isBold = b2 === "**" && a2 === "**";
-    // isItalic: single * on each side, but NOT when that * is part of **
-    const isItalic = b1 === "*" && a1 === "*" && b2 !== "**" && a2 !== "**";
-    setActiveFormats({ bold: isBold, italic: isItalic });
+    // Marker is outside the selection (inner text selected)
+    const isBoldOuter = b2 === "**" && a2 === "**";
+    const isItalicOuter = b1 === "*" && a1 === "*" && b2 !== "**" && a2 !== "**";
+    // Marker is inside the selection (full **text** selected)
+    const isBoldInner = selected.startsWith("**") && selected.endsWith("**") && selected.length > 4;
+    const isItalicInner = selected.startsWith("*") && selected.endsWith("*") && selected.length > 2 && !isBoldInner;
+    setActiveFormats({
+      bold: isBoldOuter || isBoldInner,
+      italic: isItalicOuter || isItalicInner,
+    });
   }
 
   useEffect(() => {
@@ -161,9 +168,19 @@ export default function GiveKudosPage() {
     const end = el.selectionEnd;
     const selected = messageText.slice(start, end);
     const ml = marker.length;
+    // Case 1: full **text** selected — unwrap by stripping markers from inside selection
+    const innerSelected = selected.startsWith(marker) && selected.endsWith(marker) && selected.length > ml * 2;
+    if (innerSelected) {
+      const inner = selected.slice(ml, selected.length - ml);
+      const newText = messageText.slice(0, start) + inner + messageText.slice(end);
+      setMessageText(newText);
+      setTimeout(() => { el.focus(); el.setSelectionRange(start, start + inner.length); }, 0);
+      return;
+    }
+
+    // Case 2: inner text selected, markers are outside
     const outsideBefore = messageText.slice(start - ml, start);
     const outsideAfter = messageText.slice(end, end + ml);
-    // For italic (*), don't unwrap if we're actually inside a bold (**) marker
     const canUnwrap =
       outsideBefore === marker &&
       outsideAfter === marker &&
@@ -172,10 +189,7 @@ export default function GiveKudosPage() {
     if (canUnwrap) {
       const newText = messageText.slice(0, start - ml) + selected + messageText.slice(end + ml);
       setMessageText(newText);
-      setTimeout(() => {
-        el.focus();
-        el.setSelectionRange(start - ml, end - ml);
-      }, 0);
+      setTimeout(() => { el.focus(); el.setSelectionRange(start - ml, end - ml); }, 0);
       return;
     }
 

@@ -75,6 +75,22 @@ export default function GiveKudosPage() {
   const [mentionDropdown, setMentionDropdown] = useState<{ query: string; start: number } | null>(null);
   const [mentionResults, setMentionResults] = useState<Profile[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [activeFormats, setActiveFormats] = useState({ bold: false, italic: false });
+
+  function updateActiveFormats() {
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const text = el.value;
+    const before2 = text.slice(start - 2, start);
+    const after2 = text.slice(end, end + 2);
+    const before1 = text.slice(start - 1, start);
+    const after1 = text.slice(end, end + 1);
+    const isBold = before2 === "**" && after2 === "**";
+    const isItalic = !isBold && before1 === "*" && after1 === "*";
+    setActiveFormats({ bold: isBold, italic: isItalic });
+  }
 
   useEffect(() => {
     async function load() {
@@ -99,6 +115,7 @@ export default function GiveKudosPage() {
     const val = e.target.value;
     const cursor = e.target.selectionStart ?? val.length;
     setMessageText(val);
+    updateActiveFormats();
 
     const mention = detectMention(val, cursor);
     if (mention) {
@@ -258,7 +275,12 @@ export default function GiveKudosPage() {
             <button
               type="button"
               onMouseDown={(e) => { e.preventDefault(); wrapSelection("**"); }}
-              className="flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+              className={cn(
+                "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
+                activeFormats.bold
+                  ? "bg-indigo-100 text-indigo-600"
+                  : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
+              )}
               title="Bold"
             >
               <Bold className="h-3.5 w-3.5" />
@@ -266,7 +288,12 @@ export default function GiveKudosPage() {
             <button
               type="button"
               onMouseDown={(e) => { e.preventDefault(); wrapSelection("*"); }}
-              className="flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+              className={cn(
+                "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
+                activeFormats.italic
+                  ? "bg-indigo-100 text-indigo-600"
+                  : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
+              )}
               title="Italic"
             >
               <Italic className="h-3.5 w-3.5" />
@@ -275,7 +302,12 @@ export default function GiveKudosPage() {
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker((v) => !v)}
-                className="flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                className={cn(
+                  "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
+                  showEmojiPicker
+                    ? "bg-indigo-100 text-indigo-600"
+                    : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
+                )}
                 title="Emoji"
               >
                 <Smile className="h-3.5 w-3.5" />
@@ -298,6 +330,7 @@ export default function GiveKudosPage() {
               ref={textareaRef}
               value={messageText}
               onChange={handleTextChange}
+              onSelect={updateActiveFormats}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
                   setMentionDropdown(null);

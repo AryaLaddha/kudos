@@ -84,12 +84,13 @@ export default function GiveKudosPage() {
     const start = el.selectionStart;
     const end = el.selectionEnd;
     const text = el.value;
-    const before2 = text.slice(start - 2, start);
-    const after2 = text.slice(end, end + 2);
-    const before1 = text.slice(start - 1, start);
-    const after1 = text.slice(end, end + 1);
-    const isBold = before2 === "**" && after2 === "**";
-    const isItalic = !isBold && before1 === "*" && after1 === "*";
+    const b2 = text.slice(start - 2, start);
+    const a2 = text.slice(end, end + 2);
+    const b1 = text.slice(start - 1, start);
+    const a1 = text.slice(end, end + 1);
+    const isBold = b2 === "**" && a2 === "**";
+    // isItalic: single * on each side, but NOT when that * is part of **
+    const isItalic = b1 === "*" && a1 === "*" && b2 !== "**" && a2 !== "**";
     setActiveFormats({ bold: isBold, italic: isItalic });
   }
 
@@ -159,14 +160,35 @@ export default function GiveKudosPage() {
     const start = el.selectionStart;
     const end = el.selectionEnd;
     const selected = messageText.slice(start, end);
-    const wrapped = `${marker}${selected || "text"}${marker}`;
-    const newText = messageText.slice(0, start) + wrapped + messageText.slice(end);
+    const ml = marker.length;
+    const outsideBefore = messageText.slice(start - ml, start);
+    const outsideAfter = messageText.slice(end, end + ml);
+    // For italic (*), don't unwrap if we're actually inside a bold (**) marker
+    const canUnwrap =
+      outsideBefore === marker &&
+      outsideAfter === marker &&
+      (marker !== "*" || messageText.slice(start - 2, start) !== "**");
+
+    if (canUnwrap) {
+      const newText = messageText.slice(0, start - ml) + selected + messageText.slice(end + ml);
+      setMessageText(newText);
+      setTimeout(() => {
+        el.focus();
+        el.setSelectionRange(start - ml, end - ml);
+      }, 0);
+      return;
+    }
+
+    const inner = selected || "text";
+    const newText = messageText.slice(0, start) + marker + inner + marker + messageText.slice(end);
     setMessageText(newText);
     setTimeout(() => {
       el.focus();
-      const cursor = selected ? start + wrapped.length : start + marker.length;
-      const selectEnd = selected ? cursor : cursor + 4;
-      el.setSelectionRange(selected ? cursor : start + marker.length, selectEnd);
+      if (selected) {
+        el.setSelectionRange(start + ml, end + ml);
+      } else {
+        el.setSelectionRange(start + ml, start + ml + 4);
+      }
     }, 0);
   }
 

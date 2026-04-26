@@ -11,8 +11,7 @@ import type { Recognition, Comment } from "@/types";
 import { cn } from "@/lib/utils";
 import { MessageCircle, Send, Coins, X } from "lucide-react";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
-import remarkBreaks from "remark-breaks";
+import MarkdownMessage from "@/components/app/MarkdownMessage";
 
 const EMOJI_OPTIONS = ["❤️", "🙌", "🚀", "🎉", "💯"];
 
@@ -325,16 +324,9 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
               )}
             </div>
             <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
-              <ReactMarkdown
-                remarkPlugins={[remarkBreaks]}
-                components={{
-                  p: ({ children }) => <p className="text-sm text-slate-700 leading-relaxed">{children}</p>,
-                  strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
-                  em: ({ children }) => <em className="italic">{children}</em>,
-                }}
-              >
+              <MarkdownMessage className="text-sm text-slate-700 leading-relaxed">
                 {recognition.message}
-              </ReactMarkdown>
+              </MarkdownMessage>
             </div>
           </div>
 
@@ -489,16 +481,9 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                   )}
                 </div>
                 <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
-                  <ReactMarkdown
-                remarkPlugins={[remarkBreaks]}
-                components={{
-                  p: ({ children }) => <p className="text-sm text-slate-700 leading-relaxed">{children}</p>,
-                  strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
-                  em: ({ children }) => <em className="italic">{children}</em>,
-                }}
-              >
+                  <MarkdownMessage className="text-sm text-slate-700 leading-relaxed">
                 {recognition.message}
-              </ReactMarkdown>
+              </MarkdownMessage>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {recognition.hashtags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="bg-indigo-50 text-indigo-600 border-0 text-xs">

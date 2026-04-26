@@ -11,8 +11,7 @@ import { toast } from "sonner";
 import type { Profile } from "@/types";
 import { cn } from "@/lib/utils";
 import EmojiPicker, { Theme } from "emoji-picker-react";
-import ReactMarkdown from "react-markdown";
-import remarkBreaks from "remark-breaks";
+import MarkdownMessage from "@/components/app/MarkdownMessage";
 
 const HASHTAG_SUGGESTIONS = [
   "teamwork", "innovation", "leadership", "shipping",
@@ -413,18 +412,9 @@ export default function GiveKudosPage() {
                 </div>
                 <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
                   {messageText.trim() ? (
-                    <div className="text-sm text-slate-700 leading-relaxed">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkBreaks]}
-                        components={{
-                          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
-                          em: ({ children }) => <em className="italic">{children}</em>,
-                        }}
-                      >
-                        {messageText}
-                      </ReactMarkdown>
-                    </div>
+                    <MarkdownMessage className="text-sm text-slate-700 leading-relaxed">
+                      {messageText}
+                    </MarkdownMessage>
                   ) : (
                     <p className="text-sm text-slate-400 italic">Your message will appear here…</p>
                   )}

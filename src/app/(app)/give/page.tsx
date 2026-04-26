@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Heart, ArrowLeft, X, Coins, Send } from "lucide-react";
+import { Heart, ArrowLeft, X, Coins, Send, Bold, Italic, Smile } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { Profile } from "@/types";
 import { cn } from "@/lib/utils";
+import EmojiPicker, { Theme } from "emoji-picker-react";
 
 const HASHTAG_SUGGESTIONS = [
   "teamwork", "innovation", "leadership", "shipping",
@@ -73,6 +74,7 @@ export default function GiveKudosPage() {
   // @mention autocomplete state
   const [mentionDropdown, setMentionDropdown] = useState<{ query: string; start: number } | null>(null);
   const [mentionResults, setMentionResults] = useState<Profile[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -130,6 +132,36 @@ export default function GiveKudosPage() {
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(pos, pos);
       }
+    }, 0);
+  }
+
+  function wrapSelection(marker: string) {
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = messageText.slice(start, end);
+    const wrapped = `${marker}${selected || "text"}${marker}`;
+    const newText = messageText.slice(0, start) + wrapped + messageText.slice(end);
+    setMessageText(newText);
+    setTimeout(() => {
+      el.focus();
+      const cursor = selected ? start + wrapped.length : start + marker.length;
+      const selectEnd = selected ? cursor : cursor + 4;
+      el.setSelectionRange(selected ? cursor : start + marker.length, selectEnd);
+    }, 0);
+  }
+
+  function insertEmoji(emoji: string) {
+    const el = textareaRef.current;
+    if (!el) return;
+    const pos = el.selectionStart ?? messageText.length;
+    const newText = messageText.slice(0, pos) + emoji + messageText.slice(pos);
+    setMessageText(newText);
+    setShowEmojiPicker(false);
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(pos + emoji.length, pos + emoji.length);
     }, 0);
   }
 
@@ -221,6 +253,46 @@ export default function GiveKudosPage() {
             Use <span className="font-mono bg-slate-100 px-1 rounded">@name</span> to mention teammates and{" "}
             <span className="font-mono bg-slate-100 px-1 rounded">+20</span> anywhere to set points for everyone.
           </p>
+          {/* Formatting toolbar */}
+          <div className="flex items-center gap-1 mb-2">
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); wrapSelection("**"); }}
+              className="flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+              title="Bold"
+            >
+              <Bold className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); wrapSelection("*"); }}
+              className="flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+              title="Italic"
+            >
+              <Italic className="h-3.5 w-3.5" />
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker((v) => !v)}
+                className="flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                title="Emoji"
+              >
+                <Smile className="h-3.5 w-3.5" />
+              </button>
+              {showEmojiPicker && (
+                <div className="absolute left-0 top-full mt-1 z-30">
+                  <EmojiPicker
+                    theme={Theme.LIGHT}
+                    onEmojiClick={(e) => insertEmoji(e.emoji)}
+                    height={350}
+                    width={300}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="relative">
             <textarea
               ref={textareaRef}
@@ -230,6 +302,7 @@ export default function GiveKudosPage() {
                 if (e.key === "Escape") {
                   setMentionDropdown(null);
                   setMentionResults([]);
+                  setShowEmojiPicker(false);
                 }
               }}
               placeholder={`Thanks @alice for shipping that critical fix! Great work @bob on the new feature. +20`}

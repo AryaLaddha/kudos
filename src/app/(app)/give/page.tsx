@@ -42,7 +42,7 @@ function parseMessage(
   const allMatches = [...text.matchAll(/\+(\d+)/g)];
   const pointsInText = allMatches.length > 0 ? parseInt(allMatches[0][1], 10) : null;
   // Strip +number from stored message
-  const cleanMessage = text.replace(/\+\d+/g, "").replace(/[ \t]+/g, " ").trim();
+  const cleanMessage = text.replace(/[ \t]+/g, " ").trim();
 
   // Extract unique @mentioned teammates
   const recipients: Profile[] = [];

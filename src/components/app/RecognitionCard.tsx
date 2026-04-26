@@ -323,7 +323,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
               )}
             </div>
             <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
-              <p className="text-sm text-slate-700 leading-relaxed">{recognition.message}</p>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{recognition.message}</p>
             </div>
           </div>
 
@@ -478,7 +478,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
                   )}
                 </div>
                 <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
-                  <p className="text-sm text-slate-700 leading-relaxed">{recognition.message}</p>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{recognition.message}</p>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {recognition.hashtags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="bg-indigo-50 text-indigo-600 border-0 text-xs">

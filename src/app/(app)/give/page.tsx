@@ -263,180 +263,184 @@ export default function GiveKudosPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Message + Preview side by side */}
+        {/* Message textarea */}
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1 block">
             Your message *
           </Label>
-          <p className="text-xs text-slate-400 mb-4">
+          <p className="text-xs text-slate-400 mb-3">
             Use <span className="font-mono bg-slate-100 px-1 rounded">@name</span> to mention teammates and{" "}
             <span className="font-mono bg-slate-100 px-1 rounded">+20</span> anywhere to set points for everyone.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Left: editor */}
-            <div>
-              {/* Formatting toolbar */}
-              <div className="flex items-center gap-1 mb-2">
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); wrapSelection("**"); }}
-                  className={cn(
-                    "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
-                    activeFormats.bold
-                      ? "bg-indigo-100 text-indigo-600"
-                      : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
-                  )}
-                  title="Bold"
-                >
-                  <Bold className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); wrapSelection("*"); }}
-                  className={cn(
-                    "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
-                    activeFormats.italic
-                      ? "bg-indigo-100 text-indigo-600"
-                      : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
-                  )}
-                  title="Italic"
-                >
-                  <Italic className="h-3.5 w-3.5" />
-                </button>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowEmojiPicker((v) => !v)}
-                    className={cn(
-                      "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
-                      showEmojiPicker
-                        ? "bg-indigo-100 text-indigo-600"
-                        : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
-                    )}
-                    title="Emoji"
-                  >
-                    <Smile className="h-3.5 w-3.5" />
-                  </button>
-                  {showEmojiPicker && (
-                    <div className="absolute left-0 top-full mt-1 z-30">
-                      <EmojiPicker
-                        theme={Theme.LIGHT}
-                        onEmojiClick={(e) => insertEmoji(e.emoji)}
-                        height={350}
-                        width={300}
-                      />
-                    </div>
-                  )}
+          {/* Formatting toolbar */}
+          <div className="flex items-center gap-1 mb-2">
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); wrapSelection("**"); }}
+              className={cn(
+                "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
+                activeFormats.bold ? "bg-indigo-100 text-indigo-600" : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
+              )}
+              title="Bold"
+            >
+              <Bold className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); wrapSelection("*"); }}
+              className={cn(
+                "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
+                activeFormats.italic ? "bg-indigo-100 text-indigo-600" : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
+              )}
+              title="Italic"
+            >
+              <Italic className="h-3.5 w-3.5" />
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker((v) => !v)}
+                className={cn(
+                  "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
+                  showEmojiPicker ? "bg-indigo-100 text-indigo-600" : "text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600"
+                )}
+                title="Emoji"
+              >
+                <Smile className="h-3.5 w-3.5" />
+              </button>
+              {showEmojiPicker && (
+                <div className="absolute left-0 top-full mt-1 z-30">
+                  <EmojiPicker
+                    theme={Theme.LIGHT}
+                    onEmojiClick={(e) => insertEmoji(e.emoji)}
+                    height={350}
+                    width={300}
+                  />
                 </div>
-              </div>
-
-              <div className="relative">
-                <textarea
-                  ref={textareaRef}
-                  value={messageText}
-                  onChange={handleTextChange}
-                  onSelect={updateActiveFormats}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      setMentionDropdown(null);
-                      setMentionResults([]);
-                      setShowEmojiPicker(false);
-                    }
-                  }}
-                  placeholder={`Thanks @alice for shipping that critical fix! Great work @bob on the new feature. +20`}
-                  rows={6}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none resize-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all placeholder:text-slate-400"
-                />
-                {/* @mention autocomplete dropdown */}
-                {mentionResults.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-                    {mentionResults.map((profile) => (
-                      <button
-                        key={profile.id}
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          insertMention(profile);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
-                      >
-                        <Avatar className="h-7 w-7">
-                          <AvatarImage src={profile.avatar_url ?? undefined} />
-                          <AvatarFallback className="bg-slate-100 text-slate-600 text-[10px] font-bold">
-                            {getInitials(profile.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{profile.full_name}</p>
-                          {profile.job_title && <p className="text-xs text-slate-400">{profile.job_title}</p>}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
+          </div>
 
-            {/* Right: post preview */}
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Post preview</p>
-              <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-4 py-3 min-h-[158px]">
-                {messageText.trim() ? (
-                  <div className="text-sm text-slate-700 leading-relaxed">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkBreaks]}
-                      components={{
-                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
-                        em: ({ children }) => <em className="italic">{children}</em>,
-                      }}
-                    >
-                      {messageText}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400 italic mt-1">Your formatted post will appear here as you type…</p>
-                )}
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={messageText}
+              onChange={handleTextChange}
+              onSelect={updateActiveFormats}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setMentionDropdown(null);
+                  setMentionResults([]);
+                  setShowEmojiPicker(false);
+                }
+              }}
+              placeholder={`Thanks @alice for shipping that critical fix! Great work @bob on the new feature. +20`}
+              rows={5}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none resize-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all placeholder:text-slate-400"
+            />
+            {mentionResults.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                {mentionResults.map((profile) => (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); insertMention(profile); }}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                  >
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={profile.avatar_url ?? undefined} />
+                      <AvatarFallback className="bg-slate-100 text-slate-600 text-[10px] font-bold">
+                        {getInitials(profile.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{profile.full_name}</p>
+                      {profile.job_title && <p className="text-xs text-slate-400">{profile.job_title}</p>}
+                    </div>
+                  </button>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Recipients preview (shown when @mentions detected) */}
-        {recipients.length > 0 && (
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-wider text-indigo-500">
-                Recipients ({recipients.length})
-              </p>
-              <div className={cn("flex items-center gap-1.5 text-xs font-bold", totalCost > balance ? "text-red-500" : "text-indigo-700")}>
-                <Coins className="h-3.5 w-3.5" />
-                {totalCost} pts total
-                {totalCost > balance && ` — only ${balance} available`}
-              </div>
-            </div>
-            {recipients.map((profile) => (
-              <div key={profile.id} className="flex items-start gap-3 rounded-xl bg-white p-3 shadow-sm">
-                <Avatar className="h-8 w-8 flex-shrink-0">
-                  <AvatarImage src={profile.avatar_url ?? undefined} />
-                  <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-bold">
-                    {getInitials(profile.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-semibold text-slate-900">{profile.full_name}</span>
-                    <span className="text-xs font-bold text-indigo-600">+{effectivePoints} pts</span>
+        {/* Post preview card — mirrors the feed RecognitionCard */}
+        {(messageText.trim() || recipients.length > 0) && (
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">Post preview</p>
+            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-4 sm:p-6 opacity-90">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+                    <AvatarImage src={currentUser?.avatar_url ?? undefined} />
+                    <AvatarFallback className="bg-violet-100 text-violet-700 text-xs font-bold">
+                      {getInitials(currentUser?.full_name || "Me")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex items-center gap-1.5 text-sm flex-wrap">
+                    <span className="font-semibold text-slate-900">{currentUser?.full_name || "You"}</span>
+                    <span className="text-slate-400">recognised</span>
+                    {recipients.length > 0 ? recipients.map((r, i) => (
+                      <span key={r.id} className="inline-flex items-center gap-1">
+                        {i > 0 && <span className="text-slate-400">&amp;</span>}
+                        <span className="font-semibold text-slate-900">{r.full_name}</span>
+                      </span>
+                    )) : <span className="text-slate-400 italic">@teammate</span>}
                   </div>
-                  {messageText ? (
-                    <p className="text-xs text-slate-500 line-clamp-2">{messageText}</p>
+                </div>
+                <div className="flex-shrink-0 rounded-full bg-indigo-50 px-3.5 py-1.5 text-sm font-bold text-indigo-600">
+                  +{totalCost || "?"} pts
+                </div>
+              </div>
+
+              {/* Receiver avatar(s) + message */}
+              <div className="flex gap-3 mb-4">
+                <div className="flex flex-col gap-1">
+                  {recipients.length > 0 ? recipients.slice(0, 3).map((r) => (
+                    <Avatar key={r.id} className="h-9 w-9 ring-2 ring-white shadow-sm">
+                      <AvatarImage src={r.avatar_url ?? undefined} />
+                      <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">
+                        {getInitials(r.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  )) : (
+                    <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+                      <AvatarFallback className="bg-sky-100 text-sky-700 text-xs font-bold">?</AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
+                <div className="flex-1 rounded-xl bg-slate-50 px-4 py-3">
+                  {messageText.trim() ? (
+                    <div className="text-sm text-slate-700 leading-relaxed">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkBreaks]}
+                        components={{
+                          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                          strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+                          em: ({ children }) => <em className="italic">{children}</em>,
+                        }}
+                      >
+                        {messageText}
+                      </ReactMarkdown>
+                    </div>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Write your message above</p>
+                    <p className="text-sm text-slate-400 italic">Your message will appear here…</p>
                   )}
                 </div>
               </div>
-            ))}
+
+              {/* Hashtags + time */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {hashtags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600">
+                    #{tag}
+                  </span>
+                ))}
+                <span className="ml-auto text-xs text-slate-400">just now</span>
+              </div>
+            </div>
           </div>
         )}
 

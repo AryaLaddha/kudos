@@ -102,10 +102,10 @@ export default function AdminDashboardClient({
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
   const [goalsLogPage, setGoalsLogPage] = useState(1);
   const GOALS_LOG_PAGE_SIZE = 10;
-  useEffect(() => { setGoalsLogPage(1); }, [goalsFilter]);
 
   const [overallFilter, setOverallFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
   const [goalsFilter, setGoalsFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
+  useEffect(() => { setGoalsLogPage(1); }, [goalsFilter]);
   const [recognitionFilter, setRecognitionFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
   const [sprintFilter, setSprintFilter] = useState<string>("all_time");
   const [qualitySprintFilter, setQualitySprintFilter] = useState<string>(latestSprintId);

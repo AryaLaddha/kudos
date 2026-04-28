@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Trophy,
   BarChart3,
@@ -100,6 +100,9 @@ export default function AdminDashboardClient({
   const [tab, setTab] = useState<"points" | "projects" | "quality" | "utilization">("points");
   const [subTab, setSubTab] = useState<"overall" | "recognition" | "sprint" | "goals">("overall");
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
+  const [goalsLogPage, setGoalsLogPage] = useState(1);
+  const GOALS_LOG_PAGE_SIZE = 10;
+  useEffect(() => { setGoalsLogPage(1); }, [goalsFilter]);
 
   const [overallFilter, setOverallFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
   const [goalsFilter, setGoalsFilter] = useState<{ type: "all" | "month"; monthValue?: string }>({ type: "all" });
@@ -619,20 +622,56 @@ export default function AdminDashboardClient({
                   </div>
                 </div>
 
-                <div className="grid gap-4">
-                  {goalList.slice(0, 10).map(ug => (
-                    <div key={ug.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex items-center gap-6 text-left">
-                      <Avatar className="h-12 w-12"><AvatarImage src={ug.user?.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(ug.user?.full_name || "?")}</AvatarFallback></Avatar>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-black text-slate-900 truncate">{ug.user?.full_name}</h4>
-                        <p className="text-xs text-slate-500 font-bold truncate mt-0.5">{ug.goal?.title}</p>
+                <div className="bg-white border border-slate-100 rounded-[2.5rem] p-10 shadow-sm">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xl font-black text-slate-900">Goal Logs</h3>
+                    <p className="text-sm text-slate-400 font-bold">{goalList.length} total</p>
+                  </div>
+                  {goalList.length === 0 ? (
+                    <div className="text-sm text-slate-400 italic">No goals logged in this period.</div>
+                  ) : (
+                    <>
+                      <div className="grid gap-4">
+                        {goalList.slice((goalsLogPage - 1) * GOALS_LOG_PAGE_SIZE, goalsLogPage * GOALS_LOG_PAGE_SIZE).map(ug => (
+                          <div key={ug.id} className="border border-slate-100 rounded-3xl p-6 flex items-start gap-6 text-left">
+                            <Avatar className="h-12 w-12 shrink-0"><AvatarImage src={ug.user?.avatar_url || undefined} /><AvatarFallback className="bg-violet-100 text-violet-700 font-bold">{getInitials(ug.user?.full_name || "?")}</AvatarFallback></Avatar>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-black text-slate-900">{ug.user?.full_name}</h4>
+                              <p className="text-xs text-slate-500 font-bold mt-0.5">{ug.goal?.title}</p>
+                              {ug.description && (
+                                <p className="text-xs text-slate-500 mt-2 leading-relaxed">{ug.description}</p>
+                              )}
+                            </div>
+                            <div className="text-right whitespace-nowrap shrink-0">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Logged</p>
+                              <p className="text-sm font-black text-slate-700 mt-1">{new Date(ug.created_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="text-right whitespace-nowrap">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Logged</p>
-                        <p className="text-sm font-black text-slate-700 mt-1">{new Date(ug.created_at).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                  ))}
+                      {goalList.length > GOALS_LOG_PAGE_SIZE && (
+                        <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-100">
+                          <button
+                            onClick={() => setGoalsLogPage(p => Math.max(1, p - 1))}
+                            disabled={goalsLogPage === 1}
+                            className="px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest bg-slate-50 text-slate-500 disabled:opacity-30 hover:bg-slate-100 transition-colors"
+                          >
+                            Previous
+                          </button>
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                            Page {goalsLogPage} of {Math.ceil(goalList.length / GOALS_LOG_PAGE_SIZE)}
+                          </p>
+                          <button
+                            onClick={() => setGoalsLogPage(p => Math.min(Math.ceil(goalList.length / GOALS_LOG_PAGE_SIZE), p + 1))}
+                            disabled={goalsLogPage >= Math.ceil(goalList.length / GOALS_LOG_PAGE_SIZE)}
+                            className="px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest bg-slate-50 text-slate-500 disabled:opacity-30 hover:bg-slate-100 transition-colors"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}

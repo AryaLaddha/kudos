@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { canManageSprints } from "@/lib/auth";
 
@@ -20,7 +21,10 @@ async function requireSprintClient() {
   const { data: profile } = await supabase.from("profiles").select("is_admin, org_id").eq("id", user.id).single();
   const allowed = profile?.is_admin || await canManageSprints();
   if (!allowed) throw new Error("Forbidden");
-  return { supabase, user, orgId: profile!.org_id! };
+  // Sprint managers who aren't DB admins need the service-role client to bypass
+  // RLS — authorization has already been verified above via canManageSprints().
+  const client = profile?.is_admin ? supabase : createAdminClient();
+  return { supabase: client, user, orgId: profile!.org_id! };
 }
 
 // ── PROJECTS ───────────────────────────────────────────────────

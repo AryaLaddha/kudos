@@ -449,7 +449,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="sticky left-0 z-20 bg-slate-100 px-4 py-3 text-left text-xs font-bold text-slate-600 min-w-[200px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                    INN Resource
+                    Scape Resource
                   </th>
                   <th className="px-3 py-3 text-center text-xs font-bold text-slate-600 bg-slate-50">Base</th>
                   {wonCols.length > 0 && (

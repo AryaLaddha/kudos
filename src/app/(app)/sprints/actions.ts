@@ -113,11 +113,13 @@ export async function createSprint(payload: {
     .single();
   if (error) return { error: error.message };
 
-  // Auto-add all org members to the new sprint
+  // Auto-add active, non-admin org members to the new sprint
   const { data: orgUsers } = await supabase
     .from("profiles")
     .select("id")
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .eq("is_admin", false);
 
   if (orgUsers && orgUsers.length > 0) {
     const participants = orgUsers.map((u) => ({

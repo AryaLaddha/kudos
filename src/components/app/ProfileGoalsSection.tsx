@@ -120,6 +120,9 @@ export default function ProfileGoalsSection({
                     <span className="text-xs font-bold text-amber-500">
                       +{goal.points} pts
                     </span>
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">
+                      Approved
+                    </span>
                   </div>
                   <p className="text-sm font-semibold text-slate-800 leading-snug">
                     {goal.title}

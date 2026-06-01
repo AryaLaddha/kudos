@@ -11,7 +11,7 @@ export async function addGoal(
   status: "aim" | "achieved",
   description: string,
   orgId: string,
-): Promise<{ error?: string; id?: string; created_at?: string }> {
+): Promise<{ error?: string; id?: string; created_at?: string; review_status?: string }> {
   const supabase = await createClient();
 
   // Verify authenticated user
@@ -57,6 +57,7 @@ export async function addGoal(
     return { error: "Organisation mismatch." };
   }
 
+  // New goals require admin approval — they enter the review queue.
   const { data: inserted, error: insertError } = await supabase
     .from("user_goals")
     .insert({
@@ -65,8 +66,9 @@ export async function addGoal(
       goal_id: goalId,
       status,
       description: trimmed,
+      review_status: "review",
     })
-    .select("id, created_at")
+    .select("id, created_at, review_status")
     .single();
 
   if (insertError) {
@@ -75,7 +77,7 @@ export async function addGoal(
 
   revalidatePath("/goals");
   // Return the real DB-generated id so the client can use it for deletes
-  return { id: inserted.id, created_at: inserted.created_at };
+  return { id: inserted.id, created_at: inserted.created_at, review_status: inserted.review_status };
 }
 
 export async function deleteGoal(id: string): Promise<{ error?: string }> {
@@ -163,6 +165,10 @@ export async function adminAddGoalForUser(
       goal_id: goalId,
       status: "achieved",
       description: trimmed,
+      // Logged by an admin on the user's behalf — auto-approved, no review needed.
+      review_status: "approved",
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
     })
     .select("id, created_at")
     .single();

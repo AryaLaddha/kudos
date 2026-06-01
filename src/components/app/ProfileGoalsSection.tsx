@@ -54,6 +54,12 @@ export default function ProfileGoalsSection({
   }
 
   function handleGoalAdded(goal: EnrichedUserGoal) {
+    // Goals that still need admin approval shouldn't appear in the
+    // "Completed Goals" list (which only shows approved achievements).
+    if (goal.review_status !== "approved") {
+      toast.success("Goal submitted for approval. It'll appear here once an admin approves it.");
+      return;
+    }
     setGoals((prev) => [goal, ...prev]);
     toast.success("Achievement logged.");
   }
@@ -113,6 +119,9 @@ export default function ProfileGoalsSection({
                     </span>
                     <span className="text-xs font-bold text-amber-500">
                       +{goal.points} pts
+                    </span>
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">
+                      Approved
                     </span>
                   </div>
                   <p className="text-sm font-semibold text-slate-800 leading-snug">
@@ -229,6 +238,11 @@ function AdminGoalsPicker({
         status: "achieved",
         description: description.trim(),
         created_at: result.created_at!,
+        // Admin-logged goals are auto-approved.
+        review_status: "approved",
+        rejection_reason: null,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: null,
         title: selectedGoal.title,
         category: selectedGoal.category,
         points: selectedGoal.points,

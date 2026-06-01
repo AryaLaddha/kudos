@@ -125,9 +125,10 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   if (canSeeGoals) {
     const { data: rawGoals } = await supabase
       .from("user_goals")
-      .select("id, user_id, goal_id, status, description, created_at, org_id")
+      .select("id, user_id, goal_id, status, description, created_at, org_id, review_status, rejection_reason, reviewed_at, reviewed_by")
       .eq("user_id", id)
       .eq("status", "achieved")
+      .eq("review_status", "approved")
       .order("created_at", { ascending: false });
 
     achievedGoals = (rawGoals ?? []).flatMap((g) => {

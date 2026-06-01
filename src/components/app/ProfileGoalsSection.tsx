@@ -229,6 +229,11 @@ function AdminGoalsPicker({
         status: "achieved",
         description: description.trim(),
         created_at: result.created_at!,
+        // Admin-logged goals are auto-approved.
+        review_status: "approved",
+        rejection_reason: null,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: null,
         title: selectedGoal.title,
         category: selectedGoal.category,
         points: selectedGoal.points,

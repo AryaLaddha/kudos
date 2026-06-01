@@ -68,6 +68,8 @@ export type PointTransaction = {
   created_at: string;
 };
 
+export type ReviewStatus = "review" | "approved" | "rejected";
+
 export type UserGoal = {
   id: string;
   user_id: string;
@@ -76,6 +78,10 @@ export type UserGoal = {
   status: "aim" | "achieved";
   description: string;
   created_at: string;
+  review_status: ReviewStatus;
+  rejection_reason: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 };
 
 export type GoalDefinition = {
@@ -91,4 +97,18 @@ export type EnrichedUserGoal = UserGoal & {
   title: string;
   category: string;
   points: number;
+};
+
+export type PendingGoal = {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string | null;
+  goal_id: string;
+  title: string;
+  category: string;
+  points: number;
+  status: "aim" | "achieved";
+  description: string;
+  created_at: string;
 };

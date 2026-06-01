@@ -57,7 +57,7 @@ export async function addGoal(
     return { error: "Organisation mismatch." };
   }
 
-  // New goals require admin approval — they enter the review queue.
+  // Only achieved goals require admin approval. Aim goals are not reviewed.
   const { data: inserted, error: insertError } = await supabase
     .from("user_goals")
     .insert({
@@ -66,7 +66,7 @@ export async function addGoal(
       goal_id: goalId,
       status,
       description: trimmed,
-      review_status: "review",
+      review_status: status === "achieved" ? "review" : "approved",
     })
     .select("id, created_at, review_status")
     .single();

@@ -297,7 +297,7 @@ export async function getAdminAnalytics() {
       ? supabase.from("sprint_participants").select("sprint_id, user_id, base_points, scores, project_allocations, profile:profiles(id, full_name, avatar_url, job_title)").in("sprint_id", sprintIds)
       : Promise.resolve({ data: [] }),
     supabase.from("profiles").select("id, full_name, avatar_url, job_title").eq("org_id", orgId).order("full_name"),
-    supabase.from("user_goals").select("id, user_id, goal_id, status, description, created_at, org_id").eq("org_id", orgId).order("created_at"),
+    supabase.from("user_goals").select("id, user_id, goal_id, status, description, created_at, org_id").eq("org_id", orgId).eq("review_status", "approved").order("created_at"),
     supabase.from("recognitions").select("receiver_id, receiver_ids, points, created_at").eq("org_id", orgId)
   ]);
 

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { EnrichedUserGoal } from "@/types";
+import { EnrichedUserGoal, ReviewStatus } from "@/types";
 import { deleteGoal } from "@/app/(app)/goals/actions";
 import GoalsPicker from "@/components/app/GoalsPicker";
 import AchievementCelebration from "@/components/app/AchievementCelebration";
@@ -33,7 +33,10 @@ export default function GoalsPageClient({
   const [celebration, setCelebration] = useState<EnrichedUserGoal | null>(null);
   const [deletingId, startDeleteTransition] = useTransition();
 
-  const totalPoints = achievedGoals.reduce((sum, g) => sum + g.points, 0);
+  // Only approved achievements count toward the points tally.
+  const totalPoints = achievedGoals
+    .filter((g) => g.review_status === "approved")
+    .reduce((sum, g) => sum + g.points, 0);
 
   function openPicker(status: "aim" | "achieved") {
     setPickerStatus(status);
@@ -195,6 +198,24 @@ export default function GoalsPageClient({
   );
 }
 
+// ── ReviewBadge ────────────────────────────────────────────────
+
+function ReviewBadge({ status }: { status: ReviewStatus }) {
+  if (status === "approved") return null;
+  if (status === "review") {
+    return (
+      <span className="flex-shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+        In review
+      </span>
+    );
+  }
+  return (
+    <span className="flex-shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
+      Rejected
+    </span>
+  );
+}
+
 // ── GoalRow ────────────────────────────────────────────────────
 
 interface GoalRowProps {
@@ -229,12 +250,20 @@ function GoalRow({ goal, onDelete, variant }: GoalRowProps) {
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-slate-800 leading-snug">
-          {goal.title}
-        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-semibold text-slate-800 leading-snug">
+            {goal.title}
+          </p>
+          <ReviewBadge status={goal.review_status} />
+        </div>
         <p className="mt-1 text-xs text-slate-500 leading-relaxed">
           {goal.description}
         </p>
+        {goal.review_status === "rejected" && goal.rejection_reason && (
+          <p className="mt-1 text-xs text-red-600 leading-relaxed">
+            <span className="font-semibold">Rejected:</span> {goal.rejection_reason}
+          </p>
+        )}
         <p className="mt-1 text-[10px] text-slate-400 uppercase tracking-wide">
           {goal.category}
         </p>

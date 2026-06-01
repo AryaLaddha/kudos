@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
-import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck, Zap, Users } from "lucide-react";
+import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck, Zap, Users, ClipboardCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -20,6 +20,7 @@ const navItems = [
 ];
 
 const allAdminNavItems = [
+  { href: "/admin/goal-approvals", label: "Goal Approvals", icon: ClipboardCheck, permission: "admin" as const },
   { href: "/sprints", label: "Sprints", icon: Zap, permission: "sprints" as const },
   { href: "/admin/users", label: "Users", icon: Users, permission: "users" as const },
   { href: "/admin", label: "Admin", icon: ShieldCheck, permission: "admin" as const },

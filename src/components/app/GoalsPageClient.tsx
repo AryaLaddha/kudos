@@ -260,12 +260,13 @@ function GoalRow({ goal, onDelete, variant }: GoalRowProps) {
           <p className="text-sm font-semibold text-slate-800 leading-snug">
             {goal.title}
           </p>
-          <ReviewBadge status={goal.review_status} />
+          {/* Only achieved goals go through review — aim goals carry no badge. */}
+          {variant === "achieved" && <ReviewBadge status={goal.review_status} />}
         </div>
         <p className="mt-1 text-xs text-slate-500 leading-relaxed">
           {goal.description}
         </p>
-        {goal.review_status === "rejected" && goal.rejection_reason && (
+        {variant === "achieved" && goal.review_status === "rejected" && goal.rejection_reason && (
           <p className="mt-1 text-xs text-red-600 leading-relaxed">
             <span className="font-semibold">Rejected:</span> {goal.rejection_reason}
           </p>

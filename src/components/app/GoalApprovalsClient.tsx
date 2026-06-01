@@ -59,10 +59,6 @@ export default function GoalApprovalsClient({ initialGoals }: Props) {
   function handleReject() {
     if (!rejecting) return;
     const target = rejecting;
-    if (!reason.trim()) {
-      toast.error("A rejection reason is required.");
-      return;
-    }
     setPendingId(target.id);
     startTransition(async () => {
       const result = await rejectGoal(target.id, reason);
@@ -183,7 +179,7 @@ export default function GoalApprovalsClient({ initialGoals }: Props) {
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Reason for rejection (required)"
+            placeholder="Reason for rejection (optional)"
             maxLength={500}
             rows={4}
             autoFocus
@@ -198,7 +194,7 @@ export default function GoalApprovalsClient({ initialGoals }: Props) {
             </Button>
             <Button
               onClick={handleReject}
-              disabled={isPending || !reason.trim()}
+              disabled={isPending}
               className="bg-red-600 hover:bg-red-700 text-white gap-1.5"
             >
               {isPending && pendingId === rejecting?.id ? (

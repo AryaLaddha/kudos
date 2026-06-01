@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ClipboardCheck, Check, X, Loader2, Trophy, Target } from "lucide-react";
+import { ClipboardCheck, Check, X, Loader2, Trophy, Target, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -31,6 +31,16 @@ export default function GoalApprovalsClient({ initialGoals }: Props) {
   const [goals, setGoals] = useState(initialGoals);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Pagination
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(goals.length / PAGE_SIZE));
+  // Keep the current page valid as goals are approved/rejected off the list.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+  const pageGoals = goals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Reject dialog state
   const [rejecting, setRejecting] = useState<PendingGoal | null>(null);
@@ -100,7 +110,7 @@ export default function GoalApprovalsClient({ initialGoals }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {goals.map((goal) => {
+          {pageGoals.map((goal) => {
             const busy = isPending && pendingId === goal.id;
             return (
               <div
@@ -164,6 +174,34 @@ export default function GoalApprovalsClient({ initialGoals }: Props) {
               </div>
             );
           })}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="h-8 gap-1.5 text-xs px-3 border-slate-200"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Previous
+              </Button>
+              <span className="text-xs text-slate-400">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="h-8 gap-1.5 text-xs px-3 border-slate-200"
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

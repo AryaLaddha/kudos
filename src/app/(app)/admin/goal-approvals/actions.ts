@@ -114,7 +114,6 @@ export async function rejectGoal(
   if (!id) return { error: "Invalid goal." };
 
   const trimmed = (reason ?? "").trim();
-  if (!trimmed) return { error: "A rejection reason is required." };
   if (trimmed.length > MAX_REASON_LENGTH) {
     return { error: `Reason must be ${MAX_REASON_LENGTH} characters or fewer.` };
   }
@@ -125,7 +124,8 @@ export async function rejectGoal(
     .from("user_goals")
     .update({
       review_status: "rejected",
-      rejection_reason: trimmed,
+      // Reason is optional — store null when none was provided.
+      rejection_reason: trimmed || null,
       reviewed_at: new Date().toISOString(),
       reviewed_by: user.id,
     })

@@ -54,6 +54,12 @@ export default function ProfileGoalsSection({
   }
 
   function handleGoalAdded(goal: EnrichedUserGoal) {
+    // Goals that still need admin approval shouldn't appear in the
+    // "Completed Goals" list (which only shows approved achievements).
+    if (goal.review_status !== "approved") {
+      toast.success("Goal submitted for approval. It'll appear here once an admin approves it.");
+      return;
+    }
     setGoals((prev) => [goal, ...prev]);
     toast.success("Achievement logged.");
   }

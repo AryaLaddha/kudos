@@ -201,7 +201,13 @@ export default function GoalsPageClient({
 // ── ReviewBadge ────────────────────────────────────────────────
 
 function ReviewBadge({ status }: { status: ReviewStatus }) {
-  if (status === "approved") return null;
+  if (status === "approved") {
+    return (
+      <span className="flex-shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">
+        Approved
+      </span>
+    );
+  }
   if (status === "review") {
     return (
       <span className="flex-shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">

@@ -536,7 +536,7 @@ export default function AdminDashboardClient({
             {tab === "points" && subTab === "recognition"  && "Track team recognition points and extra performance bonuses across any time period."}
             {tab === "points" && subTab === "sprint"       && "Cumulative performance audit: Base points plus net wins and deductions per sprint."}
             {tab === "points" && subTab === "goals"        && "Achievement leaderboard: Ranking professionals by goal points earned."}
-            {tab === "projects"     && "Project efficiency index: Comparing team effort (allocation) vs. actual recognised results."}
+            {tab === "projects"     && "Goal efficiency index: Comparing team effort (allocation) vs. actual recognised results."}
             {tab === "quality"      && "Systemic issue monitor: Tracking bugs, absences, and communication audit trends."}
             {tab === "utilization"  && "Resource utilisation audit: Team workload and burnout risk across sprints."}
           </p>
@@ -681,7 +681,7 @@ export default function AdminDashboardClient({
         {/* ROI */}
         {tab === "projects" && (
           projectEfficiency.length === 0
-            ? <div className="text-center py-20 text-slate-300 italic border border-dashed border-slate-200 rounded-3xl">No projects yet — create projects in the Sprints page and assign allocations to participants.</div>
+            ? <div className="text-center py-20 text-slate-300 italic border border-dashed border-slate-200 rounded-3xl">No goals yet — create sprint goals and assign allocations on the Capacity tab.</div>
             : <div className="grid gap-6">
                 {projectEfficiency.map(p => (
                   <div key={p.id} className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm">
@@ -704,7 +704,7 @@ export default function AdminDashboardClient({
                         <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
                           <span className="flex items-center gap-1.5">
                             Effort Sink
-                            <Tooltip text="What share of the org's total sprint allocation points went to this project. High effort sink = a lot of team time invested.">
+                            <Tooltip text="What share of the org's total sprint allocation points went to this goal. High effort sink = a lot of team time invested.">
                               <HelpCircle className="h-3 w-3 text-slate-300 cursor-help" />
                             </Tooltip>
                           </span>
@@ -718,7 +718,7 @@ export default function AdminDashboardClient({
                         <div className="flex justify-between items-center text-[10px] font-black uppercase text-violet-400">
                           <span className="flex items-center gap-1.5">
                             Results Yield
-                            <Tooltip text="What share of the org's total recognition score was attributed to this project. High yield = work here gets seen and rewarded.">
+                            <Tooltip text="What share of the org's total recognition score was attributed to this goal. High yield = work here gets seen and rewarded.">
                               <HelpCircle className="h-3 w-3 text-violet-200 cursor-help" />
                             </Tooltip>
                           </span>
@@ -778,7 +778,7 @@ export default function AdminDashboardClient({
                           {healthPersonFilter === "all" ? "Team Health per Sprint" : `${orgUsers.find(u => u.id === healthPersonFilter)?.full_name} — Allocation Trend`}
                         </h3>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                          {healthPersonFilter === "all" ? "Distribution of overloaded / balanced / underutilised across sprints" : "Project allocation % in each sprint"}
+                          {healthPersonFilter === "all" ? "Distribution of overloaded / balanced / underutilised across sprints" : "Goal allocation % in each sprint"}
                         </p>
                       </div>
                       <Users className="h-5 w-5 text-slate-300" />
@@ -851,7 +851,7 @@ export default function AdminDashboardClient({
                 {resourceHealth.every(e => e.alloc === 0) && (
                   <div className="flex items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-700">
                     <Activity className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                    <span><strong>No sprint allocations set yet.</strong> Assign project allocations in a sprint to see utilisation data here.</span>
+                    <span><strong>No sprint allocations set yet.</strong> Assign goal allocations on a sprint&apos;s Capacity tab to see utilisation data here.</span>
                   </div>
                 )}
 

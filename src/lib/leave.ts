@@ -82,3 +82,44 @@ export const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+const MONTH_ABBR = MONTH_NAMES.map((m) => m.slice(0, 3));
+
+/**
+ * Intersect a date range with a window (e.g. a sprint), returning the overlapping
+ * range as date keys, or null if they don't overlap. Date keys (YYYY-MM-DD)
+ * compare correctly as plain strings.
+ */
+export function clampRange(
+  startKey: string,
+  endKey: string,
+  windowStart: string,
+  windowEnd: string,
+): { start: string; end: string } | null {
+  const start = startKey > windowStart ? startKey : windowStart;
+  const end = endKey < windowEnd ? endKey : windowEnd;
+  if (start > end) return null;
+  return { start, end };
+}
+
+/** Count working (weekday) days in an inclusive date-key range. */
+export function countWeekdays(startKey: string, endKey: string): number {
+  return expandLeaveDays(startKey, endKey).length;
+}
+
+/** "Jan 20" */
+export function formatShortDate(key: string): string {
+  const { month, day } = parseDateKey(key);
+  return `${MONTH_ABBR[month]} ${day}`;
+}
+
+/** "Jan 20" · "Feb 3–4" (same month) · "Feb 27 – Mar 3" (cross month) */
+export function formatDateRange(startKey: string, endKey: string): string {
+  if (startKey === endKey) return formatShortDate(startKey);
+  const a = parseDateKey(startKey);
+  const b = parseDateKey(endKey);
+  if (a.month === b.month && a.year === b.year) {
+    return `${MONTH_ABBR[a.month]} ${a.day}–${b.day}`;
+  }
+  return `${formatShortDate(startKey)} – ${formatShortDate(endKey)}`;
+}

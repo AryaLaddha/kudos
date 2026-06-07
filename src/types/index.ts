@@ -109,6 +109,88 @@ export type Leave = {
   avatar_url?: string | null;
 };
 
+// ── Sprint Goals · Capacity Planning ──────────────────────────────────────────
+
+export type Stream = {
+  id: string;
+  name: string;
+  is_archived: boolean;
+};
+
+export type GoalStatus = "on_track" | "delayed" | "completed" | "carried_over";
+
+export type GoalSubtask = {
+  id: string;
+  goal_id: string;
+  name: string;
+  due_date: string | null;
+  is_done: boolean;
+  done_at: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type GoalDelay = {
+  id: string;
+  goal_id: string;
+  sprint_id: string | null;
+  subtask_id: string | null;
+  reason: string;
+  new_due_date: string | null;
+  reported_by: string | null;
+  created_at: string;
+  // Embedded on read
+  reporter_name?: string | null;
+  subtask_name?: string | null;
+};
+
+export type SprintGoal = {
+  id: string;
+  org_id: string;
+  title: string;
+  points: number;
+  start_date: string;
+  end_date: string;
+  original_end_date: string;
+  status: GoalStatus;
+  stream_ids: string[];
+  tags: string[];
+  completed_at: string | null;
+  completed_by: string | null;
+  created_by: string | null;
+  created_at: string;
+  // Embedded on read
+  subtasks?: GoalSubtask[];
+  delays?: GoalDelay[];
+};
+
+// Lightweight sprint reference for the Goal History journey.
+export type SprintRef = {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+};
+
+// Per-user leave deduction within a sprint window (computed, not stored).
+export type LeaveDeduction = {
+  days: number;
+  notices: string[];
+};
+
+// A sprint_participants row enriched with capacity fields + profile.
+export type CapacityParticipant = {
+  user_id: string;
+  sprint_id: string;
+  base_points: number;
+  scores: Record<string, number>;
+  goal_allocations: Record<string, number>;
+  expected_override: number | null;
+  manual_deducted_points: number;
+  stream_ids: string[];
+  profile: { id: string; full_name: string; avatar_url: string | null; job_title: string | null };
+};
+
 export type EnrichedUserGoal = UserGoal & {
   title: string;
   category: string;

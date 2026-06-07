@@ -11,7 +11,6 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_TITLE = 120;
 const MAX_TAG = 30;
 const MAX_REASON = 280;
-const MAX_STREAM_NAME = 40;
 
 // Authorize as admin or sprint manager. Sprint managers (non-DB-admins) use the
 // service-role client to bypass RLS — authorization is enforced here first.
@@ -37,6 +36,8 @@ function sortGoalChildren(goal: SprintGoal) {
 
 // ── Streams ───────────────────────────────────────────────────────────────────
 
+// Streams are read-only here (managed by admins in /admin/streams). The sprint
+// pages need the catalogue to render and assign stream tags.
 export async function getStreams(): Promise<Stream[]> {
   const { supabase, orgId } = await requireSprintClient();
   const { data } = await supabase
@@ -45,27 +46,6 @@ export async function getStreams(): Promise<Stream[]> {
     .eq("org_id", orgId)
     .order("name");
   return (data as Stream[]) ?? [];
-}
-
-export async function createStream(name: string): Promise<{ error?: string; stream?: Stream }> {
-  const { supabase, orgId } = await requireSprintClient();
-  const trimmed = name.trim();
-  if (!trimmed) return { error: "Stream name is required." };
-  if (trimmed.length > MAX_STREAM_NAME) return { error: `Name must be ${MAX_STREAM_NAME} characters or fewer.` };
-  const { data, error } = await supabase
-    .from("streams")
-    .insert({ name: trimmed, org_id: orgId })
-    .select("id, name, is_archived")
-    .single();
-  if (error) return { error: error.message };
-  return { stream: data as Stream };
-}
-
-export async function setStreamArchived(id: string, archived: boolean): Promise<{ error?: string }> {
-  const { supabase } = await requireSprintClient();
-  const { error } = await supabase.from("streams").update({ is_archived: archived }).eq("id", id);
-  if (error) return { error: error.message };
-  return {};
 }
 
 // ── Goals ──────────────────────────────────────────────────────────────────────

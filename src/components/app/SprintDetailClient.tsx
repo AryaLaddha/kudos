@@ -89,7 +89,8 @@ export default function SprintDetailClient({
   const [, startTransition] = useTransition();
   const [participants, setParticipants] = useState<Participant[]>(initParticipants);
   const [goals, setGoals] = useState<SprintGoal[]>(initGoals);
-  const [streams, setStreams] = useState<Stream[]>(initStreams);
+  // Streams are managed in the admin area now — read-only here.
+  const streams = initStreams;
   const [showAddUser, setShowAddUser] = useState(false);
   const [tab, setTab] = useState<TabId>("goals");
 
@@ -293,7 +294,6 @@ export default function SprintDetailClient({
           participants={participants}
           goals={goals}
           streams={streams}
-          setStreams={setStreams}
           leaveDeductions={leaveDeductions}
           onPatchParticipant={patchParticipant}
         />

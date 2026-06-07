@@ -40,6 +40,23 @@ CREATE POLICY "admins manage streams" ON streams
     (SELECT is_admin FROM profiles WHERE id = auth.uid() LIMIT 1)
   );
 
+-- Seed the default stream catalogue for every existing org (idempotent — safe to
+-- re-run). Streams are created/archived by admins; they are never deleted.
+INSERT INTO streams (org_id, name)
+SELECT o.id, s.name
+FROM organizations o
+CROSS JOIN (VALUES
+  ('AI'),
+  ('Service'),
+  ('Sales'),
+  ('Marketing'),
+  ('Field Service'),
+  ('Software Engineering')
+) AS s(name)
+WHERE NOT EXISTS (
+  SELECT 1 FROM streams st WHERE st.org_id = o.id AND st.name = s.name
+);
+
 -- ── Sprint goals (date-ranged work items) ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sprint_goals (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),

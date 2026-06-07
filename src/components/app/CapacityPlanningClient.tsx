@@ -1,13 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CapacityEditDialog, { type CapacityPatch } from "@/components/app/CapacityEditDialog";
-import StreamManagerDialog from "@/components/app/StreamManagerDialog";
 import { autoExpectedPoints, colorForId, effectiveExpected, totalAllocation } from "@/lib/sprintGoals";
 import type { LeaveDeduction, SprintGoal, Stream } from "@/types";
-import { Layers, Pencil, Users, AlertTriangle, Plane } from "lucide-react";
+import { Pencil, Users, AlertTriangle, Plane } from "lucide-react";
 
 interface CapacityMember {
   user_id: string;
@@ -23,7 +21,6 @@ interface Props {
   participants: CapacityMember[];
   goals: SprintGoal[];
   streams: Stream[];
-  setStreams: React.Dispatch<React.SetStateAction<Stream[]>>;
   leaveDeductions: Record<string, LeaveDeduction>;
   onPatchParticipant: (userId: string, patch: CapacityPatch) => void;
 }
@@ -32,9 +29,8 @@ function initials(n: string) {
   return n.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
 }
 
-export default function CapacityPlanningClient({ sprint, participants, goals, streams, setStreams, leaveDeductions, onPatchParticipant }: Props) {
+export default function CapacityPlanningClient({ sprint, participants, goals, streams, leaveDeductions, onPatchParticipant }: Props) {
   const [editing, setEditing] = useState<CapacityMember | null>(null);
-  const [streamsOpen, setStreamsOpen] = useState(false);
 
   const goalsById = useMemo(() => new Map(goals.map((g) => [g.id, g])), [goals]);
   const streamName = useMemo(() => {
@@ -91,9 +87,6 @@ export default function CapacityPlanningClient({ sprint, participants, goals, st
         <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
           <Users className="h-4 w-4 text-slate-400" /> Capacity
         </h2>
-        <Button size="sm" variant="outline" onClick={() => setStreamsOpen(true)} className="h-8 gap-1.5 text-xs">
-          <Layers className="h-3.5 w-3.5" /> Manage Streams
-        </Button>
       </div>
 
       {/* Summary stats */}
@@ -201,7 +194,6 @@ export default function CapacityPlanningClient({ sprint, participants, goals, st
           onSaved={(patch) => { onPatchParticipant(editing.user_id, patch); setEditing(null); }}
         />
       )}
-      <StreamManagerDialog open={streamsOpen} onOpenChange={setStreamsOpen} streams={streams} setStreams={setStreams} />
     </div>
   );
 }

@@ -285,26 +285,38 @@ export async function getAdminAnalytics() {
 
   // Fetch everything else in parallel — participants filtered at DB level by org's sprint IDs
   const [
-    { data: projects },
+    { data: goals },
     { data: participants },
     { data: orgUsers },
     { data: userGoals },
     { data: recognitions }
   ] = await Promise.all([
-    // In analytics, we fetch ALL projects (including archived) so historical ROI is accurate
-    supabase.from("projects").select("id, name, is_archived").eq("org_id", orgId).order("name"),
+    // Capacity allocations are keyed on sprint goals (projects retired as the unit).
+    supabase.from("sprint_goals").select("id, title").eq("org_id", orgId).order("title"),
     sprintIds.length > 0
-      ? supabase.from("sprint_participants").select("sprint_id, user_id, base_points, scores, project_allocations, profile:profiles(id, full_name, avatar_url, job_title)").in("sprint_id", sprintIds)
+      ? supabase.from("sprint_participants").select("sprint_id, user_id, base_points, scores, goal_allocations, profile:profiles(id, full_name, avatar_url, job_title)").in("sprint_id", sprintIds)
       : Promise.resolve({ data: [] }),
     supabase.from("profiles").select("id, full_name, avatar_url, job_title").eq("org_id", orgId).order("full_name"),
     supabase.from("user_goals").select("id, user_id, goal_id, status, description, created_at, org_id").eq("org_id", orgId).eq("review_status", "approved").order("created_at"),
     supabase.from("recognitions").select("receiver_id, receiver_ids, points, created_at").eq("org_id", orgId)
   ]);
 
+  // Surface goals through the dashboard's existing project-shaped props: effort/ROI
+  // and utilisation are now computed per goal. goal_allocations → project_allocations.
+  const projects = (goals ?? []).map((g: { id: string; title: string }) => ({
+    id: g.id,
+    name: g.title,
+    is_archived: false,
+  }));
+  const participantsForAlloc = (participants ?? []).map((p) => ({
+    ...p,
+    project_allocations: (p as { goal_allocations?: Record<string, number> | null }).goal_allocations ?? {},
+  }));
+
   return {
     sprints: sprints || [],
-    projects: projects || [],
-    participants: participants || [],
+    projects,
+    participants: participantsForAlloc,
     orgUsers: orgUsers || [],
     userGoals: userGoals || [],
     recognitions: recognitions || []

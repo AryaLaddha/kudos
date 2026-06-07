@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, ChevronDown, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -13,6 +13,10 @@ import {
   updateSprintStatus,
   updateAllParticipants,
 } from "@/app/(app)/sprints/actions";
+import SprintGoalsClient from "@/components/app/SprintGoalsClient";
+import CapacityPlanningClient from "@/components/app/CapacityPlanningClient";
+import GoalHistoryClient from "@/components/app/GoalHistoryClient";
+import type { LeaveDeduction, SprintGoal, SprintRef, Stream } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +38,10 @@ interface Participant {
   user_id: string;
   base_points: number;
   scores: Record<string, number>;
+  goal_allocations: Record<string, number>;
+  expected_override: number | null;
+  manual_deducted_points: number;
+  stream_ids: string[];
   profile: Profile;
 }
 
@@ -41,7 +49,21 @@ interface Props {
   sprint: Sprint;
   participants: Participant[];
   orgUsers: Profile[];
+  goals: SprintGoal[];
+  historyGoals: SprintGoal[];
+  allSprints: SprintRef[];
+  streams: Stream[];
+  leaveDeductions: Record<string, LeaveDeduction>;
 }
+
+const TABS = [
+  { id: "goals", label: "Sprint Goals" },
+  { id: "capacity", label: "Capacity Planning" },
+  { id: "history", label: "Goal History" },
+  { id: "analytics", label: "Analytics" },
+  { id: "grid", label: "Grid Tracker" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
 
 function getInitials(n: string) { return n.split(" ").map(p => p[0]).join("").toUpperCase().slice(0, 2); }
 function formatDate(d: string) { return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
@@ -53,12 +75,28 @@ function grandTotal(p: Participant) {
 
 // ── Component ─────────────────────────────────────────────────
 
-export default function SprintDetailClient({ sprint, participants: initParticipants, orgUsers }: Props) {
+export default function SprintDetailClient({
+  sprint,
+  participants: initParticipants,
+  orgUsers,
+  goals: initGoals,
+  historyGoals,
+  allSprints,
+  streams: initStreams,
+  leaveDeductions,
+}: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [participants, setParticipants] = useState<Participant[]>(initParticipants);
+  const [goals, setGoals] = useState<SprintGoal[]>(initGoals);
+  const [streams, setStreams] = useState<Stream[]>(initStreams);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [tab, setTab] = useState<"grid" | "analytics">("analytics");
+  const [tab, setTab] = useState<TabId>("goals");
+
+  // Capacity edits update the shared participant array so other tabs stay in sync.
+  function patchParticipant(userId: string, patch: Partial<Participant>) {
+    setParticipants(prev => prev.map(p => p.user_id === userId ? { ...p, ...patch } : p));
+  }
   const [savingId, setSavingId] = useState<string | null>(null);
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
 
@@ -106,6 +144,7 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
     setParticipants(prev => [...prev, {
       id: userId, sprint_id: sprint.id, user_id: userId,
       base_points: basePoints, scores: {},
+      goal_allocations: {}, expected_override: null, manual_deducted_points: 0, stream_ids: [],
       profile: user,
     }]);
     setShowAddUser(false);
@@ -192,6 +231,16 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
           <Button
             variant="outline"
             size="sm"
+            onClick={() => startTransition(() => router.push("/leave"))}
+            className="h-9 px-3 gap-2"
+            title="Open the shared leave calendar"
+          >
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline">Leave Calendar</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleToggleStatus}
             className="h-9 px-3 gap-2"
           >
@@ -211,20 +260,54 @@ export default function SprintDetailClient({ sprint, participants: initParticipa
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 mb-6 max-w-xs">
-        {(["analytics", "grid"] as const).map(t => (
+      <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 mb-6 w-full sm:w-fit">
+        {TABS.map(t => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={t.id}
+            onClick={() => setTab(t.id)}
             className={cn(
-              "flex-1 rounded-lg px-4 py-1.5 text-xs font-semibold capitalize transition-colors",
-              tab === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              "flex-shrink-0 rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap",
+              tab === t.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
-            {t === "analytics" ? "Analytics" : "Grid Tracker"}
+            {t.label}
           </button>
         ))}
       </div>
+
+      {/* ── SPRINT GOALS ───────────────────────────────────── */}
+      {tab === "goals" && (
+        <SprintGoalsClient
+          goals={goals}
+          setGoals={setGoals}
+          streams={streams}
+          sprint={sprint}
+          orgUsers={orgUsers}
+        />
+      )}
+
+      {/* ── CAPACITY PLANNING ──────────────────────────────── */}
+      {tab === "capacity" && (
+        <CapacityPlanningClient
+          sprint={sprint}
+          participants={participants}
+          goals={goals}
+          streams={streams}
+          setStreams={setStreams}
+          leaveDeductions={leaveDeductions}
+          onPatchParticipant={patchParticipant}
+        />
+      )}
+
+      {/* ── GOAL HISTORY ───────────────────────────────────── */}
+      {tab === "history" && (
+        <GoalHistoryClient
+          goals={historyGoals}
+          sprints={allSprints}
+          streams={streams}
+          orgUsers={orgUsers}
+        />
+      )}
 
       {/* ── ANALYTICS VIEW ─────────────────────────────────── */}
       {tab === "analytics" && (

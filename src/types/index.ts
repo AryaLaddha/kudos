@@ -93,6 +93,22 @@ export type GoalDefinition = {
   created_at: string;
 };
 
+export type LeaveType = "annual" | "sick" | "public_holiday" | "emergency" | "custom";
+
+export type Leave = {
+  id: string;
+  org_id: string;
+  user_id: string;
+  leave_type: LeaveType;
+  custom_label: string | null;
+  start_date: string; // YYYY-MM-DD
+  end_date: string;   // YYYY-MM-DD
+  created_at: string;
+  // Embedded author info (joined on read)
+  user_name?: string;
+  avatar_url?: string | null;
+};
+
 export type EnrichedUserGoal = UserGoal & {
   title: string;
   category: string;

@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
-import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck, Zap, Users, ClipboardCheck } from "lucide-react";
+import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck, Zap, Users, ClipboardCheck, CalendarDays } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/give", label: "Give Kudos", icon: Heart },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/goals", label: "Goals", icon: Target },
+  { href: "/leave", label: "Leave Calendar", icon: CalendarDays },
   { href: "/admin/goals", label: "All Goals", icon: Target, adminLabel: "Goals Management" },
 ];
 

@@ -18,10 +18,11 @@ import {
   colorForId,
   goalRoleCoverage,
   GOAL_STATUS_META,
+  GOAL_STATUSES,
   ROLE_OPTIONS,
   type RoleCoverage,
 } from "@/lib/sprintGoals";
-import { assignRole, unassignRole, addSprintMember } from "@/app/(app)/sprints/goals-actions";
+import { assignRole, unassignRole, addSprintMember, setGoalRoleRequirements } from "@/app/(app)/sprints/goals-actions";
 import { formatDateRange } from "@/lib/leave";
 import type { GoalAssignment, SprintGoal, Stream } from "@/types";
 import { Pencil, Users, Plus, X, Check, Trash2 } from "lucide-react";
@@ -49,6 +50,7 @@ interface Props {
   onPatchParticipant: (userId: string, patch: Partial<CapacityMember>) => void;
   onMemberUpserted: (userId: string, role: string | null, expected: number | null) => void;
   onRemoveMember: (userId: string) => void;
+  onGoalChange: (goal: SprintGoal) => void;
 }
 
 function initials(n: string) {
@@ -59,10 +61,15 @@ const NO_STREAM = "__none__";
 
 export default function CapacityPlanningClient({
   sprint, participants, goals, streams, assignments, setAssignments, orgUsers,
-  onPatchParticipant, onMemberUpserted, onRemoveMember,
+  onPatchParticipant, onMemberUpserted, onRemoveMember, onGoalChange,
 }: Props) {
   const [editing, setEditing] = useState<CapacityMember | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+
+  // Filters
+  const [streamFilter, setStreamFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [userFilter, setUserFilter] = useState("all");
 
   // Inline role-assignment editor state. editKey = `${goalId}::${role}`.
   const [editKey, setEditKey] = useState<string | null>(null);
@@ -124,10 +131,33 @@ export default function CapacityPlanningClient({
     };
   }, [rows]);
 
+  // Goal IDs the filtered member is assigned to (null = no member filter).
+  const goalIdsForUser = useMemo(() => {
+    if (userFilter === "all") return null;
+    return new Set(assignments.filter((a) => a.user_id === userFilter).map((a) => a.goal_id));
+  }, [assignments, userFilter]);
+
+  const filteredGoals = useMemo(() => {
+    return goals.filter((g) => {
+      if (streamFilter !== "all" && !g.stream_ids.includes(streamFilter)) return false;
+      if (statusFilter !== "all" && g.status !== statusFilter) return false;
+      if (goalIdsForUser && !goalIdsForUser.has(g.id)) return false;
+      return true;
+    });
+  }, [goals, streamFilter, statusFilter, goalIdsForUser]);
+
+  // People summary respects the member filter.
+  const visibleRows = useMemo(
+    () => (userFilter === "all" ? rows : rows.filter((r) => r.member.user_id === userFilter)),
+    [rows, userFilter],
+  );
+
+  const filtersActive = streamFilter !== "all" || statusFilter !== "all" || userFilter !== "all";
+
   // Goals grouped by their first stream (unstreamed goals fall under "Other").
   const streamGroups = useMemo(() => {
     const byStream = new Map<string, SprintGoal[]>();
-    for (const g of goals) {
+    for (const g of filteredGoals) {
       const key = g.stream_ids[0] ?? NO_STREAM;
       if (!byStream.has(key)) byStream.set(key, []);
       byStream.get(key)!.push(g);
@@ -139,7 +169,7 @@ export default function CapacityPlanningClient({
     }
     if (byStream.has(NO_STREAM)) ordered.push({ key: NO_STREAM, label: "Other", goals: byStream.get(NO_STREAM)! });
     return ordered;
-  }, [goals, streams]);
+  }, [filteredGoals, streams]);
 
   // ── Assignment mutations ──────────────────────────────────────
   function applyAssignment(a: GoalAssignment) {
@@ -176,6 +206,15 @@ export default function CapacityPlanningClient({
     cancelEdit();
   }
 
+  // Add a required role to a goal — persists on the goal so the Sprint Goals tab updates too.
+  async function addRoleToGoal(goal: SprintGoal, role: string, pct: number) {
+    const next = [...(goal.role_requirements ?? []), { role, pct }];
+    const res = await setGoalRoleRequirements(goal.id, next);
+    if (res.error || !res.goal) { toast.error(res.error ?? "Couldn't add role."); return; }
+    onGoalChange(res.goal);
+    toast.success("Role added to goal.");
+  }
+
   return (
     <div>
       {/* Summary stats */}
@@ -187,11 +226,37 @@ export default function CapacityPlanningClient({
         <Stat label="Avg Allocation" value={`${stats.avgAlloc}%`} color="text-sky-600" />
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <select value={streamFilter} onChange={(e) => setStreamFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-600 outline-none">
+          <option value="all">All Streams</option>
+          {streams.filter((s) => !s.is_archived).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-600 outline-none">
+          <option value="all">All Statuses</option>
+          {GOAL_STATUSES.map((s) => <option key={s} value={s}>{GOAL_STATUS_META[s].label}</option>)}
+        </select>
+        <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-600 outline-none">
+          <option value="all">All Members</option>
+          {participants.map((p) => <option key={p.user_id} value={p.user_id}>{p.profile.full_name}</option>)}
+        </select>
+        {filtersActive && (
+          <button onClick={() => { setStreamFilter("all"); setStatusFilter("all"); setUserFilter("all"); }} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700">
+            <X className="h-3.5 w-3.5" /> Clear
+          </button>
+        )}
+      </div>
+
       {/* ── Per-stream goal / role tables ── */}
       {goals.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
           <Users className="mx-auto h-8 w-8 text-slate-200 mb-2" />
           <p className="text-sm font-medium text-slate-400">No goals in this sprint window to staff.</p>
+        </div>
+      ) : streamGroups.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+          <Users className="mx-auto h-8 w-8 text-slate-200 mb-2" />
+          <p className="text-sm font-medium text-slate-400">No goals match your filters.</p>
         </div>
       ) : (
         streamGroups.map((group) => (
@@ -229,31 +294,34 @@ export default function CapacityPlanningClient({
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          {coverage.length === 0 ? (
-                            <p className="text-[11px] text-slate-400 italic">No required roles set — edit the goal to add them.</p>
-                          ) : (
-                            <div className="flex flex-col gap-1.5">
-                              {coverage.map((c) => (
-                                <RoleAssignRow
-                                  key={c.role}
-                                  goalId={goal.id}
-                                  coverage={c}
-                                  editing={editKey === `${goal.id}::${c.role}`}
-                                  saving={savingKey === `${goal.id}::${c.role}`}
-                                  members={participants}
-                                  memberName={memberName}
-                                  editUser={editUser}
-                                  editPct={editPct}
-                                  setEditUser={setEditUser}
-                                  setEditPct={setEditPct}
-                                  onStart={() => startEdit(goal.id, c.role, c.assignment, c.requiredPct)}
-                                  onSave={() => saveEdit(goal.id, c.role)}
-                                  onCancel={cancelEdit}
-                                  onClear={() => clearAssign(goal.id, c.role)}
-                                />
-                              ))}
-                            </div>
-                          )}
+                          <div className="flex flex-col gap-1.5">
+                            {coverage.length === 0 && (
+                              <p className="text-[11px] text-slate-400 italic">No required roles yet — add one below.</p>
+                            )}
+                            {coverage.map((c) => (
+                              <RoleAssignRow
+                                key={c.role}
+                                goalId={goal.id}
+                                coverage={c}
+                                editing={editKey === `${goal.id}::${c.role}`}
+                                saving={savingKey === `${goal.id}::${c.role}`}
+                                members={participants}
+                                memberName={memberName}
+                                editUser={editUser}
+                                editPct={editPct}
+                                setEditUser={setEditUser}
+                                setEditPct={setEditPct}
+                                onStart={() => startEdit(goal.id, c.role, c.assignment, c.requiredPct)}
+                                onSave={() => saveEdit(goal.id, c.role)}
+                                onCancel={cancelEdit}
+                                onClear={() => clearAssign(goal.id, c.role)}
+                              />
+                            ))}
+                            <AddRoleInline
+                              availableRoles={ROLE_OPTIONS.filter((r) => !(goal.role_requirements ?? []).some((rr) => rr.role === r))}
+                              onAdd={(role, pct) => addRoleToGoal(goal, role, pct)}
+                            />
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold ${gap.cls}`}>{gap.label}</span>
@@ -277,8 +345,8 @@ export default function CapacityPlanningClient({
           </Button>
         </div>
 
-        {rows.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-slate-400">No members yet — add people to the capacity plan.</p>
+        {visibleRows.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-slate-400">{rows.length === 0 ? "No members yet — add people to the capacity plan." : "No members match your filters."}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -295,7 +363,7 @@ export default function CapacityPlanningClient({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {visibleRows.map((r) => {
                   const st = memberStatus(r.allocTotal);
                   return (
                     <tr key={r.member.user_id} className="border-b border-slate-100 last:border-b-0 align-top hover:bg-slate-50/50">
@@ -456,6 +524,50 @@ function RoleAssignRow({ coverage: c, editing, saving, members, memberName, edit
       <span className="ml-auto text-[11px] font-semibold text-slate-800">{memberName(c.assignment.user_id)}</span>
       <span className={`text-[11px] font-bold ${allocCls}`}>{c.assignedPct}%{(under || over) && " ⚠"}</span>
       <button onClick={onStart} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-100">Edit</button>
+    </div>
+  );
+}
+
+// ── Add-role-to-goal inline control ─────────────────────────────────────────────
+
+function AddRoleInline({ availableRoles, onAdd }: { availableRoles: readonly string[]; onAdd: (role: string, pct: number) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState("");
+  const [pct, setPct] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (availableRoles.length === 0 && !open) return null;
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="inline-flex w-fit items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700">
+        <Plus className="h-3 w-3" /> Add role
+      </button>
+    );
+  }
+
+  async function handleAdd() {
+    if (!role) { toast.error("Pick a role."); return; }
+    const n = Number(pct);
+    if (!Number.isFinite(n) || n <= 0 || n > 100) { toast.error("Enter a % between 1 and 100."); return; }
+    setSaving(true);
+    await onAdd(role, n);
+    setSaving(false);
+    setOpen(false); setRole(""); setPct("");
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/40 px-2.5 py-1.5">
+      <select value={role} onChange={(e) => setRole(e.target.value)} className="h-7 min-w-[110px] rounded-md border border-slate-200 bg-white px-1.5 text-[11px] text-slate-700 outline-none">
+        <option value="">Select role…</option>
+        {availableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
+      </select>
+      <div className="relative">
+        <Input type="number" min={10} max={100} step={10} value={pct} onChange={(e) => setPct(e.target.value)} placeholder="%" className="h-7 w-16 text-[11px] text-right pr-4 px-1" />
+        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+      </div>
+      <button onClick={handleAdd} disabled={saving} className="flex h-7 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"><Check className="h-3 w-3" /> Add</button>
+      <button onClick={() => { setOpen(false); setRole(""); setPct(""); }} className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:bg-slate-100" title="Cancel"><X className="h-3 w-3" /></button>
     </div>
   );
 }

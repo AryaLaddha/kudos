@@ -144,6 +144,22 @@ export async function updateGoal(
   return { goal: sortGoalChildren(data as SprintGoal) };
 }
 
+/** Update only a goal's role requirements (used from the Capacity tab). */
+export async function setGoalRoleRequirements(
+  id: string,
+  roleRequirements: RoleRequirement[],
+): Promise<{ error?: string; goal?: SprintGoal }> {
+  const { supabase } = await requireSprintClient();
+  const { data, error } = await supabase
+    .from("sprint_goals")
+    .update({ role_requirements: sanitizeRoleRequirements(roleRequirements) })
+    .eq("id", id)
+    .select(GOAL_SELECT)
+    .single();
+  if (error) return { error: error.message };
+  return { goal: sortGoalChildren(data as SprintGoal) };
+}
+
 export async function completeGoal(id: string, done: boolean): Promise<{ error?: string; goal?: SprintGoal }> {
   const { supabase, user } = await requireSprintClient();
   const patch = done

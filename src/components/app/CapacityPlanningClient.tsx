@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import CapacityEditDialog, { type CapacityPatch } from "@/components/app/CapacityEditDialog";
 import {
-  assignmentAllocationTotal,
   assignmentExpectedPoints,
   colorForId,
   goalRoleCoverage,
@@ -32,7 +31,6 @@ interface CapacityMember {
   user_id: string;
   role: string | null;
   expected_override: number | null;
-  manual_deducted_points: number;
   stream_ids: string[];
   profile: { id: string; full_name: string; avatar_url: string | null; job_title?: string | null };
 }
@@ -94,24 +92,18 @@ export default function CapacityPlanningClient({
     return m;
   }, [assignments]);
 
-  // Per-member derived capacity figures.
+  // Per-member derived capacity figures. Over/under is decided by POINTS:
+  // allocated points (from role assignments) vs the member's manual expected points.
   const rows = useMemo(() => {
     return participants.map((p) => {
       const userAssignments = assignmentsByUser.get(p.user_id) ?? [];
-      const auto = assignmentExpectedPoints(userAssignments, goalsById);
-      const expected = p.expected_override ?? auto;
-      const deducted = p.manual_deducted_points ?? 0;
-      const allocTotal = assignmentAllocationTotal(userAssignments);
-      return {
-        member: p,
-        userAssignments,
-        auto,
-        expected,
-        deducted,
-        net: Math.round((expected - deducted) * 10) / 10,
-        allocTotal,
-        over: allocTotal > 100,
-      };
+      const allocated = assignmentExpectedPoints(userAssignments, goalsById);
+      const expected = p.expected_override; // manual; null = not set
+      const hasExpected = expected !== null && expected !== undefined;
+      const utilization = hasExpected && expected > 0 ? Math.round((allocated / expected) * 100) : null;
+      const over = hasExpected && allocated > expected;
+      const under = hasExpected && allocated < expected;
+      return { member: p, userAssignments, allocated, expected, hasExpected, utilization, over, under };
     });
   }, [participants, assignmentsByUser, goalsById]);
 
@@ -119,15 +111,16 @@ export default function CapacityPlanningClient({
 
   const stats = useMemo(() => {
     const members = rows.length;
-    const totalExpected = rows.reduce((s, r) => s + r.expected, 0);
-    const totalDeducted = rows.reduce((s, r) => s + r.deducted, 0);
-    const avgAlloc = members ? Math.round(rows.reduce((s, r) => s + r.allocTotal, 0) / members) : 0;
+    const totalExpected = rows.reduce((s, r) => s + (r.expected ?? 0), 0);
+    const totalAllocated = rows.reduce((s, r) => s + r.allocated, 0);
+    const overCount = rows.filter((r) => r.over).length;
+    const underCount = rows.filter((r) => r.under).length;
     return {
       members,
       totalExpected: Math.round(totalExpected * 10) / 10,
-      totalDeducted,
-      net: Math.round((totalExpected - totalDeducted) * 10) / 10,
-      avgAlloc,
+      totalAllocated: Math.round(totalAllocated * 10) / 10,
+      overCount,
+      underCount,
     };
   }, [rows]);
 
@@ -220,10 +213,10 @@ export default function CapacityPlanningClient({
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
         <Stat label="Team Members" value={stats.members} color="text-indigo-600" />
-        <Stat label="Total Exp. Points" value={stats.totalExpected} color="text-emerald-600" />
-        <Stat label="Total Ded. Points" value={stats.totalDeducted} color="text-red-600" />
-        <Stat label="Net Capacity" value={stats.net} color="text-slate-800" />
-        <Stat label="Avg Allocation" value={`${stats.avgAlloc}%`} color="text-sky-600" />
+        <Stat label="Total Expected Pts" value={stats.totalExpected} color="text-emerald-600" />
+        <Stat label="Total Allocated Pts" value={stats.totalAllocated} color="text-sky-600" />
+        <Stat label="Over-allocated" value={stats.overCount} color="text-red-600" />
+        <Stat label="Under-utilized" value={stats.underCount} color="text-amber-600" />
       </div>
 
       {/* Filters */}
@@ -354,17 +347,16 @@ export default function CapacityPlanningClient({
                 <tr className="bg-slate-50 border-b border-slate-200 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-2.5">Member</th>
                   <th className="px-4 py-2.5">Role</th>
-                  <th className="px-4 py-2.5 text-center">Capacity</th>
+                  <th className="px-4 py-2.5 text-center">Expected Pts</th>
                   <th className="px-4 py-2.5">Points by Goal</th>
-                  <th className="px-4 py-2.5 text-center w-[130px]">Alloc %</th>
-                  <th className="px-4 py-2.5 text-center">Net Pts</th>
+                  <th className="px-4 py-2.5 text-center w-[150px]">Allocation</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5 w-[70px]"></th>
                 </tr>
               </thead>
               <tbody>
                 {visibleRows.map((r) => {
-                  const st = memberStatus(r.allocTotal);
+                  const st = memberStatus(r.over, r.under, r.hasExpected);
                   return (
                     <tr key={r.member.user_id} className="border-b border-slate-100 last:border-b-0 align-top hover:bg-slate-50/50">
                       <td className="px-4 py-3">
@@ -385,9 +377,14 @@ export default function CapacityPlanningClient({
                           : <span className="text-[11px] text-slate-300">—</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <div className="text-base font-extrabold text-indigo-600 leading-none">{r.expected}</div>
-                        <div className="text-[10px] text-slate-400">exp pts</div>
-                        {r.deducted > 0 && <div className="text-[10px] text-red-500 mt-0.5">−{r.deducted} ded</div>}
+                        {r.hasExpected ? (
+                          <>
+                            <div className="text-base font-extrabold text-indigo-600 leading-none">{r.expected}</div>
+                            <div className="text-[10px] text-slate-400">exp pts</div>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-amber-600 font-medium">Not set</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {r.userAssignments.length === 0 ? (
@@ -412,14 +409,16 @@ export default function CapacityPlanningClient({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col items-center gap-1">
-                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                            <div className={`h-full rounded-full ${r.over ? "bg-gradient-to-r from-red-500 to-red-400" : "bg-gradient-to-r from-indigo-500 to-indigo-400"}`} style={{ width: `${Math.min(r.allocTotal, 100)}%` }} />
+                          <div className={`text-xs font-bold ${r.over ? "text-red-600" : r.under ? "text-amber-600" : "text-slate-700"}`}>
+                            {r.allocated} <span className="text-slate-300 font-normal">/ {r.hasExpected ? r.expected : "—"}</span> pts
                           </div>
-                          <span className={`text-xs font-bold ${r.over ? "text-red-600" : "text-indigo-600"}`}>{r.allocTotal}%</span>
+                          {r.hasExpected && (
+                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                              <div className={`h-full rounded-full ${r.over ? "bg-gradient-to-r from-red-500 to-red-400" : r.under ? "bg-gradient-to-r from-amber-500 to-amber-400" : "bg-gradient-to-r from-emerald-500 to-emerald-400"}`} style={{ width: `${Math.min(r.utilization ?? 0, 100)}%` }} />
+                            </div>
+                          )}
+                          {r.utilization !== null && <span className="text-[10px] text-slate-400">{r.utilization}%</span>}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`text-sm font-extrabold ${r.net < 0 ? "text-red-600" : "text-slate-900"}`}>{r.net}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold ${st.cls}`}>{st.label}</span>
@@ -448,7 +447,7 @@ export default function CapacityPlanningClient({
           sprint={sprint}
           participant={editing}
           streams={streams}
-          autoExpected={rowByUser.get(editing.user_id)?.auto ?? 0}
+          allocatedPoints={rowByUser.get(editing.user_id)?.allocated ?? 0}
           onSaved={(patch: CapacityPatch) => { onPatchParticipant(editing.user_id, patch); setEditing(null); }}
         />
       )}
@@ -629,10 +628,10 @@ function AddMemberDialog({ open, onOpenChange, sprint, orgUsers, existingIds, on
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 block mb-1.5">Expected Points</label>
-              <Input type="number" min={0} value={expected} onChange={(e) => setExpected(e.target.value)} placeholder="auto" className="text-sm" />
+              <Input type="number" min={0} value={expected} onChange={(e) => setExpected(e.target.value)} placeholder="e.g. 8" className="text-sm" />
             </div>
           </div>
-          <p className="text-[11px] text-slate-400">Leave Expected Points blank to auto-compute from assigned goals × allocation %.</p>
+          <p className="text-[11px] text-slate-400">Expected points = this member&apos;s capacity for the sprint. Over/under-allocation is judged by comparing allocated points to this number.</p>
         </div>
         <DialogFooter className="mx-0 mb-0 border-t border-slate-100 bg-slate-50/50" showCloseButton>
           <Button onClick={handleSave} disabled={saving || !userId} className="bg-indigo-600 hover:bg-indigo-700 text-white">
@@ -664,9 +663,9 @@ function gapBadge(coverage: RoleCoverage[]): { label: string; cls: string } {
   return { label: "Fully covered", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
 }
 
-function memberStatus(allocTotal: number): { label: string; cls: string } {
-  if (allocTotal > 100) return { label: "Over-allocated", cls: "border-red-200 bg-red-50 text-red-600" };
-  if (allocTotal === 0) return { label: "No assignments", cls: "border-slate-200 bg-slate-50 text-slate-400" };
-  if (allocTotal < 50) return { label: "Under-utilized", cls: "border-slate-200 bg-slate-100 text-slate-500" };
-  return { label: "Allocated", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
+function memberStatus(over: boolean, under: boolean, hasExpected: boolean): { label: string; cls: string } {
+  if (!hasExpected) return { label: "No expectation", cls: "border-slate-200 bg-slate-50 text-slate-400" };
+  if (over) return { label: "Over-allocated", cls: "border-red-200 bg-red-50 text-red-600" };
+  if (under) return { label: "Under-utilized", cls: "border-amber-300 bg-amber-50 text-amber-700" };
+  return { label: "Fully allocated", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
 }

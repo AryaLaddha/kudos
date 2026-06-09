@@ -16,6 +16,7 @@ import {
 import SprintGoalsClient from "@/components/app/SprintGoalsClient";
 import CapacityPlanningClient from "@/components/app/CapacityPlanningClient";
 import GoalHistoryClient from "@/components/app/GoalHistoryClient";
+import StreamsManagementClient from "@/components/app/StreamsManagementClient";
 import type { GoalAssignment, SprintGoal, SprintRef, Stream } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,6 @@ interface Participant {
   scores: Record<string, number>;
   goal_allocations: Record<string, number>;
   expected_override: number | null;
-  manual_deducted_points: number;
   role: string | null;
   stream_ids: string[];
   profile: Profile;
@@ -60,6 +60,7 @@ interface Props {
 const TABS = [
   { id: "goals", label: "Sprint Goals" },
   { id: "capacity", label: "Capacity Planning" },
+  { id: "streams", label: "Streams" },
   { id: "history", label: "Goal History" },
   { id: "analytics", label: "Analytics" },
   { id: "grid", label: "Grid Tracker" },
@@ -91,8 +92,8 @@ export default function SprintDetailClient({
   const [participants, setParticipants] = useState<Participant[]>(initParticipants);
   const [goals, setGoals] = useState<SprintGoal[]>(initGoals);
   const [assignments, setAssignments] = useState<GoalAssignment[]>(initAssignments);
-  // Streams are managed in the admin area now — read-only here.
-  const streams = initStreams;
+  // Streams are an org-wide catalogue, managed from the Streams tab within the sprint.
+  const [streams, setStreams] = useState<Stream[]>(initStreams);
   const [showAddUser, setShowAddUser] = useState(false);
   const [tab, setTab] = useState<TabId>("goals");
 
@@ -147,7 +148,7 @@ export default function SprintDetailClient({
     setParticipants(prev => [...prev, {
       id: userId, sprint_id: sprint.id, user_id: userId,
       base_points: basePoints, scores: {},
-      goal_allocations: {}, expected_override: null, manual_deducted_points: 0, role: null, stream_ids: [],
+      goal_allocations: {}, expected_override: null, role: null, stream_ids: [],
       profile: user,
     }]);
     setShowAddUser(false);
@@ -166,7 +167,7 @@ export default function SprintDetailClient({
       return [...prev, {
         id: userId, sprint_id: sprint.id, user_id: userId,
         base_points: 0, scores: {},
-        goal_allocations: {}, expected_override: expected, manual_deducted_points: 0, role, stream_ids: [],
+        goal_allocations: {}, expected_override: expected, role, stream_ids: [],
         profile: user,
       }];
     });
@@ -312,6 +313,11 @@ export default function SprintDetailClient({
           onRemoveMember={handleRemove}
           onGoalChange={(g) => setGoals((prev) => prev.map((x) => (x.id === g.id ? g : x)))}
         />
+      )}
+
+      {/* ── STREAMS ────────────────────────────────────────── */}
+      {tab === "streams" && (
+        <StreamsManagementClient streams={streams} setStreams={setStreams} />
       )}
 
       {/* ── GOAL HISTORY ───────────────────────────────────── */}

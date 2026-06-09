@@ -183,7 +183,6 @@ export type CapacityParticipant = {
   scores: Record<string, number>;
   goal_allocations: Record<string, number>;
   expected_override: number | null;
-  manual_deducted_points: number;
   role: string | null;
   stream_ids: string[];
   profile: { id: string; full_name: string; avatar_url: string | null; job_title: string | null };

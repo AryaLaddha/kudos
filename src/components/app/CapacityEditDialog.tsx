@@ -20,7 +20,6 @@ export interface CapParticipant {
   user_id: string;
   role: string | null;
   expected_override: number | null;
-  manual_deducted_points: number;
   stream_ids: string[];
   profile: { full_name: string };
 }
@@ -28,7 +27,6 @@ export interface CapParticipant {
 export interface CapacityPatch {
   role: string | null;
   expected_override: number | null;
-  manual_deducted_points: number;
   stream_ids: string[];
 }
 
@@ -38,17 +36,16 @@ interface Props {
   sprint: { id: string };
   participant: CapParticipant;
   streams: Stream[];
-  /** Auto expected points derived from this member's role assignments. */
-  autoExpected: number;
+  /** Points currently allocated to this member via role assignments (for reference). */
+  allocatedPoints: number;
   onSaved: (patch: CapacityPatch) => void;
 }
 
-export default function CapacityEditDialog({ open, onOpenChange, sprint, participant, streams, autoExpected, onSaved }: Props) {
+export default function CapacityEditDialog({ open, onOpenChange, sprint, participant, streams, allocatedPoints, onSaved }: Props) {
   const [role, setRole] = useState(participant.role ?? "");
   const [overrideInput, setOverrideInput] = useState(
     participant.expected_override !== null && participant.expected_override !== undefined ? String(participant.expected_override) : "",
   );
-  const [manualDed, setManualDed] = useState(String(participant.manual_deducted_points ?? 0));
   const [streamIds, setStreamIds] = useState<string[]>(participant.stream_ids ?? []);
   const [isPending, startTransition] = useTransition();
 
@@ -62,7 +59,6 @@ export default function CapacityEditDialog({ open, onOpenChange, sprint, partici
     const patch: CapacityPatch = {
       role: role || null,
       expected_override: override,
-      manual_deducted_points: Math.max(0, Math.round(Number(manualDed) || 0)),
       stream_ids: streamIds,
     };
     startTransition(async () => {
@@ -100,24 +96,18 @@ export default function CapacityEditDialog({ open, onOpenChange, sprint, partici
             </select>
           </div>
 
-          {/* Expected / Deducted */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Expected points</label>
-              <Input type="number" min={0} value={overrideInput} onChange={(e) => setOverrideInput(e.target.value)} placeholder={`auto: ${autoExpected}`} className="text-sm" />
-              <p className="text-[10px] text-slate-400 mt-1">Blank = auto ({autoExpected}, from assigned goals × allocation %).</p>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Manual deduction</label>
-              <Input type="number" min={0} value={manualDed} onChange={(e) => setManualDed(e.target.value)} className="text-sm" />
-            </div>
+          {/* Expected points (manual capacity) */}
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Expected points</label>
+            <Input type="number" min={0} value={overrideInput} onChange={(e) => setOverrideInput(e.target.value)} placeholder="e.g. 8" className="text-sm w-32" />
+            <p className="text-[10px] text-slate-400 mt-1">Their capacity for this sprint. Currently allocated {allocatedPoints} pts across assigned goals — over/under is judged against this number.</p>
           </div>
 
           {/* Streams */}
           <div>
             <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-2">Streams</label>
             {activeStreams.length === 0 ? (
-              <p className="text-xs text-slate-400">No streams — create them in Admin → Streams.</p>
+              <p className="text-xs text-slate-400">No streams — create them in the Streams tab.</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {activeStreams.map((s) => {

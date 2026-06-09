@@ -119,7 +119,7 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
           <div>
             <label className="text-xs font-semibold text-slate-600 block mb-1.5">Streams</label>
             {activeStreams.length === 0 ? (
-              <p className="text-xs text-slate-400">No streams yet — create them from the Capacity tab.</p>
+              <p className="text-xs text-slate-400">No streams yet — create them in the Streams tab.</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {activeStreams.map((s) => {

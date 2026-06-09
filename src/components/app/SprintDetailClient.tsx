@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, ChevronDown, CalendarDays } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -16,7 +16,7 @@ import {
 import SprintGoalsClient from "@/components/app/SprintGoalsClient";
 import CapacityPlanningClient from "@/components/app/CapacityPlanningClient";
 import GoalHistoryClient from "@/components/app/GoalHistoryClient";
-import type { LeaveDeduction, SprintGoal, SprintRef, Stream } from "@/types";
+import type { GoalAssignment, SprintGoal, SprintRef, Stream } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +41,7 @@ interface Participant {
   goal_allocations: Record<string, number>;
   expected_override: number | null;
   manual_deducted_points: number;
+  role: string | null;
   stream_ids: string[];
   profile: Profile;
 }
@@ -53,7 +54,7 @@ interface Props {
   historyGoals: SprintGoal[];
   allSprints: SprintRef[];
   streams: Stream[];
-  leaveDeductions: Record<string, LeaveDeduction>;
+  assignments: GoalAssignment[];
 }
 
 const TABS = [
@@ -83,12 +84,13 @@ export default function SprintDetailClient({
   historyGoals,
   allSprints,
   streams: initStreams,
-  leaveDeductions,
+  assignments: initAssignments,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [participants, setParticipants] = useState<Participant[]>(initParticipants);
   const [goals, setGoals] = useState<SprintGoal[]>(initGoals);
+  const [assignments, setAssignments] = useState<GoalAssignment[]>(initAssignments);
   // Streams are managed in the admin area now — read-only here.
   const streams = initStreams;
   const [showAddUser, setShowAddUser] = useState(false);
@@ -145,11 +147,29 @@ export default function SprintDetailClient({
     setParticipants(prev => [...prev, {
       id: userId, sprint_id: sprint.id, user_id: userId,
       base_points: basePoints, scores: {},
-      goal_allocations: {}, expected_override: null, manual_deducted_points: 0, stream_ids: [],
+      goal_allocations: {}, expected_override: null, manual_deducted_points: 0, role: null, stream_ids: [],
       profile: user,
     }]);
     setShowAddUser(false);
     toast.success(`Added ${user.full_name}`);
+  }
+
+  // Capacity tab: a member added (or upserted) with role + expected points.
+  function handleMemberUpserted(userId: string, role: string | null, expected: number | null) {
+    setParticipants(prev => {
+      const existing = prev.find(p => p.user_id === userId);
+      if (existing) {
+        return prev.map(p => p.user_id === userId ? { ...p, role, expected_override: expected } : p);
+      }
+      const user = orgUsers.find(u => u.id === userId);
+      if (!user) return prev;
+      return [...prev, {
+        id: userId, sprint_id: sprint.id, user_id: userId,
+        base_points: 0, scores: {},
+        goal_allocations: {}, expected_override: expected, manual_deducted_points: 0, role, stream_ids: [],
+        profile: user,
+      }];
+    });
   }
 
   async function handleRemove(userId: string) {
@@ -232,16 +252,6 @@ export default function SprintDetailClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => startTransition(() => router.push("/leave"))}
-            className="h-9 px-3 gap-2"
-            title="Open the shared leave calendar"
-          >
-            <CalendarDays className="h-4 w-4" />
-            <span className="hidden sm:inline">Leave Calendar</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
             onClick={handleToggleStatus}
             className="h-9 px-3 gap-2"
           >
@@ -294,8 +304,12 @@ export default function SprintDetailClient({
           participants={participants}
           goals={goals}
           streams={streams}
-          leaveDeductions={leaveDeductions}
+          assignments={assignments}
+          setAssignments={setAssignments}
+          orgUsers={orgUsers}
           onPatchParticipant={patchParticipant}
+          onMemberUpserted={handleMemberUpserted}
+          onRemoveMember={handleRemove}
         />
       )}
 

@@ -11,9 +11,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createGoal, updateGoal } from "@/app/(app)/sprints/goals-actions";
+import { ROLE_OPTIONS } from "@/lib/sprintGoals";
 import type { SprintGoal, Stream } from "@/types";
 import { toast } from "sonner";
-import { Target } from "lucide-react";
+import { Target, Plus, X } from "lucide-react";
+
+interface RoleReqRow {
+  role: string;
+  pct: string;
+}
 
 interface Props {
   open: boolean;
@@ -32,12 +38,25 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
   const [points, setPoints] = useState<string>(goal ? String(goal.points) : "");
   const [streamIds, setStreamIds] = useState<string[]>(goal?.stream_ids ?? []);
   const [tagsInput, setTagsInput] = useState((goal?.tags ?? []).join(", "));
+  const [roleReqs, setRoleReqs] = useState<RoleReqRow[]>(
+    (goal?.role_requirements ?? []).map((r) => ({ role: r.role, pct: String(r.pct) })),
+  );
   const [isPending, startTransition] = useTransition();
 
   const activeStreams = streams.filter((s) => !s.is_archived || streamIds.includes(s.id));
 
   function toggleStream(id: string) {
     setStreamIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function addRoleRow() {
+    setRoleReqs((prev) => [...prev, { role: "", pct: "" }]);
+  }
+  function removeRoleRow(index: number) {
+    setRoleReqs((prev) => prev.filter((_, i) => i !== index));
+  }
+  function updateRoleRow(index: number, patch: Partial<RoleReqRow>) {
+    setRoleReqs((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   }
 
   function handleSave() {
@@ -47,7 +66,10 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
     if (!Number.isFinite(pts) || pts <= 0) return toast.error("Points must be a positive number.");
 
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
-    const payload = { title, points: pts, start_date: start, end_date: end, stream_ids: streamIds, tags };
+    const role_requirements = roleReqs
+      .filter((r) => r.role && r.pct)
+      .map((r) => ({ role: r.role, pct: Number(r.pct) }));
+    const payload = { title, points: pts, start_date: start, end_date: end, stream_ids: streamIds, tags, role_requirements };
 
     startTransition(async () => {
       const result = editing ? await updateGoal(goal!.id, payload) : await createGoal(payload);
@@ -115,6 +137,61 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
                 })}
               </div>
             )}
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600 block mb-1.5">
+              Required Roles <span className="font-normal text-slate-400">(roles + % needed to complete this goal)</span>
+            </label>
+            <div className="space-y-1.5">
+              {roleReqs.map((row, i) => {
+                // Roles already chosen in other rows can't be picked again.
+                const taken = new Set(roleReqs.filter((_, j) => j !== i).map((r) => r.role));
+                return (
+                  <div key={i} className="grid grid-cols-[1fr_84px_32px] gap-1.5 items-center">
+                    <select
+                      value={row.role}
+                      onChange={(e) => updateRoleRow(i, { role: e.target.value })}
+                      className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-indigo-400"
+                    >
+                      <option value="">Select role…</option>
+                      {ROLE_OPTIONS.filter((r) => r === row.role || !taken.has(r)).map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min={10}
+                        max={100}
+                        step={10}
+                        value={row.pct}
+                        onChange={(e) => updateRoleRow(i, { pct: e.target.value })}
+                        placeholder="%"
+                        className="text-xs h-8 pr-5 text-right"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeRoleRow(i)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 hover:bg-red-100"
+                      title="Remove role"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={addRoleRow}
+              disabled={roleReqs.length >= ROLE_OPTIONS.length}
+              className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-40"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add role
+            </button>
           </div>
 
           <div>

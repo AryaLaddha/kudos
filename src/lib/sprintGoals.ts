@@ -1,4 +1,45 @@
-import type { GoalStatus, SprintGoal, SprintRef } from "@/types";
+import type { GoalAssignment, GoalStatus, RoleRequirement, SprintGoal, SprintRef } from "@/types";
+
+// ── Capacity roles ─────────────────────────────────────────────────────────────
+// The fixed catalogue of capacity roles a goal can require and a member can fill.
+export const ROLE_OPTIONS = ["Dev", "BA", "QA", "Designer", "PM"] as const;
+export type CapacityRole = (typeof ROLE_OPTIONS)[number];
+
+/** Normalize raw role-requirement input: valid role, integer 1–100%, deduped by role. */
+export function sanitizeRoleRequirements(input: { role: string; pct: number | string }[]): RoleRequirement[] {
+  const seen = new Set<string>();
+  const out: RoleRequirement[] = [];
+  for (const r of input) {
+    const role = (r.role ?? "").trim();
+    const pct = Math.round(Number(r.pct));
+    if (!ROLE_OPTIONS.includes(role as CapacityRole)) continue;
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) continue;
+    if (seen.has(role)) continue;
+    seen.add(role);
+    out.push({ role, pct });
+  }
+  return out;
+}
+
+// ── Role coverage / gap analysis ───────────────────────────────────────────────
+
+export type RoleCoverage = {
+  role: string;
+  requiredPct: number;
+  assignedPct: number;
+  assignment: GoalAssignment | null;
+  gap: number; // required - assigned (positive = under-staffed, negative = over)
+};
+
+/** Per-role coverage for a goal: pair each required role with its assignment. */
+export function goalRoleCoverage(goal: SprintGoal, assignments: GoalAssignment[]): RoleCoverage[] {
+  const byRole = new Map(assignments.filter((a) => a.goal_id === goal.id).map((a) => [a.role, a]));
+  return (goal.role_requirements ?? []).map((req) => {
+    const assignment = byRole.get(req.role) ?? null;
+    const assignedPct = assignment?.allocation_pct ?? 0;
+    return { role: req.role, requiredPct: req.pct, assignedPct, assignment, gap: req.pct - assignedPct };
+  });
+}
 
 // ── Goal ↔ sprint relationship ────────────────────────────────────────────────
 // A goal "appears in" a sprint when their date ranges overlap. Date keys
@@ -67,6 +108,26 @@ export function effectiveExpected(
 ): number {
   if (override !== null && override !== undefined) return override;
   return autoExpectedPoints(allocations, goalsById);
+}
+
+// ── Per-user capacity from role assignments ─────────────────────────────────────
+
+/** Auto expected points for a user = Σ (goal.points × allocation% / 100) over their assignments. */
+export function assignmentExpectedPoints(
+  userAssignments: GoalAssignment[],
+  goalsById: Map<string, SprintGoal>,
+): number {
+  let total = 0;
+  for (const a of userAssignments) {
+    const goal = goalsById.get(a.goal_id);
+    if (goal) total += (goal.points * (a.allocation_pct || 0)) / 100;
+  }
+  return Math.round(total * 10) / 10;
+}
+
+/** Sum of a user's allocation percentages across all their assignments. */
+export function assignmentAllocationTotal(userAssignments: GoalAssignment[]): number {
+  return userAssignments.reduce((s, a) => s + (a.allocation_pct || 0), 0);
 }
 
 // ── Goal History journey ──────────────────────────────────────────────────────

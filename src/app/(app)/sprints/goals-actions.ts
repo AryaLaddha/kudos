@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { canManageSprints } from "@/lib/auth";
-import { clampRange, countWeekdays, formatDateRange, leaveShortLabel } from "@/lib/leave";
-import type { GoalDelay, GoalSubtask, LeaveDeduction, SprintGoal, SprintRef, Stream } from "@/types";
+import { sanitizeRoleRequirements } from "@/lib/sprintGoals";
+import type { GoalAssignment, GoalDelay, GoalSubtask, RoleRequirement, SprintGoal, SprintRef, Stream } from "@/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_TITLE = 120;
@@ -94,11 +94,13 @@ export async function createGoal(payload: {
   end_date: string;
   stream_ids: string[];
   tags: string[];
+  role_requirements?: RoleRequirement[];
 }): Promise<{ error?: string; goal?: SprintGoal }> {
   const { supabase, orgId, user } = await requireSprintClient();
   const err = validateGoalInput(payload);
   if (err) return { error: err };
   const tags = payload.tags.map((t) => t.trim()).filter(Boolean).filter((t) => t.length <= MAX_TAG);
+  const roleRequirements = sanitizeRoleRequirements(payload.role_requirements ?? []);
   const { data, error } = await supabase
     .from("sprint_goals")
     .insert({
@@ -110,6 +112,7 @@ export async function createGoal(payload: {
       original_end_date: payload.end_date,
       stream_ids: payload.stream_ids,
       tags,
+      role_requirements: roleRequirements,
       created_by: user.id,
     })
     .select(GOAL_SELECT)
@@ -120,7 +123,7 @@ export async function createGoal(payload: {
 
 export async function updateGoal(
   id: string,
-  payload: { title: string; points: number; start_date: string; end_date: string; stream_ids: string[]; tags: string[]; status?: SprintGoal["status"] },
+  payload: { title: string; points: number; start_date: string; end_date: string; stream_ids: string[]; tags: string[]; role_requirements?: RoleRequirement[]; status?: SprintGoal["status"] },
 ): Promise<{ error?: string; goal?: SprintGoal }> {
   const { supabase } = await requireSprintClient();
   const err = validateGoalInput(payload);
@@ -133,6 +136,7 @@ export async function updateGoal(
     end_date: payload.end_date,
     stream_ids: payload.stream_ids,
     tags,
+    role_requirements: sanitizeRoleRequirements(payload.role_requirements ?? []),
   };
   if (payload.status) patch.status = payload.status;
   const { data, error } = await supabase.from("sprint_goals").update(patch).eq("id", id).select(GOAL_SELECT).single();
@@ -238,54 +242,112 @@ export async function markGoalDelayed(
 
 // ── Capacity ──────────────────────────────────────────────────────────────────
 
-/** Per-user leave deductions inside a sprint window (1 pt per working day). */
-export async function getSprintLeaveDeductions(sprintId: string): Promise<Record<string, LeaveDeduction>> {
+/** All role assignments for a sprint (goal × role × person). */
+export async function getGoalAssignments(sprintId: string): Promise<GoalAssignment[]> {
   const { supabase, orgId } = await requireSprintClient();
-  const { data: sprint } = await supabase.from("sprints").select("start_date, end_date").eq("id", sprintId).single();
-  if (!sprint) return {};
-  const { data: leaves } = await supabase
-    .from("leaves")
-    .select("user_id, leave_type, custom_label, start_date, end_date")
+  const { data } = await supabase
+    .from("goal_assignments")
+    .select("*")
     .eq("org_id", orgId)
-    .lte("start_date", sprint.end_date)
-    .gte("end_date", sprint.start_date);
+    .eq("sprint_id", sprintId);
+  return (data as GoalAssignment[]) ?? [];
+}
 
-  const byUser: Record<string, LeaveDeduction> = {};
-  for (const lv of leaves ?? []) {
-    const clamped = clampRange(lv.start_date, lv.end_date, sprint.start_date, sprint.end_date);
-    if (!clamped) continue;
-    const days = countWeekdays(clamped.start, clamped.end);
-    if (days <= 0) continue;
-    const entry = byUser[lv.user_id] ?? { days: 0, notices: [] };
-    entry.days += days;
-    const label = leaveShortLabel(lv.leave_type, lv.custom_label);
-    const plural = days > 1 ? "s" : "";
-    entry.notices.push(`${days} day${plural} leave ${formatDateRange(clamped.start, clamped.end)} (${label}) → -${days} pt${plural}`);
-    byUser[lv.user_id] = entry;
-  }
-  return byUser;
+/** Assign (or re-assign) a person + allocation to a role on a goal. */
+export async function assignRole(payload: {
+  sprintId: string;
+  goalId: string;
+  role: string;
+  userId: string;
+  allocationPct: number;
+}): Promise<{ error?: string; assignment?: GoalAssignment }> {
+  const { supabase, orgId } = await requireSprintClient();
+  const pct = Math.round(Number(payload.allocationPct));
+  if (!payload.userId) return { error: "Pick a person to assign." };
+  if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return { error: "Allocation must be between 1 and 100%." };
+  const { data, error } = await supabase
+    .from("goal_assignments")
+    .upsert(
+      {
+        org_id: orgId,
+        sprint_id: payload.sprintId,
+        goal_id: payload.goalId,
+        role: payload.role,
+        user_id: payload.userId,
+        allocation_pct: pct,
+      },
+      { onConflict: "sprint_id,goal_id,role" },
+    )
+    .select("*")
+    .single();
+  if (error) return { error: error.message };
+  revalidatePath(`/sprints/${payload.sprintId}`);
+  return { assignment: data as GoalAssignment };
+}
+
+/** Clear the assignment for a role on a goal. */
+export async function unassignRole(payload: {
+  sprintId: string;
+  goalId: string;
+  role: string;
+}): Promise<{ error?: string }> {
+  const { supabase, orgId } = await requireSprintClient();
+  const { error } = await supabase
+    .from("goal_assignments")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("sprint_id", payload.sprintId)
+    .eq("goal_id", payload.goalId)
+    .eq("role", payload.role);
+  if (error) return { error: error.message };
+  revalidatePath(`/sprints/${payload.sprintId}`);
+  return {};
+}
+
+/** Add (or update) a sprint capacity member: role + expected points. */
+export async function addSprintMember(payload: {
+  sprintId: string;
+  userId: string;
+  role: string;
+  expectedPoints: number | null;
+}): Promise<{ error?: string }> {
+  const { supabase } = await requireSprintClient();
+  if (!payload.userId) return { error: "Pick a person to add." };
+  const expected =
+    payload.expectedPoints === null || payload.expectedPoints === undefined
+      ? null
+      : Math.max(0, Math.round(Number(payload.expectedPoints)));
+  const { error } = await supabase.from("sprint_participants").upsert(
+    {
+      sprint_id: payload.sprintId,
+      user_id: payload.userId,
+      role: payload.role || null,
+      expected_override: expected,
+      base_points: 0,
+      scores: {},
+    },
+    { onConflict: "sprint_id,user_id" },
+  );
+  if (error) return { error: error.message };
+  revalidatePath(`/sprints/${payload.sprintId}`);
+  return {};
 }
 
 export async function updateParticipantCapacity(
   sprintId: string,
   userId: string,
   payload: {
-    goal_allocations: Record<string, number>;
+    role: string | null;
     expected_override: number | null;
     manual_deducted_points: number;
     stream_ids: string[];
   },
 ): Promise<{ error?: string }> {
   const { supabase } = await requireSprintClient();
-  const allocations: Record<string, number> = {};
-  for (const [goalId, pct] of Object.entries(payload.goal_allocations)) {
-    const n = Number(pct);
-    if (Number.isFinite(n) && n > 0) allocations[goalId] = Math.round(n);
-  }
   const { error } = await supabase
     .from("sprint_participants")
     .update({
-      goal_allocations: allocations,
+      role: payload.role || null,
       expected_override: payload.expected_override,
       manual_deducted_points: Math.max(0, Math.round(payload.manual_deducted_points || 0)),
       stream_ids: payload.stream_ids,

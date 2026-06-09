@@ -3,18 +3,18 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createStream, setStreamArchived } from "@/app/(app)/admin/streams/actions";
+import { createStream, setStreamArchived } from "@/app/(app)/sprints/goals-actions";
 import { colorForId } from "@/lib/sprintGoals";
 import type { Stream } from "@/types";
 import { toast } from "sonner";
 import { Plus, Archive, ArchiveRestore, Layers } from "lucide-react";
 
 interface Props {
-  initialStreams: Stream[];
+  streams: Stream[];
+  setStreams: React.Dispatch<React.SetStateAction<Stream[]>>;
 }
 
-export default function StreamsManagementClient({ initialStreams }: Props) {
-  const [streams, setStreams] = useState<Stream[]>(initialStreams);
+export default function StreamsManagementClient({ streams, setStreams }: Props) {
   const [name, setName] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -51,16 +51,10 @@ export default function StreamsManagementClient({ initialStreams }: Props) {
   const archived = streams.filter((s) => s.is_archived);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      {/* Header */}
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100">
-          <Layers className="h-5 w-5 text-violet-600" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Streams</h1>
-          <p className="text-sm text-slate-500">Work streams used to tag goals and people across sprints</p>
-        </div>
+    <div className="max-w-2xl">
+      <div className="mb-4 flex items-center gap-2">
+        <Layers className="h-4 w-4 text-slate-400" />
+        <p className="text-sm text-slate-500">Work streams are shared org-wide and used to tag goals and people across every sprint.</p>
       </div>
 
       {/* Create */}

@@ -310,6 +310,7 @@ export default function SprintDetailClient({
           onPatchParticipant={patchParticipant}
           onMemberUpserted={handleMemberUpserted}
           onRemoveMember={handleRemove}
+          onGoalChange={(g) => setGoals((prev) => prev.map((x) => (x.id === g.id ? g : x)))}
         />
       )}
 

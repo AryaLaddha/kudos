@@ -29,6 +29,8 @@ interface Props {
   orgUsers: OrgUser[];
 }
 
+const NO_STREAM = "__none__";
+
 export default function SprintGoalsClient({ goals, setGoals, streams, sprint, orgUsers }: Props) {
   const [streamFilter, setStreamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -38,10 +40,6 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
   const [delayGoal, setDelayGoal] = useState<SprintGoal | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const streamName = useMemo(() => {
-    const m = new Map(streams.map((s) => [s.id, s.name]));
-    return (id: string) => m.get(id) ?? "Stream";
-  }, [streams]);
   const userName = useMemo(() => {
     const m = new Map(orgUsers.map((u) => [u.id, u.full_name]));
     return (id: string | null) => (id ? m.get(id) ?? "Someone" : "Someone");
@@ -57,6 +55,22 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
       return true;
     });
   }, [goals, streamFilter, statusFilter, pointsFilter]);
+
+  // Group the filtered goals by their first stream (unstreamed → "Other").
+  const grouped = useMemo(() => {
+    const byStream = new Map<string, SprintGoal[]>();
+    for (const g of filtered) {
+      const key = g.stream_ids[0] ?? NO_STREAM;
+      if (!byStream.has(key)) byStream.set(key, []);
+      byStream.get(key)!.push(g);
+    }
+    const ordered: { key: string; label: string; goals: SprintGoal[] }[] = [];
+    for (const s of streams) {
+      if (byStream.has(s.id)) ordered.push({ key: s.id, label: s.name, goals: byStream.get(s.id)! });
+    }
+    if (byStream.has(NO_STREAM)) ordered.push({ key: NO_STREAM, label: "Other", goals: byStream.get(NO_STREAM)! });
+    return ordered;
+  }, [filtered, streams]);
 
   // ── Mutations (optimistic-ish: apply returned rows to local state) ──
   function upsertGoal(goal: SprintGoal) {
@@ -105,21 +119,35 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
           <p className="text-sm font-medium text-slate-400">{goals.length === 0 ? "No goals in this sprint window yet." : "No goals match your filters."}</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((goal) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              expanded={expanded.has(goal.id)}
-              onToggleExpand={() => toggleExpand(goal.id)}
-              streamName={streamName}
-              userName={userName}
-              onEdit={() => setEditGoal(goal)}
-              onDelay={() => setDelayGoal(goal)}
-              onComplete={upsertGoal}
-              onDeleted={(id) => setGoals((prev) => prev.filter((g) => g.id !== id))}
-              patchGoal={patchGoal}
-            />
+        <div className="space-y-6">
+          {grouped.map((group) => (
+            <div key={group.key}>
+              <div className="flex items-center gap-2 mb-2.5">
+                {group.key !== NO_STREAM && (
+                  <span className="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" style={{ background: colorForId(group.key) }}>
+                    {group.label}
+                  </span>
+                )}
+                <h3 className="text-sm font-bold text-slate-800">{group.label} Goals</h3>
+                <span className="text-[11px] font-semibold text-slate-400">{group.goals.length}</span>
+              </div>
+              <div className="space-y-3">
+                {group.goals.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    expanded={expanded.has(goal.id)}
+                    onToggleExpand={() => toggleExpand(goal.id)}
+                    userName={userName}
+                    onEdit={() => setEditGoal(goal)}
+                    onDelay={() => setDelayGoal(goal)}
+                    onComplete={upsertGoal}
+                    onDeleted={(id) => setGoals((prev) => prev.filter((g) => g.id !== id))}
+                    patchGoal={patchGoal}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -153,7 +181,6 @@ interface GoalCardProps {
   goal: SprintGoal;
   expanded: boolean;
   onToggleExpand: () => void;
-  streamName: (id: string) => string;
   userName: (id: string | null) => string;
   onEdit: () => void;
   onDelay: () => void;
@@ -162,7 +189,7 @@ interface GoalCardProps {
   patchGoal: (id: string, patch: Partial<SprintGoal>) => void;
 }
 
-function GoalCard({ goal, expanded, onToggleExpand, streamName, userName, onEdit, onDelay, onComplete, onDeleted, patchGoal }: GoalCardProps) {
+function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, onComplete, onDeleted, patchGoal }: GoalCardProps) {
   const [isPending, startTransition] = useTransition();
   const [newSubtask, setNewSubtask] = useState("");
   const [newSubDue, setNewSubDue] = useState("");
@@ -234,9 +261,6 @@ function GoalCard({ goal, expanded, onToggleExpand, streamName, userName, onEdit
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-sm font-bold ${isCompleted ? "line-through text-slate-400" : "text-slate-900"}`}>{goal.title}</span>
             <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: status.pillBg, color: status.pillText }}>{status.label}</span>
-            {goal.stream_ids.map((sid) => (
-              <span key={sid} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${colorForId(sid)}1A`, color: colorForId(sid) }}>{streamName(sid)}</span>
-            ))}
             {goal.tags.map((t) => (
               <span key={t} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{t}</span>
             ))}

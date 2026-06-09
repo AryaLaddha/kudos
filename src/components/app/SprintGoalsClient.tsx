@@ -267,6 +267,20 @@ function GoalCard({ goal, expanded, onToggleExpand, streamName, userName, onEdit
         </div>
       </div>
 
+      {/* Required roles */}
+      {(goal.role_requirements ?? []).length > 0 && (
+        <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Required Roles</p>
+          <div className="flex flex-wrap gap-1.5">
+            {goal.role_requirements.map((r) => (
+              <span key={r.role} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                {r.role} <span className="text-indigo-600 font-bold">{r.pct}%</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Delay strip */}
       {latestDelay && (
         <div className="flex items-start gap-2 border-t border-red-100 bg-red-50/60 px-4 py-2.5">

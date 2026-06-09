@@ -4,7 +4,7 @@ import {
   getSprintGoals,
   getGoalHistory,
   getStreams,
-  getSprintLeaveDeductions,
+  getGoalAssignments,
 } from "@/app/(app)/sprints/goals-actions";
 import { notFound } from "next/navigation";
 import SprintDetailClient from "@/components/app/SprintDetailClient";
@@ -19,14 +19,14 @@ export default async function SprintDetailPage({ params }: Props) {
   await requireSprintManager();
   const { id } = await params;
 
-  const [sprint, participants, orgUsers, goals, history, streams, leaveDeductions] = await Promise.all([
+  const [sprint, participants, orgUsers, goals, history, streams, assignments] = await Promise.all([
     getSprintById(id),
     getSprintParticipants(id),
     getOrgUsers(),
     getSprintGoals(id),
     getGoalHistory(),
     getStreams(),
-    getSprintLeaveDeductions(id),
+    getGoalAssignments(id),
   ]);
 
   if (!sprint) notFound();
@@ -40,7 +40,7 @@ export default async function SprintDetailPage({ params }: Props) {
       historyGoals={history.goals}
       allSprints={history.sprints}
       streams={streams}
-      leaveDeductions={leaveDeductions}
+      assignments={assignments}
     />
   );
 }

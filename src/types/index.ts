@@ -93,22 +93,6 @@ export type GoalDefinition = {
   created_at: string;
 };
 
-export type LeaveType = "annual" | "sick" | "public_holiday" | "emergency" | "custom";
-
-export type Leave = {
-  id: string;
-  org_id: string;
-  user_id: string;
-  leave_type: LeaveType;
-  custom_label: string | null;
-  start_date: string; // YYYY-MM-DD
-  end_date: string;   // YYYY-MM-DD
-  created_at: string;
-  // Embedded author info (joined on read)
-  user_name?: string;
-  avatar_url?: string | null;
-};
-
 // ── Sprint Goals · Capacity Planning ──────────────────────────────────────────
 
 export type Stream = {
@@ -118,6 +102,24 @@ export type Stream = {
 };
 
 export type GoalStatus = "on_track" | "delayed" | "completed" | "carried_over";
+
+// A role requirement on a goal: how much of a given role is needed to deliver it.
+export type RoleRequirement = {
+  role: string;
+  pct: number;
+};
+
+// One person filling one role on a goal within a sprint.
+export type GoalAssignment = {
+  id: string;
+  org_id: string;
+  sprint_id: string;
+  goal_id: string;
+  role: string;
+  user_id: string;
+  allocation_pct: number;
+  created_at: string;
+};
 
 export type GoalSubtask = {
   id: string;
@@ -155,6 +157,7 @@ export type SprintGoal = {
   status: GoalStatus;
   stream_ids: string[];
   tags: string[];
+  role_requirements: RoleRequirement[];
   completed_at: string | null;
   completed_by: string | null;
   created_by: string | null;
@@ -172,12 +175,6 @@ export type SprintRef = {
   end_date: string;
 };
 
-// Per-user leave deduction within a sprint window (computed, not stored).
-export type LeaveDeduction = {
-  days: number;
-  notices: string[];
-};
-
 // A sprint_participants row enriched with capacity fields + profile.
 export type CapacityParticipant = {
   user_id: string;
@@ -187,6 +184,7 @@ export type CapacityParticipant = {
   goal_allocations: Record<string, number>;
   expected_override: number | null;
   manual_deducted_points: number;
+  role: string | null;
   stream_ids: string[];
   profile: { id: string; full_name: string; avatar_url: string | null; job_title: string | null };
 };

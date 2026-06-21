@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Trophy, Medal, Zap, Coins } from "lucide-react";
 import { LeaderboardFilter } from "@/components/app/LeaderboardFilter";
 import { SprintLeaderboardFilter } from "@/components/app/SprintLeaderboardFilter";
+import { LeaderboardPresentationMode } from "@/components/app/LeaderboardPresentationMode";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -181,7 +182,16 @@ export default async function LeaderboardPage({
           {/* Tab-specific filter */}
           {activeTab === "recognition" && <LeaderboardFilter />}
           {activeTab === "sprint" && completedSprintList.length > 0 && (
-            <SprintLeaderboardFilter sprints={completedSprintList} />
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <SprintLeaderboardFilter sprints={completedSprintList} />
+              {ranked.length > 0 && (
+                <LeaderboardPresentationMode
+                  people={ranked}
+                  sprintName={selectedSprintName}
+                  sprintDateRange={sprintDateRange}
+                />
+              )}
+            </div>
           )}
         </div>
 

@@ -16,6 +16,7 @@ const navItems = [
   { href: "/give", label: "Give Kudos", icon: Heart },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/goals", label: "Goals", icon: Target },
+  { href: "/sprint-capacity", label: "Sprint Capacity", icon: Zap },
   { href: "/admin/goals", label: "All Goals", icon: Target, adminLabel: "Goals Management" },
 ];
 
@@ -133,7 +134,7 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
           {navItems.map((item) => {
-            const active = pathname === item.href || pendingHref === item.href;
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`) || pendingHref === item.href;
             const loading = isPending && pendingHref === item.href;
             const label = profile?.is_admin && "adminLabel" in item ? item.adminLabel : item.label;
             return (

@@ -155,13 +155,24 @@ export default function CapacityPlanningClient({
     });
   }, [goals, streamFilter, statusFilter, goalIdsForUser]);
 
-  // People summary respects the member filter.
-  const visibleRows = useMemo(
-    () => (userFilter === "all" ? rows : rows.filter((r) => r.member.user_id === userFilter)),
-    [rows, userFilter],
-  );
-
   const filtersActive = streamFilter !== "all" || statusFilter !== "all" || userFilter !== "all";
+  const goalScopeActive = streamFilter !== "all" || statusFilter !== "all";
+
+  // People summary follows the same top filters as the goal/role table.
+  const visibleRows = useMemo(() => {
+    const visibleGoalIds = new Set(filteredGoals.map((g) => g.id));
+    return rows
+      .filter((r) => userFilter === "all" || r.member.user_id === userFilter)
+      .map((r) => {
+        const userAssignments = r.userAssignments.filter((a) => visibleGoalIds.has(a.goal_id));
+        const allocated = assignmentExpectedPoints(userAssignments, goalsById);
+        const utilization = r.hasExpected && r.expected && r.expected > 0 ? Math.round((allocated / r.expected) * 100) : null;
+        const over = r.hasExpected && allocated > (r.expected ?? 0);
+        const under = r.hasExpected && allocated < (r.expected ?? 0);
+        return { ...r, userAssignments, allocated, utilization, over, under };
+      })
+      .filter((r) => !goalScopeActive || r.userAssignments.length > 0);
+  }, [filteredGoals, goalScopeActive, goalsById, rows, userFilter]);
 
   // Goals grouped by their first stream (unstreamed goals fall under "Other").
   const streamGroups = useMemo(() => {

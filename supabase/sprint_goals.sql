@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS sprint_goals (
   sprint_id         uuid REFERENCES sprints(id) ON DELETE SET NULL,
   title             text NOT NULL,
   description       text,
-  points            int CHECK (points IS NULL OR points > 0),
+  points            numeric CHECK (points IS NULL OR points > 0),
   start_date        date,
   end_date          date,
   -- original_end_date is captured at creation; end_date may be pushed out by a delay.

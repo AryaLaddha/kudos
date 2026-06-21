@@ -12,6 +12,9 @@ ALTER TABLE sprint_goals
   ALTER COLUMN original_end_date DROP NOT NULL;
 
 ALTER TABLE sprint_goals
+  ALTER COLUMN points TYPE numeric USING points::numeric;
+
+ALTER TABLE sprint_goals
   DROP CONSTRAINT IF EXISTS sprint_goals_points_check,
   ADD CONSTRAINT sprint_goals_points_check CHECK (points IS NULL OR points > 0);
 

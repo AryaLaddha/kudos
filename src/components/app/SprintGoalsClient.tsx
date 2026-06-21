@@ -11,13 +11,14 @@ import {
   addSubtask,
   toggleSubtask,
   deleteSubtask,
+  updateGoalsBulk,
 } from "@/app/(app)/sprints/goals-actions";
-import { GOAL_STATUS_META, GOAL_STATUSES, colorForId } from "@/lib/sprintGoals";
+import { GOAL_STATUS_META, GOAL_STATUSES, ROLE_OPTIONS, colorForId } from "@/lib/sprintGoals";
 import { formatDateRange, formatShortDate } from "@/lib/leave";
-import type { SprintGoal, Stream } from "@/types";
+import type { GoalStatus, RoleRequirement, SprintGoal, Stream } from "@/types";
 import { toast } from "sonner";
 import {
-  Plus, ChevronDown, Trash2, AlertTriangle, CheckCircle2, Circle, Pencil, CalendarDays, ListChecks,
+  Plus, ChevronDown, Trash2, AlertTriangle, CheckCircle2, Circle, Pencil, CalendarDays, ListChecks, Save, X,
 } from "lucide-react";
 
 interface OrgUser { id: string; full_name: string; }
@@ -31,6 +32,41 @@ interface Props {
 
 const NO_STREAM = "__none__";
 
+type GoalDraft = {
+  title: string;
+  points: string;
+  start_date: string;
+  end_date: string;
+  status: GoalStatus;
+  stream_ids: string[];
+  tags: string;
+  role_requirements: string;
+};
+
+function roleRequirementsText(reqs: RoleRequirement[]) {
+  return reqs.map((r) => `${r.role}:${r.pct}`).join(", ");
+}
+
+function parseRoleRequirements(value: string): RoleRequirement[] | string {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  const validRoles = new Set<string>(ROLE_OPTIONS);
+  const seen = new Set<string>();
+  const out: RoleRequirement[] = [];
+
+  for (const part of trimmed.split(",")) {
+    const [roleRaw, pctRaw] = part.split(":").map((s) => s?.trim());
+    if (!roleRaw || !pctRaw) return "Use role requirements like Dev:50, QA:50.";
+    if (!validRoles.has(roleRaw)) return `${roleRaw} is not a valid role.`;
+    if (seen.has(roleRaw)) return `${roleRaw} is listed more than once.`;
+    const pct = Math.round(Number(pctRaw));
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return "Role percentages must be between 1 and 100.";
+    seen.add(roleRaw);
+    out.push({ role: roleRaw, pct });
+  }
+  return out;
+}
+
 export default function SprintGoalsClient({ goals, setGoals, streams, sprint, orgUsers }: Props) {
   const [streamFilter, setStreamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -39,6 +75,9 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
   const [editGoal, setEditGoal] = useState<SprintGoal | null>(null);
   const [delayGoal, setDelayGoal] = useState<SprintGoal | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [bulkEditing, setBulkEditing] = useState(false);
+  const [bulkSaving, startBulkSave] = useTransition();
+  const [drafts, setDrafts] = useState<Record<string, GoalDraft>>({});
 
   const userName = useMemo(() => {
     const m = new Map(orgUsers.map((u) => [u.id, u.full_name]));
@@ -88,6 +127,72 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
     });
   }
 
+  function startEditAll() {
+    setDrafts(Object.fromEntries(goals.map((g) => [g.id, {
+      title: g.title,
+      points: String(g.points),
+      start_date: g.start_date,
+      end_date: g.end_date,
+      status: g.status,
+      stream_ids: g.stream_ids,
+      tags: g.tags.join(", "),
+      role_requirements: roleRequirementsText(g.role_requirements ?? []),
+    } satisfies GoalDraft])));
+    setBulkEditing(true);
+  }
+
+  function cancelEditAll() {
+    setBulkEditing(false);
+    setDrafts({});
+  }
+
+  function patchDraft(id: string, patch: Partial<GoalDraft>) {
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
+
+  function toggleDraftStream(goalId: string, streamId: string) {
+    setDrafts((prev) => {
+      const current = prev[goalId]?.stream_ids ?? [];
+      const next = current.includes(streamId) ? current.filter((id) => id !== streamId) : [...current, streamId];
+      return { ...prev, [goalId]: { ...prev[goalId], stream_ids: next } };
+    });
+  }
+
+  function saveEditAll() {
+    const updates = goals.map((goal) => {
+      const draft = drafts[goal.id];
+      if (!draft) return null;
+      const points = Number(draft.points);
+      const roleReqs = parseRoleRequirements(draft.role_requirements);
+      if (typeof roleReqs === "string") {
+        toast.error(`${goal.title}: ${roleReqs}`);
+        return "invalid";
+      }
+      return {
+        id: goal.id,
+        title: draft.title,
+        points,
+        start_date: draft.start_date,
+        end_date: draft.end_date,
+        stream_ids: draft.stream_ids,
+        tags: draft.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        role_requirements: roleReqs,
+        status: draft.status,
+      };
+    });
+    if (updates.includes("invalid")) return;
+    const cleanUpdates = updates.filter(Boolean) as Exclude<(typeof updates)[number], null | "invalid">[];
+
+    startBulkSave(async () => {
+      const res = await updateGoalsBulk(sprint.id, cleanUpdates);
+      if (res.error || !res.goals) { toast.error(res.error ?? "Couldn't save goals."); return; }
+      setGoals((prev) => prev.map((g) => res.goals!.find((saved) => saved.id === g.id) ?? g));
+      setBulkEditing(false);
+      setDrafts({});
+      toast.success("All sprint goals saved.");
+    });
+  }
+
   return (
     <div>
       {/* Filters */}
@@ -107,13 +212,37 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
           <option value="7+">7+ pts</option>
         </select>
         <div className="flex-1" />
-        <Button size="sm" onClick={() => setNewOpen(true)} className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3">
-          <Plus className="h-3.5 w-3.5" /> New Goal
-        </Button>
+        {bulkEditing ? (
+          <>
+            <Button size="sm" variant="outline" onClick={cancelEditAll} disabled={bulkSaving} className="h-8 gap-1.5 text-xs px-3">
+              <X className="h-3.5 w-3.5" /> Cancel
+            </Button>
+            <Button size="sm" onClick={saveEditAll} disabled={bulkSaving} className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3">
+              <Save className="h-3.5 w-3.5" /> {bulkSaving ? "Saving..." : "Save all"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button size="sm" variant="outline" onClick={startEditAll} disabled={goals.length === 0} className="h-8 gap-1.5 text-xs px-3">
+              <Pencil className="h-3.5 w-3.5" /> Edit all
+            </Button>
+            <Button size="sm" onClick={() => setNewOpen(true)} className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3">
+              <Plus className="h-3.5 w-3.5" /> New Goal
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Goal list */}
-      {filtered.length === 0 ? (
+      {bulkEditing ? (
+        <BulkGoalsEditor
+          grouped={grouped}
+          drafts={drafts}
+          streams={streams}
+          onPatch={patchDraft}
+          onToggleStream={toggleDraftStream}
+        />
+      ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
           <ListChecks className="mx-auto h-8 w-8 text-slate-200 mb-2" />
           <p className="text-sm font-medium text-slate-400">{goals.length === 0 ? "No goals in this sprint window yet." : "No goals match your filters."}</p>
@@ -171,6 +300,120 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
         sprint={sprint}
         onSaved={(g) => { upsertGoal(g); setDelayGoal(null); }}
       />
+    </div>
+  );
+}
+
+function BulkGoalsEditor({
+  grouped,
+  drafts,
+  streams,
+  onPatch,
+  onToggleStream,
+}: {
+  grouped: { key: string; label: string; goals: SprintGoal[] }[];
+  drafts: Record<string, GoalDraft>;
+  streams: Stream[];
+  onPatch: (id: string, patch: Partial<GoalDraft>) => void;
+  onToggleStream: (goalId: string, streamId: string) => void;
+}) {
+  if (grouped.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+        <ListChecks className="mx-auto h-8 w-8 text-slate-200 mb-2" />
+        <p className="text-sm font-medium text-slate-400">No goals match your filters.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {grouped.map((group) => (
+        <div key={group.key}>
+          <div className="flex items-center gap-2 mb-2.5">
+            {group.key !== NO_STREAM && (
+              <span className="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" style={{ background: colorForId(group.key) }}>
+                {group.label}
+              </span>
+            )}
+            <h3 className="text-sm font-bold text-slate-800">{group.label} Goals</h3>
+            <span className="text-[11px] font-semibold text-slate-400">{group.goals.length}</span>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+            <table className="w-full min-w-[980px] border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2.5 w-[240px]">Goal</th>
+                  <th className="px-3 py-2.5 w-[86px]">Points</th>
+                  <th className="px-3 py-2.5 w-[250px]">Dates</th>
+                  <th className="px-3 py-2.5 w-[130px]">Status</th>
+                  <th className="px-3 py-2.5 w-[220px]">Streams</th>
+                  <th className="px-3 py-2.5 w-[210px]">Tags</th>
+                  <th className="px-3 py-2.5 w-[210px]">Roles</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.goals.map((goal) => {
+                  const draft = drafts[goal.id];
+                  if (!draft) return null;
+                  const activeStreams = streams.filter((s) => !s.is_archived || draft.stream_ids.includes(s.id));
+
+                  return (
+                    <tr key={goal.id} className="border-b border-slate-100 last:border-b-0 align-top">
+                      <td className="px-3 py-3">
+                        <Input value={draft.title} onChange={(e) => onPatch(goal.id, { title: e.target.value })} maxLength={120} className="h-8 text-xs" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <Input type="number" min={1} value={draft.points} onChange={(e) => onPatch(goal.id, { points: e.target.value })} className="h-8 text-xs" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <Input type="date" value={draft.start_date} max={draft.end_date || undefined} onChange={(e) => onPatch(goal.id, { start_date: e.target.value, end_date: draft.end_date && e.target.value > draft.end_date ? e.target.value : draft.end_date })} className="h-8 text-xs" />
+                          <Input type="date" value={draft.end_date} min={draft.start_date || undefined} onChange={(e) => onPatch(goal.id, { end_date: e.target.value })} className="h-8 text-xs" />
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <select value={draft.status} onChange={(e) => onPatch(goal.id, { status: e.target.value as GoalStatus })} className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none">
+                          {GOAL_STATUSES.map((s) => <option key={s} value={s}>{GOAL_STATUS_META[s].label}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-3 py-3">
+                        {activeStreams.length === 0 ? (
+                          <span className="text-[11px] text-slate-400">No streams</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {activeStreams.map((stream) => {
+                              const on = draft.stream_ids.includes(stream.id);
+                              return (
+                                <button
+                                  key={stream.id}
+                                  type="button"
+                                  onClick={() => onToggleStream(goal.id, stream.id)}
+                                  className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${on ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300"}`}
+                                >
+                                  {stream.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <Input value={draft.tags} onChange={(e) => onPatch(goal.id, { tags: e.target.value })} placeholder="tag, tag" className="h-8 text-xs" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <Input value={draft.role_requirements} onChange={(e) => onPatch(goal.id, { role_requirements: e.target.value })} placeholder="Dev:50, QA:50" className="h-8 text-xs" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+      <p className="text-[11px] text-slate-400">Role format: Dev:50, QA:50. Leaving roles blank removes required roles for that goal.</p>
     </div>
   );
 }

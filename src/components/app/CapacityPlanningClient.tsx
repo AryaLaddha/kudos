@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +21,10 @@ import {
   ROLE_OPTIONS,
   type RoleCoverage,
 } from "@/lib/sprintGoals";
-import { assignRole, unassignRole, addSprintMember, setGoalRoleRequirements } from "@/app/(app)/sprints/goals-actions";
+import { assignRole, unassignRole, addSprintMember, setGoalRoleRequirements, updateCapacityPlanBulk } from "@/app/(app)/sprints/goals-actions";
 import { formatDateRange } from "@/lib/leave";
-import type { GoalAssignment, SprintGoal, Stream } from "@/types";
-import { Pencil, Users, Plus, X, Check, Trash2 } from "lucide-react";
+import type { GoalAssignment, RoleRequirement, SprintGoal, Stream } from "@/types";
+import { Pencil, Users, Plus, X, Check, Trash2, Save } from "lucide-react";
 import { toast } from "sonner";
 
 interface CapacityMember {
@@ -57,12 +57,28 @@ function initials(n: string) {
 
 const NO_STREAM = "__none__";
 
+type MemberDraft = {
+  role: string;
+  expected_override: string;
+  stream_ids: string[];
+};
+
+type RoleDraft = {
+  user_id: string;
+  allocation_pct: string;
+  required_pct: string;
+};
+
 export default function CapacityPlanningClient({
   sprint, participants, goals, streams, assignments, setAssignments, orgUsers,
   onPatchParticipant, onMemberUpserted, onRemoveMember, onGoalChange,
 }: Props) {
   const [editing, setEditing] = useState<CapacityMember | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [bulkEditing, setBulkEditing] = useState(false);
+  const [bulkSaving, startBulkSave] = useTransition();
+  const [memberDrafts, setMemberDrafts] = useState<Record<string, MemberDraft>>({});
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, RoleDraft>>({});
 
   // Filters
   const [streamFilter, setStreamFilter] = useState("all");
@@ -208,6 +224,123 @@ export default function CapacityPlanningClient({
     toast.success("Role added to goal.");
   }
 
+  function roleKey(goalId: string, role: string) {
+    return `${goalId}::${role}`;
+  }
+
+  function startEditAll() {
+    setMemberDrafts(Object.fromEntries(participants.map((p) => [p.user_id, {
+      role: p.role ?? "",
+      expected_override: p.expected_override !== null && p.expected_override !== undefined ? String(p.expected_override) : "",
+      stream_ids: p.stream_ids ?? [],
+    } satisfies MemberDraft])));
+
+    const assignmentByGoalRole = new Map(assignments.map((a) => [roleKey(a.goal_id, a.role), a]));
+    setRoleDrafts(Object.fromEntries(goals.flatMap((goal) => (goal.role_requirements ?? []).map((req) => {
+      const current = assignmentByGoalRole.get(roleKey(goal.id, req.role));
+      return [roleKey(goal.id, req.role), {
+        user_id: current?.user_id ?? "",
+        allocation_pct: current ? String(current.allocation_pct) : String(req.pct),
+        required_pct: String(req.pct),
+      } satisfies RoleDraft];
+    }))));
+    setBulkEditing(true);
+  }
+
+  function cancelEditAll() {
+    setBulkEditing(false);
+    setMemberDrafts({});
+    setRoleDrafts({});
+  }
+
+  function patchMemberDraft(userId: string, patch: Partial<MemberDraft>) {
+    setMemberDrafts((prev) => ({ ...prev, [userId]: { ...prev[userId], ...patch } }));
+  }
+
+  function toggleMemberStream(userId: string, streamId: string) {
+    setMemberDrafts((prev) => {
+      const current = prev[userId]?.stream_ids ?? [];
+      const next = current.includes(streamId) ? current.filter((id) => id !== streamId) : [...current, streamId];
+      return { ...prev, [userId]: { ...prev[userId], stream_ids: next } };
+    });
+  }
+
+  function patchRoleDraft(key: string, patch: Partial<RoleDraft>) {
+    setRoleDrafts((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  }
+
+  function saveEditAll() {
+    const participantPayload = participants.map((p) => {
+      const draft = memberDrafts[p.user_id];
+      const expected = draft.expected_override.trim() === "" ? null : Number(draft.expected_override);
+      if (expected !== null && !Number.isFinite(expected)) {
+        toast.error(`${p.profile.full_name}: expected points must be a number.`);
+        return "invalid" as const;
+      }
+      return {
+        user_id: p.user_id,
+        role: draft.role || null,
+        expected_override: expected,
+        stream_ids: draft.stream_ids,
+      };
+    });
+    if (participantPayload.includes("invalid")) return;
+
+    const roleRequirements = goals.map((goal) => {
+      const reqs: RoleRequirement[] = [];
+      for (const req of goal.role_requirements ?? []) {
+        const draft = roleDrafts[roleKey(goal.id, req.role)];
+        const pct = Math.round(Number(draft?.required_pct ?? req.pct));
+        if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+          toast.error(`${goal.title}: required ${req.role} must be between 1 and 100%.`);
+          return "invalid" as const;
+        }
+        reqs.push({ role: req.role, pct });
+      }
+      return { goal_id: goal.id, role_requirements: reqs };
+    });
+    if (roleRequirements.includes("invalid")) return;
+
+    const assignmentPayload = goals.flatMap((goal) => (goal.role_requirements ?? []).map((req) => {
+      const draft = roleDrafts[roleKey(goal.id, req.role)];
+      const allocation = draft?.allocation_pct.trim() === "" ? null : Number(draft?.allocation_pct ?? req.pct);
+      if (draft?.user_id && (allocation === null || !Number.isFinite(allocation) || allocation <= 0 || allocation > 100)) {
+        toast.error(`${goal.title}: ${req.role} allocation must be between 1 and 100%.`);
+        return "invalid" as const;
+      }
+      return {
+        goal_id: goal.id,
+        role: req.role,
+        user_id: draft?.user_id || null,
+        allocation_pct: allocation,
+      };
+    }));
+    if (assignmentPayload.includes("invalid")) return;
+
+    startBulkSave(async () => {
+      const res = await updateCapacityPlanBulk(sprint.id, {
+        participants: participantPayload as Exclude<(typeof participantPayload)[number], "invalid">[],
+        roleRequirements: roleRequirements as Exclude<(typeof roleRequirements)[number], "invalid">[],
+        assignments: assignmentPayload as Exclude<(typeof assignmentPayload)[number], "invalid">[],
+      });
+      if (res.error) { toast.error(res.error); return; }
+
+      for (const p of participantPayload as Exclude<(typeof participantPayload)[number], "invalid">[]) {
+        onPatchParticipant(p.user_id, {
+          role: p.role,
+          expected_override: p.expected_override,
+          stream_ids: p.stream_ids,
+        });
+      }
+      if (res.goals) res.goals.forEach(onGoalChange);
+      if (res.assignments) setAssignments(res.assignments);
+      setBulkEditing(false);
+      setMemberDrafts({});
+      setRoleDrafts({});
+      toast.success("Capacity plan saved.");
+    });
+  }
+
   return (
     <div>
       {/* Summary stats */}
@@ -237,6 +370,21 @@ export default function CapacityPlanningClient({
           <button onClick={() => { setStreamFilter("all"); setStatusFilter("all"); setUserFilter("all"); }} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700">
             <X className="h-3.5 w-3.5" /> Clear
           </button>
+        )}
+        <div className="flex-1" />
+        {bulkEditing ? (
+          <>
+            <Button size="sm" variant="outline" onClick={cancelEditAll} disabled={bulkSaving} className="h-8 gap-1.5 text-xs px-3">
+              <X className="h-3.5 w-3.5" /> Cancel
+            </Button>
+            <Button size="sm" onClick={saveEditAll} disabled={bulkSaving} className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3">
+              <Save className="h-3.5 w-3.5" /> {bulkSaving ? "Saving..." : "Save all"}
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="outline" onClick={startEditAll} disabled={participants.length === 0 && goals.length === 0} className="h-8 gap-1.5 text-xs px-3">
+            <Pencil className="h-3.5 w-3.5" /> Edit all
+          </Button>
         )}
       </div>
 
@@ -292,28 +440,40 @@ export default function CapacityPlanningClient({
                               <p className="text-[11px] text-slate-400 italic">No required roles yet — add one below.</p>
                             )}
                             {coverage.map((c) => (
-                              <RoleAssignRow
-                                key={c.role}
-                                goalId={goal.id}
-                                coverage={c}
-                                editing={editKey === `${goal.id}::${c.role}`}
-                                saving={savingKey === `${goal.id}::${c.role}`}
-                                members={participants}
-                                memberName={memberName}
-                                editUser={editUser}
-                                editPct={editPct}
-                                setEditUser={setEditUser}
-                                setEditPct={setEditPct}
-                                onStart={() => startEdit(goal.id, c.role, c.assignment, c.requiredPct)}
-                                onSave={() => saveEdit(goal.id, c.role)}
-                                onCancel={cancelEdit}
-                                onClear={() => clearAssign(goal.id, c.role)}
-                              />
+                              bulkEditing ? (
+                                <BulkRoleAssignRow
+                                  key={c.role}
+                                  coverage={c}
+                                  members={participants}
+                                  draft={roleDrafts[roleKey(goal.id, c.role)]}
+                                  onPatch={(patch) => patchRoleDraft(roleKey(goal.id, c.role), patch)}
+                                />
+                              ) : (
+                                <RoleAssignRow
+                                  key={c.role}
+                                  goalId={goal.id}
+                                  coverage={c}
+                                  editing={editKey === `${goal.id}::${c.role}`}
+                                  saving={savingKey === `${goal.id}::${c.role}`}
+                                  members={participants}
+                                  memberName={memberName}
+                                  editUser={editUser}
+                                  editPct={editPct}
+                                  setEditUser={setEditUser}
+                                  setEditPct={setEditPct}
+                                  onStart={() => startEdit(goal.id, c.role, c.assignment, c.requiredPct)}
+                                  onSave={() => saveEdit(goal.id, c.role)}
+                                  onCancel={cancelEdit}
+                                  onClear={() => clearAssign(goal.id, c.role)}
+                                />
+                              )
                             ))}
-                            <AddRoleInline
-                              availableRoles={ROLE_OPTIONS.filter((r) => !(goal.role_requirements ?? []).some((rr) => rr.role === r))}
-                              onAdd={(role, pct) => addRoleToGoal(goal, role, pct)}
-                            />
+                            {!bulkEditing && (
+                              <AddRoleInline
+                                availableRoles={ROLE_OPTIONS.filter((r) => !(goal.role_requirements ?? []).some((rr) => rr.role === r))}
+                                onAdd={(role, pct) => addRoleToGoal(goal, role, pct)}
+                              />
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -333,9 +493,11 @@ export default function CapacityPlanningClient({
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white mt-2">
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
           <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">People Allocation Summary</span>
-          <Button size="sm" onClick={() => setAddOpen(true)} className="h-7 gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-2.5">
-            <Plus className="h-3.5 w-3.5" /> Add Member
-          </Button>
+          {!bulkEditing && (
+            <Button size="sm" onClick={() => setAddOpen(true)} className="h-7 gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-2.5">
+              <Plus className="h-3.5 w-3.5" /> Add Member
+            </Button>
+          )}
         </div>
 
         {visibleRows.length === 0 ? (
@@ -372,12 +534,47 @@ export default function CapacityPlanningClient({
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {r.member.role
+                        {bulkEditing ? (
+                          <div className="space-y-2">
+                            <select
+                              value={memberDrafts[r.member.user_id]?.role ?? ""}
+                              onChange={(e) => patchMemberDraft(r.member.user_id, { role: e.target.value })}
+                              className="h-8 w-full min-w-[120px] rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none"
+                            >
+                              <option value="">No role</option>
+                              {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+                            </select>
+                            <div className="flex flex-wrap gap-1">
+                              {streams.filter((s) => !s.is_archived || memberDrafts[r.member.user_id]?.stream_ids.includes(s.id)).map((s) => {
+                                const on = memberDrafts[r.member.user_id]?.stream_ids.includes(s.id);
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => toggleMemberStream(r.member.user_id, s.id)}
+                                    className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${on ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300"}`}
+                                  >
+                                    {s.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : r.member.role
                           ? <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{r.member.role}</span>
                           : <span className="text-[11px] text-slate-300">—</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {r.hasExpected ? (
+                        {bulkEditing ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            value={memberDrafts[r.member.user_id]?.expected_override ?? ""}
+                            onChange={(e) => patchMemberDraft(r.member.user_id, { expected_override: e.target.value })}
+                            placeholder="pts"
+                            className="h-8 w-20 text-center text-xs mx-auto"
+                          />
+                        ) : r.hasExpected ? (
                           <>
                             <div className="text-base font-extrabold text-indigo-600 leading-none">{r.expected}</div>
                             <div className="text-[10px] text-slate-400">exp pts</div>
@@ -425,8 +622,12 @@ export default function CapacityPlanningClient({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => setEditing(r.member)} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" title="Edit member"><Pencil className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => onRemoveMember(r.member.user_id)} className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50" title="Remove from sprint"><Trash2 className="h-3.5 w-3.5" /></button>
+                          {!bulkEditing && (
+                            <>
+                              <button onClick={() => setEditing(r.member)} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" title="Edit member"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => onRemoveMember(r.member.user_id)} className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50" title="Remove from sprint"><Trash2 className="h-3.5 w-3.5" /></button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -523,6 +724,54 @@ function RoleAssignRow({ coverage: c, editing, saving, members, memberName, edit
       <span className="ml-auto text-[11px] font-semibold text-slate-800">{memberName(c.assignment.user_id)}</span>
       <span className={`text-[11px] font-bold ${allocCls}`}>{c.assignedPct}%{(under || over) && " ⚠"}</span>
       <button onClick={onStart} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-100">Edit</button>
+    </div>
+  );
+}
+
+function BulkRoleAssignRow({
+  coverage: c,
+  members,
+  draft,
+  onPatch,
+}: {
+  coverage: RoleCoverage;
+  members: CapacityMember[];
+  draft: RoleDraft | undefined;
+  onPatch: (patch: Partial<RoleDraft>) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[70px_92px_minmax(150px,1fr)_82px] items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/30 px-2.5 py-1.5">
+      <span className="text-[11px] font-bold text-slate-600">{c.role}</span>
+      <div className="relative">
+        <Input
+          type="number"
+          min={1}
+          max={100}
+          value={draft?.required_pct ?? String(c.requiredPct)}
+          onChange={(e) => onPatch({ required_pct: e.target.value })}
+          className="h-7 pr-5 text-right text-[11px]"
+        />
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+      </div>
+      <select
+        value={draft?.user_id ?? ""}
+        onChange={(e) => onPatch({ user_id: e.target.value })}
+        className="h-7 min-w-[130px] rounded-md border border-slate-200 bg-white px-1.5 text-[11px] text-slate-700 outline-none"
+      >
+        <option value="">Unassigned</option>
+        {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.profile.full_name}</option>)}
+      </select>
+      <div className="relative">
+        <Input
+          type="number"
+          min={1}
+          max={100}
+          value={draft?.allocation_pct ?? String(c.assignedPct || c.requiredPct)}
+          onChange={(e) => onPatch({ allocation_pct: e.target.value })}
+          className="h-7 pr-5 text-right text-[11px]"
+        />
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+      </div>
     </div>
   );
 }

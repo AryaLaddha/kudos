@@ -167,6 +167,55 @@ export async function updateGoal(
   return { goal: sortGoalChildren(data as SprintGoal) };
 }
 
+export async function updateGoalsBulk(
+  sprintId: string,
+  updates: {
+    id: string;
+    title: string;
+    points: number;
+    start_date: string;
+    end_date: string;
+    stream_ids: string[];
+    tags: string[];
+    role_requirements?: RoleRequirement[];
+    status?: SprintGoal["status"];
+  }[],
+): Promise<{ error?: string; goals?: SprintGoal[] }> {
+  const { supabase, orgId } = await requireSprintClient();
+  if (updates.length === 0) return { goals: [] };
+
+  const saved: SprintGoal[] = [];
+  for (const update of updates) {
+    const err = validateGoalInput(update);
+    if (err) return { error: err };
+
+    const tags = update.tags.map((t) => t.trim()).filter(Boolean).filter((t) => t.length <= MAX_TAG);
+    const patch: Record<string, unknown> = {
+      title: update.title.trim(),
+      points: Math.round(update.points),
+      start_date: update.start_date,
+      end_date: update.end_date,
+      stream_ids: update.stream_ids,
+      tags,
+      role_requirements: sanitizeRoleRequirements(update.role_requirements ?? []),
+    };
+    if (update.status) patch.status = update.status;
+
+    const { data, error } = await supabase
+      .from("sprint_goals")
+      .update(patch)
+      .eq("id", update.id)
+      .eq("org_id", orgId)
+      .select(GOAL_SELECT)
+      .single();
+    if (error) return { error: error.message };
+    saved.push(sortGoalChildren(data as SprintGoal));
+  }
+
+  revalidatePath(`/sprints/${sprintId}`);
+  return { goals: saved };
+}
+
 /** Update only a goal's role requirements (used from the Capacity tab). */
 export async function setGoalRoleRequirements(
   id: string,
@@ -394,4 +443,101 @@ export async function updateParticipantCapacity(
   if (error) return { error: error.message };
   revalidatePath(`/sprints/${sprintId}`);
   return {};
+}
+
+export async function updateCapacityPlanBulk(
+  sprintId: string,
+  payload: {
+    participants: {
+      user_id: string;
+      role: string | null;
+      expected_override: number | null;
+      stream_ids: string[];
+    }[];
+    roleRequirements: {
+      goal_id: string;
+      role_requirements: RoleRequirement[];
+    }[];
+    assignments: {
+      goal_id: string;
+      role: string;
+      user_id: string | null;
+      allocation_pct: number | null;
+    }[];
+  },
+): Promise<{ error?: string; goals?: SprintGoal[]; assignments?: GoalAssignment[] }> {
+  const { supabase, orgId } = await requireSprintClient();
+
+  for (const p of payload.participants) {
+    const expected =
+      p.expected_override === null || p.expected_override === undefined
+        ? null
+        : Math.max(0, Math.round(Number(p.expected_override)));
+    if (expected !== null && !Number.isFinite(expected)) return { error: "Expected points must be a number." };
+
+    const { error } = await supabase
+      .from("sprint_participants")
+      .update({
+        role: p.role || null,
+        expected_override: expected,
+        stream_ids: p.stream_ids,
+      })
+      .eq("sprint_id", sprintId)
+      .eq("user_id", p.user_id);
+    if (error) return { error: error.message };
+  }
+
+  const savedGoals: SprintGoal[] = [];
+  for (const g of payload.roleRequirements) {
+    const { data, error } = await supabase
+      .from("sprint_goals")
+      .update({ role_requirements: sanitizeRoleRequirements(g.role_requirements) })
+      .eq("id", g.goal_id)
+      .eq("org_id", orgId)
+      .select(GOAL_SELECT)
+      .single();
+    if (error) return { error: error.message };
+    savedGoals.push(sortGoalChildren(data as SprintGoal));
+  }
+
+  for (const a of payload.assignments) {
+    const pct = a.allocation_pct === null || a.allocation_pct === undefined ? null : Math.round(Number(a.allocation_pct));
+    if (!a.user_id) {
+      const { error } = await supabase
+        .from("goal_assignments")
+        .delete()
+        .eq("org_id", orgId)
+        .eq("sprint_id", sprintId)
+        .eq("goal_id", a.goal_id)
+        .eq("role", a.role);
+      if (error) return { error: error.message };
+      continue;
+    }
+    if (!Number.isFinite(pct) || pct === null || pct <= 0 || pct > 100) return { error: "Allocation must be between 1 and 100%." };
+
+    const { error } = await supabase
+      .from("goal_assignments")
+      .upsert(
+        {
+          org_id: orgId,
+          sprint_id: sprintId,
+          goal_id: a.goal_id,
+          role: a.role,
+          user_id: a.user_id,
+          allocation_pct: pct,
+        },
+        { onConflict: "sprint_id,goal_id,role" },
+      );
+    if (error) return { error: error.message };
+  }
+
+  const { data, error } = await supabase
+    .from("goal_assignments")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("sprint_id", sprintId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/sprints/${sprintId}`);
+  return { goals: savedGoals, assignments: (data as GoalAssignment[]) ?? [] };
 }

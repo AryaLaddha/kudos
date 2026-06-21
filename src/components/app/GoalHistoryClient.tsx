@@ -23,6 +23,11 @@ const JOURNEY_STYLE: Record<JourneyDot["status"], { icon: string; bg: string; te
   scheduled: { icon: "📅", bg: "#F1F5F9", text: "#475569" },
 };
 
+function goalDateLabel(goal: Pick<SprintGoal, "start_date" | "end_date">) {
+  if (!goal.start_date || !goal.end_date) return "No dates";
+  return formatDateRange(goal.start_date, goal.end_date);
+}
+
 export default function GoalHistoryClient({ goals, sprints, streams, orgUsers }: Props) {
   const [sprintFilter, setSprintFilter] = useState("all");
   const [streamFilter, setStreamFilter] = useState("all");
@@ -59,9 +64,9 @@ export default function GoalHistoryClient({ goals, sprints, streams, orgUsers }:
       const delays = g.delays ?? [];
       return [
         g.title,
-        g.start_date,
-        g.end_date,
-        String(g.points),
+        g.start_date ?? "",
+        g.end_date ?? "",
+        g.points === null || g.points === undefined ? "" : String(g.points),
         g.stream_ids.map(streamName).join("; "),
         GOAL_STATUS_META[g.status].label,
         String(delays.length),
@@ -128,7 +133,10 @@ export default function GoalHistoryClient({ goals, sprints, streams, orgUsers }:
                   <tr key={g.id} className="border-b border-slate-100 align-top">
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900">{g.title}</div>
-                      <div className="text-[11px] text-slate-400">{formatDateRange(g.start_date, g.end_date)}{g.end_date > g.original_end_date && " (extended)"}</div>
+                      <div className="text-[11px] text-slate-400">
+                        {goalDateLabel(g)}
+                        {!!g.end_date && !!g.original_end_date && g.end_date > g.original_end_date && " (extended)"}
+                      </div>
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-1">
@@ -137,7 +145,7 @@ export default function GoalHistoryClient({ goals, sprints, streams, orgUsers }:
                         ))}
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-center font-extrabold text-indigo-600">{g.points}</td>
+                    <td className="px-3 py-3 text-center font-extrabold text-indigo-600">{g.points ?? "—"}</td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1 flex-wrap">
                         {journey.length === 0 ? <span className="text-[11px] text-slate-300 italic">—</span> : journey.map((d, i) => {

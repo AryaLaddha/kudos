@@ -61,12 +61,14 @@ WHERE NOT EXISTS (
 CREATE TABLE IF NOT EXISTS sprint_goals (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  sprint_id         uuid REFERENCES sprints(id) ON DELETE SET NULL,
   title             text NOT NULL,
-  points            int  NOT NULL CHECK (points > 0),
-  start_date        date NOT NULL,
-  end_date          date NOT NULL,
+  description       text,
+  points            int CHECK (points IS NULL OR points > 0),
+  start_date        date,
+  end_date          date,
   -- original_end_date is captured at creation; end_date may be pushed out by a delay.
-  original_end_date date NOT NULL,
+  original_end_date date,
   status            text NOT NULL DEFAULT 'on_track'
                       CHECK (status IN ('on_track','delayed','completed','carried_over')),
   stream_ids        uuid[] NOT NULL DEFAULT '{}',
@@ -75,9 +77,13 @@ CREATE TABLE IF NOT EXISTS sprint_goals (
   completed_by      uuid REFERENCES profiles(id) ON DELETE SET NULL,
   created_by        uuid REFERENCES profiles(id) ON DELETE SET NULL,
   created_at        timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT sprint_goals_date_order CHECK (end_date >= start_date)
+  CONSTRAINT sprint_goals_date_order CHECK (
+    (start_date IS NULL AND end_date IS NULL) OR
+    (start_date IS NOT NULL AND end_date IS NOT NULL AND end_date >= start_date)
+  )
 );
 CREATE INDEX IF NOT EXISTS idx_sprint_goals_org_dates ON sprint_goals (org_id, start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_sprint_goals_sprint_id ON sprint_goals (sprint_id);
 
 ALTER TABLE sprint_goals ENABLE ROW LEVEL SECURITY;
 

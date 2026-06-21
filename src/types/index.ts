@@ -150,10 +150,12 @@ export type SprintGoal = {
   id: string;
   org_id: string;
   title: string;
-  points: number;
-  start_date: string;
-  end_date: string;
-  original_end_date: string;
+  description: string | null;
+  points: number | null;
+  sprint_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  original_end_date: string | null;
   status: GoalStatus;
   stream_ids: string[];
   tags: string[];

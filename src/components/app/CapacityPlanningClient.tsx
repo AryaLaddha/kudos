@@ -56,6 +56,11 @@ function initials(n: string) {
   return n.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
 }
 
+function goalDateLabel(goal: Pick<SprintGoal, "start_date" | "end_date">) {
+  if (!goal.start_date || !goal.end_date) return "No dates";
+  return formatDateRange(goal.start_date, goal.end_date);
+}
+
 const NO_STREAM = "__none__";
 
 type MemberDraft = {
@@ -442,7 +447,7 @@ export default function CapacityPlanningClient({
                         <td className="px-4 py-3">
                           <div className="text-xs font-semibold text-slate-900">{goal.title}</div>
                           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
-                            {formatDateRange(goal.start_date, goal.end_date)}
+                            {goalDateLabel(goal)}
                             <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: status.pillBg, color: status.pillText }}>{status.label}</span>
                           </div>
                         </td>
@@ -603,7 +608,7 @@ export default function CapacityPlanningClient({
                           <div className="flex flex-col gap-1">
                             {r.userAssignments.map((a) => {
                               const g = goalsById.get(a.goal_id);
-                              const pts = g ? Math.round((g.points * a.allocation_pct) / 100 * 10) / 10 : 0;
+                              const pts = g ? Math.round(((g.points ?? 0) * a.allocation_pct) / 100 * 10) / 10 : 0;
                               return (
                                 <div key={a.id} className="flex items-center justify-between gap-3 text-[11px]">
                                   <span className="truncate text-slate-600">{g?.title ?? "Goal"} <span className="text-slate-300">· {a.role}</span></span>

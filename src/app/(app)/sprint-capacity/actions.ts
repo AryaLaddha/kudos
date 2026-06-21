@@ -49,6 +49,33 @@ function sortGoalChildren(goal: SprintGoal) {
   return goal;
 }
 
+async function selectGoalsForSprint(
+  supabase: Awaited<ReturnType<typeof requireOrgMember>>["supabase"],
+  orgId: string,
+  sprintId: string,
+  sprint: { start_date: string; end_date: string },
+): Promise<SprintGoal[]> {
+  const [{ data: attached }, { data: overlapping }] = await Promise.all([
+    supabase
+      .from("sprint_goals")
+      .select(GOAL_SELECT)
+      .eq("org_id", orgId)
+      .eq("sprint_id", sprintId),
+    supabase
+      .from("sprint_goals")
+      .select(GOAL_SELECT)
+      .eq("org_id", orgId)
+      .lte("start_date", sprint.end_date)
+      .gte("end_date", sprint.start_date),
+  ]);
+
+  const byId = new Map<string, SprintGoal>();
+  for (const goal of [...((attached as SprintGoal[]) ?? []), ...((overlapping as SprintGoal[]) ?? [])]) {
+    byId.set(goal.id, sortGoalChildren(goal));
+  }
+  return [...byId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
 export async function getActiveSprintCapacityList(): Promise<SprintCapacityListItem[]> {
   const { supabase, orgId } = await requireOrgMember();
   const { data } = await supabase
@@ -82,7 +109,7 @@ export async function getSprintCapacityReadModel(sprintId: string): Promise<{
     return { sprint: null, participants: [], orgUsers: [], goals: [], streams: [], assignments: [] };
   }
 
-  const [{ data: participants }, { data: orgUsers }, { data: goals }, { data: streams }, { data: assignments }] = await Promise.all([
+  const [{ data: participants }, { data: orgUsers }, goals, { data: streams }, { data: assignments }] = await Promise.all([
     supabase
       .from("sprint_participants")
       .select("*, profile:profiles(id, full_name, avatar_url, job_title)")
@@ -92,13 +119,7 @@ export async function getSprintCapacityReadModel(sprintId: string): Promise<{
       .select("id, full_name, avatar_url, job_title")
       .eq("org_id", orgId)
       .order("full_name"),
-    supabase
-      .from("sprint_goals")
-      .select(GOAL_SELECT)
-      .eq("org_id", orgId)
-      .lte("start_date", sprint.end_date)
-      .gte("end_date", sprint.start_date)
-      .order("created_at", { ascending: false }),
+    selectGoalsForSprint(supabase, orgId, sprintId, sprint),
     supabase
       .from("streams")
       .select("id, name, is_archived")
@@ -119,7 +140,7 @@ export async function getSprintCapacityReadModel(sprintId: string): Promise<{
     sprint,
     participants: sortedParticipants,
     orgUsers: orgUsers ?? [],
-    goals: ((goals as SprintGoal[]) ?? []).map(sortGoalChildren),
+    goals,
     streams: (streams as Stream[]) ?? [],
     assignments: (assignments as GoalAssignment[]) ?? [],
   };

@@ -9,6 +9,7 @@ import type { GoalAssignment, GoalDelay, GoalSubtask, RoleRequirement, SprintGoa
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_TITLE = 120;
+const MAX_DESCRIPTION = 500;
 const MAX_TAG = 30;
 const MAX_REASON = 280;
 const MAX_STREAM_NAME = 40;
@@ -73,13 +74,66 @@ export async function setStreamArchived(id: string, archived: boolean): Promise<
 
 // ── Goals ──────────────────────────────────────────────────────────────────────
 
-function validateGoalInput(p: { title: string; points: number; start_date: string; end_date: string }): string | null {
+type GoalInput = {
+  title: string;
+  description?: string | null;
+  points: number | null;
+  sprint_id?: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  stream_ids: string[];
+  tags: string[];
+  role_requirements?: RoleRequirement[];
+  status?: SprintGoal["status"];
+};
+
+function normalizeOptionalDate(value: string | null | undefined): string | null {
+  return value?.trim() || null;
+}
+
+function normalizeOptionalPoints(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const points = Math.round(Number(value));
+  return Number.isFinite(points) ? points : Number.NaN;
+}
+
+function validateGoalInput(p: { title: string; description?: string | null; points: number | null; start_date: string | null; end_date: string | null }): string | null {
   if (!p.title.trim()) return "Title is required.";
   if (p.title.trim().length > MAX_TITLE) return `Title must be ${MAX_TITLE} characters or fewer.`;
-  if (!Number.isFinite(p.points) || p.points <= 0) return "Points must be a positive number.";
-  if (!DATE_RE.test(p.start_date) || !DATE_RE.test(p.end_date)) return "Please choose valid dates.";
-  if (p.end_date < p.start_date) return "End date can't be before the start date.";
+  if ((p.description ?? "").trim().length > MAX_DESCRIPTION) return `Description must be ${MAX_DESCRIPTION} characters or fewer.`;
+  if (p.points !== null && (!Number.isFinite(p.points) || p.points <= 0)) return "Points must be a positive number.";
+  if ((p.start_date && !p.end_date) || (!p.start_date && p.end_date)) return "Choose both start and end dates, or leave both blank.";
+  if (p.start_date && !DATE_RE.test(p.start_date)) return "Please choose a valid start date.";
+  if (p.end_date && !DATE_RE.test(p.end_date)) return "Please choose a valid end date.";
+  if (p.start_date && p.end_date && p.end_date < p.start_date) return "End date can't be before the start date.";
   return null;
+}
+
+async function selectGoalsForSprint(
+  supabase: Awaited<ReturnType<typeof requireSprintClient>>["supabase"],
+  orgId: string,
+  sprintId: string,
+  sprint: { start_date: string; end_date: string },
+): Promise<SprintGoal[]> {
+  const [{ data: attached }, { data: overlapping }] = await Promise.all([
+    supabase
+      .from("sprint_goals")
+      .select(GOAL_SELECT)
+      .eq("org_id", orgId)
+      .eq("sprint_id", sprintId),
+    supabase
+      .from("sprint_goals")
+      .select(GOAL_SELECT)
+      .eq("org_id", orgId)
+      .lte("start_date", sprint.end_date)
+      .gte("end_date", sprint.start_date),
+  ]);
+
+  const byId = new Map<string, SprintGoal>();
+  for (const goal of [...((attached as SprintGoal[]) ?? []), ...((overlapping as SprintGoal[]) ?? [])]) {
+    byId.set(goal.id, sortGoalChildren(goal));
+  }
+  return [...byId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 /** Goals overlapping a given sprint's date window. */
@@ -87,21 +141,14 @@ export async function getSprintGoals(sprintId: string): Promise<SprintGoal[]> {
   const { supabase, orgId } = await requireSprintClient();
   const { data: sprint } = await supabase.from("sprints").select("start_date, end_date").eq("id", sprintId).single();
   if (!sprint) return [];
-  const { data } = await supabase
-    .from("sprint_goals")
-    .select(GOAL_SELECT)
-    .eq("org_id", orgId)
-    .lte("start_date", sprint.end_date)
-    .gte("end_date", sprint.start_date)
-    .order("created_at", { ascending: false });
-  return ((data as SprintGoal[]) ?? []).map(sortGoalChildren);
+  return selectGoalsForSprint(supabase, orgId, sprintId, sprint);
 }
 
 /** All org goals + the org's sprints, for the Goal History tab. */
 export async function getGoalHistory(): Promise<{ goals: SprintGoal[]; sprints: SprintRef[] }> {
   const { supabase, orgId } = await requireSprintClient();
   const [{ data: goals }, { data: sprints }] = await Promise.all([
-    supabase.from("sprint_goals").select(GOAL_SELECT).eq("org_id", orgId).order("start_date", { ascending: false }),
+    supabase.from("sprint_goals").select(GOAL_SELECT).eq("org_id", orgId).order("created_at", { ascending: false }),
     supabase.from("sprints").select("id, name, start_date, end_date").eq("org_id", orgId).order("start_date"),
   ]);
   return {
@@ -112,15 +159,21 @@ export async function getGoalHistory(): Promise<{ goals: SprintGoal[]; sprints: 
 
 export async function createGoal(payload: {
   title: string;
-  points: number;
-  start_date: string;
-  end_date: string;
+  description?: string | null;
+  points: number | null;
+  sprint_id: string;
+  start_date: string | null;
+  end_date: string | null;
   stream_ids: string[];
   tags: string[];
   role_requirements?: RoleRequirement[];
 }): Promise<{ error?: string; goal?: SprintGoal }> {
   const { supabase, orgId, user } = await requireSprintClient();
-  const err = validateGoalInput(payload);
+  const points = normalizeOptionalPoints(payload.points);
+  const startDate = normalizeOptionalDate(payload.start_date);
+  const endDate = normalizeOptionalDate(payload.end_date);
+  const description = payload.description?.trim() || null;
+  const err = validateGoalInput({ ...payload, description, points, start_date: startDate, end_date: endDate });
   if (err) return { error: err };
   const tags = payload.tags.map((t) => t.trim()).filter(Boolean).filter((t) => t.length <= MAX_TAG);
   const roleRequirements = sanitizeRoleRequirements(payload.role_requirements ?? []);
@@ -129,10 +182,12 @@ export async function createGoal(payload: {
     .insert({
       org_id: orgId,
       title: payload.title.trim(),
-      points: Math.round(payload.points),
-      start_date: payload.start_date,
-      end_date: payload.end_date,
-      original_end_date: payload.end_date,
+      description,
+      points,
+      sprint_id: payload.sprint_id,
+      start_date: startDate,
+      end_date: endDate,
+      original_end_date: endDate,
       stream_ids: payload.stream_ids,
       tags,
       role_requirements: roleRequirements,
@@ -146,17 +201,22 @@ export async function createGoal(payload: {
 
 export async function updateGoal(
   id: string,
-  payload: { title: string; points: number; start_date: string; end_date: string; stream_ids: string[]; tags: string[]; role_requirements?: RoleRequirement[]; status?: SprintGoal["status"] },
+  payload: GoalInput,
 ): Promise<{ error?: string; goal?: SprintGoal }> {
   const { supabase } = await requireSprintClient();
-  const err = validateGoalInput(payload);
+  const points = normalizeOptionalPoints(payload.points);
+  const startDate = normalizeOptionalDate(payload.start_date);
+  const endDate = normalizeOptionalDate(payload.end_date);
+  const description = payload.description?.trim() || null;
+  const err = validateGoalInput({ ...payload, description, points, start_date: startDate, end_date: endDate });
   if (err) return { error: err };
   const tags = payload.tags.map((t) => t.trim()).filter(Boolean).filter((t) => t.length <= MAX_TAG);
   const patch: Record<string, unknown> = {
     title: payload.title.trim(),
-    points: Math.round(payload.points),
-    start_date: payload.start_date,
-    end_date: payload.end_date,
+    description,
+    points,
+    start_date: startDate,
+    end_date: endDate,
     stream_ids: payload.stream_ids,
     tags,
     role_requirements: sanitizeRoleRequirements(payload.role_requirements ?? []),
@@ -172,9 +232,10 @@ export async function updateGoalsBulk(
   updates: {
     id: string;
     title: string;
-    points: number;
-    start_date: string;
-    end_date: string;
+    description?: string | null;
+    points: number | null;
+    start_date: string | null;
+    end_date: string | null;
     stream_ids: string[];
     tags: string[];
     role_requirements?: RoleRequirement[];
@@ -186,15 +247,20 @@ export async function updateGoalsBulk(
 
   const saved: SprintGoal[] = [];
   for (const update of updates) {
-    const err = validateGoalInput(update);
+    const points = normalizeOptionalPoints(update.points);
+    const startDate = normalizeOptionalDate(update.start_date);
+    const endDate = normalizeOptionalDate(update.end_date);
+    const description = update.description?.trim() || null;
+    const err = validateGoalInput({ ...update, description, points, start_date: startDate, end_date: endDate });
     if (err) return { error: err };
 
     const tags = update.tags.map((t) => t.trim()).filter(Boolean).filter((t) => t.length <= MAX_TAG);
     const patch: Record<string, unknown> = {
       title: update.title.trim(),
-      points: Math.round(update.points),
-      start_date: update.start_date,
-      end_date: update.end_date,
+      description,
+      points,
+      start_date: startDate,
+      end_date: endDate,
       stream_ids: update.stream_ids,
       tags,
       role_requirements: sanitizeRoleRequirements(update.role_requirements ?? []),
@@ -312,10 +378,10 @@ export async function markGoalDelayed(
     .single();
   if (delayErr) return { error: delayErr.message };
 
-  // Mark the goal delayed and, if the new due date extends it, push out end_date.
+  // Mark the goal delayed and, if the new due date extends an existing date range, push out end_date.
   const { data: goalRow } = await supabase.from("sprint_goals").select("end_date").eq("id", goalId).single();
   const patch: Record<string, unknown> = { status: "delayed" };
-  if (payload.newDueDate && goalRow && payload.newDueDate > goalRow.end_date) {
+  if (payload.newDueDate && goalRow?.end_date && payload.newDueDate > goalRow.end_date) {
     patch.end_date = payload.newDueDate;
   }
   const { data: goal, error: goalErr } = await supabase

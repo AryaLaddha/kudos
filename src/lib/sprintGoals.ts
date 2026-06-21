@@ -46,9 +46,10 @@ export function goalRoleCoverage(goal: SprintGoal, assignments: GoalAssignment[]
 // (YYYY-MM-DD) compare correctly as plain strings.
 
 export function overlapsSprint(
-  goal: { start_date: string; end_date: string },
+  goal: { start_date: string | null; end_date: string | null },
   sprint: { start_date: string; end_date: string },
 ): boolean {
+  if (!goal.start_date || !goal.end_date) return false;
   return goal.start_date <= sprint.end_date && goal.end_date >= sprint.start_date;
 }
 
@@ -95,7 +96,7 @@ export function autoExpectedPoints(
   let total = 0;
   for (const [goalId, pct] of Object.entries(allocations)) {
     const goal = goalsById.get(goalId);
-    if (goal) total += (goal.points * (pct || 0)) / 100;
+    if (goal) total += ((goal.points ?? 0) * (pct || 0)) / 100;
   }
   return Math.round(total * 10) / 10;
 }
@@ -120,7 +121,7 @@ export function assignmentExpectedPoints(
   let total = 0;
   for (const a of userAssignments) {
     const goal = goalsById.get(a.goal_id);
-    if (goal) total += (goal.points * (a.allocation_pct || 0)) / 100;
+    if (goal) total += ((goal.points ?? 0) * (a.allocation_pct || 0)) / 100;
   }
   return Math.round(total * 10) / 10;
 }

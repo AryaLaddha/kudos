@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { createGoal, updateGoal } from "@/app/(app)/sprints/goals-actions";
 import { ROLE_OPTIONS } from "@/lib/sprintGoals";
 import type { SprintGoal, Stream } from "@/types";
@@ -25,7 +26,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   streams: Stream[];
-  sprint: { start_date: string; end_date: string };
+  sprint: { id: string; start_date: string; end_date: string };
   goal?: SprintGoal | null;
   onSaved: (goal: SprintGoal) => void;
 }
@@ -33,9 +34,10 @@ interface Props {
 export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goal, onSaved }: Props) {
   const editing = !!goal;
   const [title, setTitle] = useState(goal?.title ?? "");
-  const [start, setStart] = useState(goal?.start_date ?? sprint.start_date);
-  const [end, setEnd] = useState(goal?.end_date ?? sprint.end_date);
-  const [points, setPoints] = useState<string>(goal ? String(goal.points) : "");
+  const [description, setDescription] = useState(goal?.description ?? "");
+  const [start, setStart] = useState(goal?.start_date ?? "");
+  const [end, setEnd] = useState(goal?.end_date ?? "");
+  const [points, setPoints] = useState<string>(goal?.points !== null && goal?.points !== undefined ? String(goal.points) : "");
   const [streamIds, setStreamIds] = useState<string[]>(goal?.stream_ids ?? []);
   const [tagsInput, setTagsInput] = useState((goal?.tags ?? []).join(", "));
   const [roleReqs, setRoleReqs] = useState<RoleReqRow[]>(
@@ -44,6 +46,17 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
   const [isPending, startTransition] = useTransition();
 
   const activeStreams = streams.filter((s) => !s.is_archived || streamIds.includes(s.id));
+
+  function resetFromGoal(nextGoal: SprintGoal | null | undefined) {
+    setTitle(nextGoal?.title ?? "");
+    setDescription(nextGoal?.description ?? "");
+    setStart(nextGoal?.start_date ?? "");
+    setEnd(nextGoal?.end_date ?? "");
+    setPoints(nextGoal?.points !== null && nextGoal?.points !== undefined ? String(nextGoal.points) : "");
+    setStreamIds(nextGoal?.stream_ids ?? []);
+    setTagsInput((nextGoal?.tags ?? []).join(", "));
+    setRoleReqs((nextGoal?.role_requirements ?? []).map((r) => ({ role: r.role, pct: String(r.pct) })));
+  }
 
   function toggleStream(id: string) {
     setStreamIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -60,16 +73,26 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
   }
 
   function handleSave() {
-    const pts = Number(points);
+    const pts = points.trim() === "" ? null : Number(points);
     if (!title.trim()) return toast.error("Goal title is required.");
-    if (!start || !end) return toast.error("Start and end dates are required.");
-    if (!Number.isFinite(pts) || pts <= 0) return toast.error("Points must be a positive number.");
+    if ((start && !end) || (!start && end)) return toast.error("Choose both start and end dates, or leave both blank.");
+    if (pts !== null && (!Number.isFinite(pts) || pts <= 0)) return toast.error("Points must be a positive number.");
 
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
     const role_requirements = roleReqs
       .filter((r) => r.role && r.pct)
       .map((r) => ({ role: r.role, pct: Number(r.pct) }));
-    const payload = { title, points: pts, start_date: start, end_date: end, stream_ids: streamIds, tags, role_requirements };
+    const payload = {
+      title,
+      description: description.trim() || null,
+      points: pts,
+      sprint_id: sprint.id,
+      start_date: start || null,
+      end_date: end || null,
+      stream_ids: streamIds,
+      tags,
+      role_requirements,
+    };
 
     startTransition(async () => {
       const result = editing ? await updateGoal(goal!.id, payload) : await createGoal(payload);
@@ -79,6 +102,7 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
       }
       toast.success(editing ? "Goal updated." : "Goal created.");
       onSaved(result.goal);
+      if (!editing) resetFromGoal(null);
       onOpenChange(false);
     });
   }
@@ -100,19 +124,32 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
             <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="e.g. Launch Customer Portal v2" className="text-sm" autoFocus />
           </div>
 
+          <div>
+            <label className="text-xs font-semibold text-slate-600 block mb-1.5">Description <span className="font-normal text-slate-400">(optional)</span></label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder="Add context, success criteria, or notes..."
+              className="resize-none text-sm"
+            />
+            <p className="text-right text-[10px] text-slate-400 mt-1">{description.length}/500</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-600 block mb-1.5">Start Date <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-slate-600 block mb-1.5">Start Date <span className="font-normal text-slate-400">(optional)</span></label>
               <Input type="date" value={start} max={end || undefined} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd(e.target.value); }} className="text-sm" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-600 block mb-1.5">End Date <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-slate-600 block mb-1.5">End Date <span className="font-normal text-slate-400">(optional)</span></label>
               <Input type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} className="text-sm" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1.5">Points <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-slate-600 block mb-1.5">Points <span className="font-normal text-slate-400">(optional)</span></label>
             <Input type="number" min={1} value={points} onChange={(e) => setPoints(e.target.value)} placeholder="e.g. 5" className="text-sm w-32" />
           </div>
 

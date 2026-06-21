@@ -34,6 +34,7 @@ const NO_STREAM = "__none__";
 
 type GoalDraft = {
   title: string;
+  description: string;
   points: string;
   start_date: string;
   end_date: string;
@@ -45,6 +46,15 @@ type GoalDraft = {
 
 function roleRequirementsText(reqs: RoleRequirement[]) {
   return reqs.map((r) => `${r.role}:${r.pct}`).join(", ");
+}
+
+function goalPointsLabel(points: number | null) {
+  return points === null || points === undefined ? "No pts" : String(points);
+}
+
+function goalDateLabel(goal: Pick<SprintGoal, "start_date" | "end_date">) {
+  if (!goal.start_date || !goal.end_date) return "No dates";
+  return formatDateRange(goal.start_date, goal.end_date);
 }
 
 function parseRoleRequirements(value: string): RoleRequirement[] | string {
@@ -72,6 +82,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
   const [statusFilter, setStatusFilter] = useState("all");
   const [pointsFilter, setPointsFilter] = useState("all");
   const [newOpen, setNewOpen] = useState(false);
+  const [newDialogKey, setNewDialogKey] = useState(0);
   const [editGoal, setEditGoal] = useState<SprintGoal | null>(null);
   const [delayGoal, setDelayGoal] = useState<SprintGoal | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -88,9 +99,11 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
     return goals.filter((g) => {
       if (streamFilter !== "all" && !g.stream_ids.includes(streamFilter)) return false;
       if (statusFilter !== "all" && g.status !== statusFilter) return false;
-      if (pointsFilter === "1-3" && !(g.points >= 1 && g.points <= 3)) return false;
-      if (pointsFilter === "4-6" && !(g.points >= 4 && g.points <= 6)) return false;
-      if (pointsFilter === "7+" && !(g.points >= 7)) return false;
+      const points = g.points;
+      if (pointsFilter !== "all" && (points === null || points === undefined)) return false;
+      if (pointsFilter === "1-3" && points !== null && !(points >= 1 && points <= 3)) return false;
+      if (pointsFilter === "4-6" && points !== null && !(points >= 4 && points <= 6)) return false;
+      if (pointsFilter === "7+" && points !== null && !(points >= 7)) return false;
       return true;
     });
   }, [goals, streamFilter, statusFilter, pointsFilter]);
@@ -130,9 +143,10 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
   function startEditAll() {
     setDrafts(Object.fromEntries(goals.map((g) => [g.id, {
       title: g.title,
-      points: String(g.points),
-      start_date: g.start_date,
-      end_date: g.end_date,
+      description: g.description ?? "",
+      points: g.points !== null && g.points !== undefined ? String(g.points) : "",
+      start_date: g.start_date ?? "",
+      end_date: g.end_date ?? "",
       status: g.status,
       stream_ids: g.stream_ids,
       tags: g.tags.join(", "),
@@ -162,18 +176,27 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
     const updates = goals.map((goal) => {
       const draft = drafts[goal.id];
       if (!draft) return null;
-      const points = Number(draft.points);
+      const points = draft.points.trim() === "" ? null : Number(draft.points);
       const roleReqs = parseRoleRequirements(draft.role_requirements);
       if (typeof roleReqs === "string") {
         toast.error(`${goal.title}: ${roleReqs}`);
         return "invalid";
       }
+      if ((draft.start_date && !draft.end_date) || (!draft.start_date && draft.end_date)) {
+        toast.error(`${goal.title}: choose both start and end dates, or leave both blank.`);
+        return "invalid";
+      }
+      if (points !== null && (!Number.isFinite(points) || points <= 0)) {
+        toast.error(`${goal.title}: points must be a positive number.`);
+        return "invalid";
+      }
       return {
         id: goal.id,
         title: draft.title,
+        description: draft.description,
         points,
-        start_date: draft.start_date,
-        end_date: draft.end_date,
+        start_date: draft.start_date || null,
+        end_date: draft.end_date || null,
         stream_ids: draft.stream_ids,
         tags: draft.tags.split(",").map((t) => t.trim()).filter(Boolean),
         role_requirements: roleReqs,
@@ -226,7 +249,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
             <Button size="sm" variant="outline" onClick={startEditAll} disabled={goals.length === 0} className="h-8 gap-1.5 text-xs px-3">
               <Pencil className="h-3.5 w-3.5" /> Edit all
             </Button>
-            <Button size="sm" onClick={() => setNewOpen(true)} className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3">
+            <Button size="sm" onClick={() => { setNewDialogKey((k) => k + 1); setNewOpen(true); }} className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3">
               <Plus className="h-3.5 w-3.5" /> New Goal
             </Button>
           </>
@@ -281,7 +304,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
         </div>
       )}
 
-      <NewGoalDialog open={newOpen} onOpenChange={setNewOpen} streams={streams} sprint={sprint} onSaved={upsertGoal} />
+      <NewGoalDialog key={newDialogKey} open={newOpen} onOpenChange={setNewOpen} streams={streams} sprint={sprint} onSaved={upsertGoal} />
       {editGoal && (
         <NewGoalDialog
           key={editGoal.id}
@@ -344,7 +367,7 @@ function BulkGoalsEditor({
             <table className="w-full min-w-[980px] border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                  <th className="px-3 py-2.5 w-[240px]">Goal</th>
+                  <th className="px-3 py-2.5 w-[300px]">Goal</th>
                   <th className="px-3 py-2.5 w-[86px]">Points</th>
                   <th className="px-3 py-2.5 w-[250px]">Dates</th>
                   <th className="px-3 py-2.5 w-[130px]">Status</th>
@@ -362,7 +385,10 @@ function BulkGoalsEditor({
                   return (
                     <tr key={goal.id} className="border-b border-slate-100 last:border-b-0 align-top">
                       <td className="px-3 py-3">
-                        <Input value={draft.title} onChange={(e) => onPatch(goal.id, { title: e.target.value })} maxLength={120} className="h-8 text-xs" />
+                        <div className="space-y-1.5">
+                          <Input value={draft.title} onChange={(e) => onPatch(goal.id, { title: e.target.value })} maxLength={120} className="h-8 text-xs" />
+                          <Input value={draft.description} onChange={(e) => onPatch(goal.id, { description: e.target.value })} maxLength={500} placeholder="Optional description" className="h-8 text-xs" />
+                        </div>
                       </td>
                       <td className="px-3 py-3">
                         <Input type="number" min={1} value={draft.points} onChange={(e) => onPatch(goal.id, { points: e.target.value })} className="h-8 text-xs" />
@@ -439,7 +465,7 @@ function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, o
 
   const status = GOAL_STATUS_META[goal.status];
   const isCompleted = goal.status === "completed";
-  const extended = goal.end_date > goal.original_end_date;
+  const extended = !!goal.end_date && !!goal.original_end_date && goal.end_date > goal.original_end_date;
   const subtasks = goal.subtasks ?? [];
   const doneCount = subtasks.filter((s) => s.is_done).length;
   const latestDelay = (goal.delays ?? [])[0];
@@ -495,8 +521,8 @@ function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, o
       <div className="flex items-start gap-3 p-4">
         {/* Points badge */}
         <div className={`flex flex-col items-center justify-center rounded-xl px-3 py-2 flex-shrink-0 ${isCompleted ? "bg-blue-50 text-blue-700" : "bg-indigo-50 text-indigo-700"}`}>
-          <span className="text-lg font-extrabold leading-none">{goal.points}</span>
-          <span className="text-[9px] font-semibold uppercase tracking-wide">pts</span>
+          <span className="text-lg font-extrabold leading-none">{goalPointsLabel(goal.points)}</span>
+          {goal.points !== null && goal.points !== undefined && <span className="text-[9px] font-semibold uppercase tracking-wide">pts</span>}
         </div>
 
         {/* Body */}
@@ -508,8 +534,14 @@ function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, o
               <span key={t} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{t}</span>
             ))}
           </div>
+          {goal.description && (
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">{goal.description}</p>
+          )}
           <div className="mt-1.5 flex items-center gap-3 flex-wrap text-[11px] text-slate-500">
-            <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" /> {formatDateRange(goal.start_date, goal.end_date)}{extended && <span className="text-amber-600"> (extended from {formatShortDate(goal.original_end_date)})</span>}</span>
+            <span className="flex items-center gap-1">
+              <CalendarDays className="h-3 w-3" /> {goalDateLabel(goal)}
+              {extended && goal.original_end_date && <span className="text-amber-600"> (extended from {formatShortDate(goal.original_end_date)})</span>}
+            </span>
             {subtasks.length > 0 && <span className="flex items-center gap-1"><ListChecks className="h-3 w-3" /> {doneCount}/{subtasks.length} subtasks</span>}
           </div>
         </div>

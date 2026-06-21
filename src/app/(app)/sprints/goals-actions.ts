@@ -93,7 +93,7 @@ function normalizeOptionalDate(value: string | null | undefined): string | null 
 
 function normalizeOptionalPoints(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
-  const points = Math.round(Number(value));
+  const points = Number(value);
   return Number.isFinite(points) ? points : Number.NaN;
 }
 

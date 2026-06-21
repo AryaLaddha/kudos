@@ -18,7 +18,7 @@ import { formatDateRange, formatShortDate } from "@/lib/leave";
 import type { GoalStatus, RoleRequirement, SprintGoal, Stream } from "@/types";
 import { toast } from "sonner";
 import {
-  Plus, ChevronDown, Trash2, AlertTriangle, CheckCircle2, Circle, Pencil, CalendarDays, ListChecks, Save, X,
+  Plus, ChevronDown, Trash2, AlertTriangle, CheckCircle2, Circle, Pencil, CalendarDays, ListChecks, Save, X, LayoutGrid, Table2,
 } from "lucide-react";
 
 interface OrgUser { id: string; full_name: string; }
@@ -31,6 +31,7 @@ interface Props {
 }
 
 const NO_STREAM = "__none__";
+type ViewMode = "cards" | "table";
 
 type GoalDraft = {
   title: string;
@@ -49,7 +50,11 @@ function roleRequirementsText(reqs: RoleRequirement[]) {
 }
 
 function goalPointsLabel(points: number | null) {
-  return points === null || points === undefined ? "No pts" : String(points);
+  return points === null || points === undefined ? "No pts" : formatPointValue(points);
+}
+
+function formatPointValue(points: number) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(points);
 }
 
 function goalDateLabel(goal: Pick<SprintGoal, "start_date" | "end_date">) {
@@ -81,6 +86,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
   const [streamFilter, setStreamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [pointsFilter, setPointsFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [newOpen, setNewOpen] = useState(false);
   const [newDialogKey, setNewDialogKey] = useState(0);
   const [editGoal, setEditGoal] = useState<SprintGoal | null>(null);
@@ -94,6 +100,10 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
     const m = new Map(orgUsers.map((u) => [u.id, u.full_name]));
     return (id: string | null) => (id ? m.get(id) ?? "Someone" : "Someone");
   }, [orgUsers]);
+  const streamName = useMemo(() => {
+    const m = new Map(streams.map((s) => [s.id, s.name]));
+    return (id: string) => m.get(id) ?? "Stream";
+  }, [streams]);
 
   const filtered = useMemo(() => {
     return goals.filter((g) => {
@@ -123,6 +133,17 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
     if (byStream.has(NO_STREAM)) ordered.push({ key: NO_STREAM, label: "Other", goals: byStream.get(NO_STREAM)! });
     return ordered;
   }, [filtered, streams]);
+
+  const goalStats = useMemo(() => {
+    const totalPoints = filtered.reduce((sum, g) => sum + (g.points ?? 0), 0);
+    return {
+      totalGoals: filtered.length,
+      totalPoints: Math.round(totalPoints * 100) / 100,
+      completed: filtered.filter((g) => g.status === "completed").length,
+      delayed: filtered.filter((g) => g.status === "delayed").length,
+      unscheduled: filtered.filter((g) => !g.start_date || !g.end_date).length,
+    };
+  }, [filtered]);
 
   // ── Mutations (optimistic-ish: apply returned rows to local state) ──
   function upsertGoal(goal: SprintGoal) {
@@ -218,6 +239,14 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
 
   return (
     <div>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
+        <Stat label="Total Goals" value={goalStats.totalGoals} color="text-indigo-600" />
+        <Stat label="Total Points" value={formatPointValue(goalStats.totalPoints)} color="text-emerald-600" />
+        <Stat label="Completed" value={goalStats.completed} color="text-blue-600" />
+        <Stat label="Delayed" value={goalStats.delayed} color="text-red-600" />
+        <Stat label="No Dates" value={goalStats.unscheduled} color="text-amber-600" />
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <select value={streamFilter} onChange={(e) => setStreamFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-600 outline-none">
@@ -235,6 +264,22 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
           <option value="7+">7+ pts</option>
         </select>
         <div className="flex-1" />
+        <div className="inline-flex h-8 rounded-lg border border-slate-200 bg-white p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode("cards")}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold ${viewMode === "cards" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" /> Cards
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("table")}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold ${viewMode === "table" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            <Table2 className="h-3.5 w-3.5" /> Table
+          </button>
+        </div>
         {bulkEditing ? (
           <>
             <Button size="sm" variant="outline" onClick={cancelEditAll} disabled={bulkSaving} className="h-8 gap-1.5 text-xs px-3">
@@ -270,6 +315,15 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
           <ListChecks className="mx-auto h-8 w-8 text-slate-200 mb-2" />
           <p className="text-sm font-medium text-slate-400">{goals.length === 0 ? "No goals in this sprint window yet." : "No goals match your filters."}</p>
         </div>
+      ) : viewMode === "table" ? (
+        <GoalTableView
+          grouped={grouped}
+          streamName={streamName}
+          onEdit={setEditGoal}
+          onDelay={setDelayGoal}
+          onComplete={upsertGoal}
+          onDeleted={(id) => setGoals((prev) => prev.filter((g) => g.id !== id))}
+        />
       ) : (
         <div className="space-y-6">
           {grouped.map((group) => (
@@ -324,6 +378,160 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
         onSaved={(g) => { upsertGoal(g); setDelayGoal(null); }}
       />
     </div>
+  );
+}
+
+function GoalTableView({
+  grouped,
+  streamName,
+  onEdit,
+  onDelay,
+  onComplete,
+  onDeleted,
+}: {
+  grouped: { key: string; label: string; goals: SprintGoal[] }[];
+  streamName: (id: string) => string;
+  onEdit: (goal: SprintGoal) => void;
+  onDelay: (goal: SprintGoal) => void;
+  onComplete: (goal: SprintGoal) => void;
+  onDeleted: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {grouped.map((group) => (
+        <div key={group.key}>
+          <div className="flex items-center gap-2 mb-2.5">
+            {group.key !== NO_STREAM && (
+              <span className="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" style={{ background: colorForId(group.key) }}>
+                {group.label}
+              </span>
+            )}
+            <h3 className="text-sm font-bold text-slate-800">{group.label} Goals</h3>
+            <span className="text-[11px] font-semibold text-slate-400">{group.goals.length}</span>
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+            <table className="w-full min-w-[980px] border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2.5 w-[300px]">Goal</th>
+                  <th className="px-3 py-2.5 w-[90px] text-center">Points</th>
+                  <th className="px-3 py-2.5 w-[150px]">Dates</th>
+                  <th className="px-3 py-2.5 w-[120px]">Status</th>
+                  <th className="px-3 py-2.5">Streams / Tags</th>
+                  <th className="px-3 py-2.5 w-[160px]">Roles</th>
+                  <th className="px-3 py-2.5 w-[150px]">Progress</th>
+                  <th className="px-3 py-2.5 w-[170px] text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.goals.map((goal) => (
+                  <GoalTableRow
+                    key={goal.id}
+                    goal={goal}
+                    streamName={streamName}
+                    onEdit={() => onEdit(goal)}
+                    onDelay={() => onDelay(goal)}
+                    onComplete={onComplete}
+                    onDeleted={onDeleted}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GoalTableRow({
+  goal,
+  streamName,
+  onEdit,
+  onDelay,
+  onComplete,
+  onDeleted,
+}: {
+  goal: SprintGoal;
+  streamName: (id: string) => string;
+  onEdit: () => void;
+  onDelay: () => void;
+  onComplete: (goal: SprintGoal) => void;
+  onDeleted: (id: string) => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const status = GOAL_STATUS_META[goal.status];
+  const subtasks = goal.subtasks ?? [];
+  const doneCount = subtasks.filter((s) => s.is_done).length;
+  const isCompleted = goal.status === "completed";
+
+  function handleComplete() {
+    startTransition(async () => {
+      const res = await completeGoal(goal.id, !isCompleted);
+      if (res.error || !res.goal) { toast.error(res.error ?? "Something went wrong."); return; }
+      onComplete(res.goal);
+      toast.success(isCompleted ? "Goal reopened." : "Goal completed.");
+    });
+  }
+
+  function handleDelete() {
+    startTransition(async () => {
+      const res = await deleteGoal(goal.id);
+      if (res.error) { toast.error(res.error); return; }
+      onDeleted(goal.id);
+      toast.success("Goal deleted.");
+    });
+  }
+
+  return (
+    <tr className="border-b border-slate-100 last:border-b-0 align-top hover:bg-slate-50/50">
+      <td className="px-3 py-3">
+        <div className="text-xs font-bold text-slate-900">{goal.title}</div>
+        {goal.description && <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{goal.description}</p>}
+      </td>
+      <td className="px-3 py-3 text-center">
+        <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-extrabold text-indigo-700">{goalPointsLabel(goal.points)}</span>
+      </td>
+      <td className="px-3 py-3 text-[11px] text-slate-500">{goalDateLabel(goal)}</td>
+      <td className="px-3 py-3">
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: status.pillBg, color: status.pillText }}>{status.label}</span>
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex flex-wrap gap-1">
+          {goal.stream_ids.length === 0 && goal.tags.length === 0 && <span className="text-[11px] text-slate-400">—</span>}
+          {goal.stream_ids.map((sid) => (
+            <span key={sid} className="rounded-full px-2 py-0.5 text-[10px] font-medium text-white" style={{ background: colorForId(sid) }}>{streamName(sid)}</span>
+          ))}
+          {goal.tags.map((tag) => (
+            <span key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{tag}</span>
+          ))}
+        </div>
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex flex-wrap gap-1">
+          {(goal.role_requirements ?? []).length === 0 ? (
+            <span className="text-[11px] text-slate-400">No roles</span>
+          ) : goal.role_requirements.map((r) => (
+            <span key={r.role} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{r.role} {r.pct}%</span>
+          ))}
+        </div>
+      </td>
+      <td className="px-3 py-3 text-[11px] text-slate-500">
+        {subtasks.length > 0 ? `${doneCount}/${subtasks.length} subtasks` : "No subtasks"}
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex justify-end gap-1">
+          {!isCompleted && (
+            <>
+              <Button size="sm" variant="outline" onClick={handleComplete} disabled={isPending} className="h-7 px-2 text-[11px] text-emerald-700 border-emerald-200 hover:bg-emerald-50">Done</Button>
+              <Button size="sm" variant="outline" onClick={onDelay} className="h-7 px-2 text-[11px] text-red-600 border-red-200 hover:bg-red-50">Delay</Button>
+            </>
+          )}
+          <button onClick={onEdit} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" title="Edit goal"><Pencil className="h-3.5 w-3.5" /></button>
+          <button onClick={handleDelete} disabled={isPending} className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50" title="Delete goal"><Trash2 className="h-3.5 w-3.5" /></button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -391,7 +599,7 @@ function BulkGoalsEditor({
                         </div>
                       </td>
                       <td className="px-3 py-3">
-                        <Input type="number" min={1} value={draft.points} onChange={(e) => onPatch(goal.id, { points: e.target.value })} className="h-8 text-xs" />
+                        <Input type="number" min={0.1} step="any" value={draft.points} onChange={(e) => onPatch(goal.id, { points: e.target.value })} className="h-8 text-xs" />
                       </td>
                       <td className="px-3 py-3">
                         <div className="grid grid-cols-2 gap-1.5">
@@ -617,6 +825,15 @@ function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, o
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: number | string; color: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center">
+      <div className={`text-2xl font-extrabold leading-none ${color}`}>{value}</div>
+      <div className="text-[11px] text-slate-500 mt-1">{label}</div>
     </div>
   );
 }

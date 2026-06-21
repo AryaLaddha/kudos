@@ -150,7 +150,7 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
 
           <div>
             <label className="text-xs font-semibold text-slate-600 block mb-1.5">Points <span className="font-normal text-slate-400">(optional)</span></label>
-            <Input type="number" min={1} value={points} onChange={(e) => setPoints(e.target.value)} placeholder="e.g. 5" className="text-sm w-32" />
+            <Input type="number" min={0.1} step="any" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="e.g. 5.5" className="text-sm w-32" />
           </div>
 
           <div>

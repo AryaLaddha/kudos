@@ -312,6 +312,7 @@ export default function SprintDetailClient({
           goals={goals}
           streams={streams}
           roles={roles}
+          setRoles={setRoles}
           assignments={assignments}
           setAssignments={setAssignments}
           orgUsers={orgUsers}

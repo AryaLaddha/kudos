@@ -34,6 +34,12 @@ interface Props {
 const NO_STREAM = "__none__";
 type ViewMode = "cards" | "table";
 
+type RoleDraftRow = {
+  id: string;
+  role: string;
+  points: string;
+};
+
 type GoalDraft = {
   title: string;
   description: string;
@@ -43,11 +49,15 @@ type GoalDraft = {
   status: GoalStatus;
   stream_ids: string[];
   tags: string;
-  role_requirements: string;
+  role_requirements: RoleDraftRow[];
 };
 
-function roleRequirementsText(reqs: RoleRequirement[]) {
-  return reqs.map((r) => `${r.role}:${r.points ?? ""}`).join(", ");
+function roleRequirementsDraft(reqs: RoleRequirement[], goalId: string): RoleDraftRow[] {
+  return reqs.map((r, index) => ({
+    id: r.id || `${goalId}_role_${index}`,
+    role: r.role,
+    points: r.points !== null && r.points !== undefined ? String(r.points) : "",
+  }));
 }
 
 function goalPointsLabel(points: number | null) {
@@ -61,23 +71,6 @@ function formatPointValue(points: number) {
 function goalDateLabel(goal: Pick<SprintGoal, "start_date" | "end_date">) {
   if (!goal.start_date || !goal.end_date) return "No dates";
   return formatDateRange(goal.start_date, goal.end_date);
-}
-
-function parseRoleRequirements(value: string, validRoleNames: string[]): RoleRequirement[] | string {
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-  const validRoles = new Set<string>(validRoleNames);
-  const out: RoleRequirement[] = [];
-
-  for (const part of trimmed.split(",")) {
-    const [roleRaw, pointsRaw = ""] = part.split(":").map((s) => s?.trim());
-    if (!roleRaw) return "Use role requirements like Dev:5, QA:3.";
-    if (!validRoles.has(roleRaw)) return `${roleRaw} is not a valid role.`;
-    const points = pointsRaw === "" ? null : Number(pointsRaw);
-    if (points !== null && (!Number.isFinite(points) || points <= 0)) return "Role points must be greater than 0.";
-    out.push({ id: globalThis.crypto?.randomUUID?.() ?? `${roleRaw}_${out.length}`, role: roleRaw, points });
-  }
-  return out;
 }
 
 export default function SprintGoalsClient({ goals, setGoals, streams, roles, sprint, orgUsers }: Props) {
@@ -102,7 +95,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, roles, spr
     const m = new Map(streams.map((s) => [s.id, s.name]));
     return (id: string) => m.get(id) ?? "Stream";
   }, [streams]);
-  const activeRoleNames = useMemo(() => roles.filter((r) => !r.is_archived).map((r) => r.name), [roles]);
+  const roleNames = useMemo(() => roles.map((r) => r.name), [roles]);
 
   const filtered = useMemo(() => {
     return goals.filter((g) => {
@@ -170,7 +163,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, roles, spr
       status: g.status,
       stream_ids: g.stream_ids,
       tags: g.tags.join(", "),
-      role_requirements: roleRequirementsText(g.role_requirements ?? []),
+      role_requirements: roleRequirementsDraft(g.role_requirements ?? [], g.id),
     } satisfies GoalDraft])));
     setBulkEditing(true);
   }
@@ -192,16 +185,53 @@ export default function SprintGoalsClient({ goals, setGoals, streams, roles, spr
     });
   }
 
+  function patchDraftRole(goalId: string, rowId: string, patch: Partial<RoleDraftRow>) {
+    setDrafts((prev) => {
+      const current = prev[goalId]?.role_requirements ?? [];
+      return {
+        ...prev,
+        [goalId]: {
+          ...prev[goalId],
+          role_requirements: current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+        },
+      };
+    });
+  }
+
+  function addDraftRole(goalId: string) {
+    setDrafts((prev) => {
+      const current = prev[goalId]?.role_requirements ?? [];
+      let nextIndex = current.length;
+      while (current.some((row) => row.id === `${goalId}_role_${nextIndex}`)) nextIndex += 1;
+      return {
+        ...prev,
+        [goalId]: {
+          ...prev[goalId],
+          role_requirements: [...current, { id: `${goalId}_role_${nextIndex}`, role: "", points: "" }],
+        },
+      };
+    });
+  }
+
+  function removeDraftRole(goalId: string, rowId: string) {
+    setDrafts((prev) => {
+      const current = prev[goalId]?.role_requirements ?? [];
+      return {
+        ...prev,
+        [goalId]: {
+          ...prev[goalId],
+          role_requirements: current.filter((row) => row.id !== rowId),
+        },
+      };
+    });
+  }
+
   function saveEditAll() {
     const updates = goals.map((goal) => {
       const draft = drafts[goal.id];
       if (!draft) return null;
       const points = draft.points.trim() === "" ? null : Number(draft.points);
-      const roleReqs = parseRoleRequirements(draft.role_requirements, activeRoleNames);
-      if (typeof roleReqs === "string") {
-        toast.error(`${goal.title}: ${roleReqs}`);
-        return "invalid";
-      }
+      const roleReqs: RoleRequirement[] = [];
       if ((draft.start_date && !draft.end_date) || (!draft.start_date && draft.end_date)) {
         toast.error(`${goal.title}: choose both start and end dates, or leave both blank.`);
         return "invalid";
@@ -209,6 +239,19 @@ export default function SprintGoalsClient({ goals, setGoals, streams, roles, spr
       if (points !== null && (!Number.isFinite(points) || points <= 0)) {
         toast.error(`${goal.title}: points must be a positive number.`);
         return "invalid";
+      }
+      for (const row of draft.role_requirements) {
+        if (!row.role) continue;
+        if (!roleNames.includes(row.role)) {
+          toast.error(`${goal.title}: ${row.role} is not a valid role.`);
+          return "invalid";
+        }
+        const rolePoints = row.points.trim() === "" ? null : Number(row.points);
+        if (rolePoints !== null && (!Number.isFinite(rolePoints) || rolePoints <= 0)) {
+          toast.error(`${goal.title}: ${row.role} points must be greater than 0.`);
+          return "invalid";
+        }
+        roleReqs.push({ id: row.id, role: row.role, points: rolePoints });
       }
       return {
         id: goal.id,
@@ -308,6 +351,9 @@ export default function SprintGoalsClient({ goals, setGoals, streams, roles, spr
           streams={streams}
           roles={roles}
           onPatch={patchDraft}
+          onPatchRole={patchDraftRole}
+          onAddRole={addDraftRole}
+          onRemoveRole={removeDraftRole}
           onToggleStream={toggleDraftStream}
         />
       ) : filtered.length === 0 ? (
@@ -542,6 +588,9 @@ function BulkGoalsEditor({
   streams,
   roles,
   onPatch,
+  onPatchRole,
+  onAddRole,
+  onRemoveRole,
   onToggleStream,
 }: {
   grouped: { key: string; label: string; goals: SprintGoal[] }[];
@@ -549,6 +598,9 @@ function BulkGoalsEditor({
   streams: Stream[];
   roles: CapacityRoleDefinition[];
   onPatch: (id: string, patch: Partial<GoalDraft>) => void;
+  onPatchRole: (goalId: string, rowId: string, patch: Partial<RoleDraftRow>) => void;
+  onAddRole: (goalId: string) => void;
+  onRemoveRole: (goalId: string, rowId: string) => void;
   onToggleStream: (goalId: string, streamId: string) => void;
 }) {
   if (grouped.length === 0) {
@@ -584,7 +636,7 @@ function BulkGoalsEditor({
                   <th className="px-3 py-2.5 w-[130px]">Status</th>
                   <th className="px-3 py-2.5 w-[220px]">Streams</th>
                   <th className="px-3 py-2.5 w-[210px]">Tags</th>
-                  <th className="px-3 py-2.5 w-[210px]">Roles</th>
+                  <th className="px-3 py-2.5 w-[360px]">Roles</th>
                 </tr>
               </thead>
               <tbody>
@@ -640,7 +692,14 @@ function BulkGoalsEditor({
                         <Input value={draft.tags} onChange={(e) => onPatch(goal.id, { tags: e.target.value })} placeholder="tag, tag" className="h-8 text-xs" />
                       </td>
                       <td className="px-3 py-3">
-                        <Input value={draft.role_requirements} onChange={(e) => onPatch(goal.id, { role_requirements: e.target.value })} placeholder="Dev:5, Dev:8, QA:3" className="h-8 text-xs" />
+                        <BulkRolesEditor
+                          goalId={goal.id}
+                          rows={draft.role_requirements}
+                          roles={roles}
+                          onPatch={onPatchRole}
+                          onAdd={onAddRole}
+                          onRemove={onRemoveRole}
+                        />
                       </td>
                     </tr>
                   );
@@ -650,12 +709,87 @@ function BulkGoalsEditor({
           </div>
         </div>
       ))}
-      <p className="text-[11px] text-slate-400">Role format: Dev:5, Dev:8, QA:3. Blank points auto-fill from the goal points. Active roles: {roles.filter((r) => !r.is_archived).map((r) => r.name).join(", ") || "none"}.</p>
     </div>
   );
 }
 
 // ── Goal card ─────────────────────────────────────────────────────────────────
+
+function BulkRolesEditor({
+  goalId,
+  rows,
+  roles,
+  onPatch,
+  onAdd,
+  onRemove,
+}: {
+  goalId: string;
+  rows: RoleDraftRow[];
+  roles: CapacityRoleDefinition[];
+  onPatch: (goalId: string, rowId: string, patch: Partial<RoleDraftRow>) => void;
+  onAdd: (goalId: string) => void;
+  onRemove: (goalId: string, rowId: string) => void;
+}) {
+  const visibleRoles = (selectedRole: string) => roles.filter((role) => !role.is_archived || role.name === selectedRole);
+
+  return (
+    <div className="min-w-[320px] space-y-2">
+      {rows.length === 0 ? (
+        <button
+          type="button"
+          onClick={() => onAdd(goalId)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-indigo-200 bg-indigo-50/40 px-2.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add role
+        </button>
+      ) : (
+        rows.map((row) => (
+          <div key={row.id} className="grid grid-cols-[minmax(120px,1fr)_92px_28px] items-center gap-1.5">
+            <select
+              value={row.role}
+              onChange={(e) => onPatch(goalId, row.id, { role: e.target.value })}
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-indigo-400"
+            >
+              <option value="">Select role...</option>
+              {visibleRoles(row.role).map((role) => (
+                <option key={role.id} value={role.name}>{role.name}</option>
+              ))}
+            </select>
+            <div className="relative">
+              <Input
+                type="number"
+                min={0.1}
+                step="any"
+                value={row.points}
+                onChange={(e) => onPatch(goalId, row.id, { points: e.target.value })}
+                placeholder="Auto"
+                className="h-8 pr-7 text-right text-xs"
+              />
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">pts</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onRemove(goalId, row.id)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 hover:bg-red-100"
+              title="Remove role"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))
+      )}
+      {rows.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onAdd(goalId)}
+          className="inline-flex h-7 items-center gap-1 rounded-md px-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700"
+        >
+          <Plus className="h-3 w-3" /> Add role
+        </button>
+      )}
+    </div>
+  );
+}
 
 interface GoalCardProps {
   goal: SprintGoal;

@@ -10,7 +10,7 @@ interface Props {
 
 export default async function SprintCapacityDetailPage({ params }: Props) {
   const { id } = await params;
-  const { sprint, participants, orgUsers, goals, streams, assignments } = await getSprintCapacityReadModel(id);
+  const { sprint, participants, orgUsers, goals, streams, roles, assignments } = await getSprintCapacityReadModel(id);
 
   if (!sprint) notFound();
 
@@ -21,6 +21,7 @@ export default async function SprintCapacityDetailPage({ params }: Props) {
       orgUsers={orgUsers}
       goals={goals}
       streams={streams}
+      roles={roles}
       assignments={assignments}
     />
   );

@@ -101,12 +101,19 @@ export type Stream = {
   is_archived: boolean;
 };
 
+export type CapacityRoleDefinition = {
+  id: string;
+  name: string;
+  is_archived: boolean;
+};
+
 export type GoalStatus = "on_track" | "delayed" | "completed" | "carried_over";
 
-// A role requirement on a goal: how much of a given role is needed to deliver it.
+// A role requirement row on a goal. Multiple rows can use the same role.
 export type RoleRequirement = {
+  id: string;
   role: string;
-  pct: number;
+  points: number | null;
 };
 
 // One person filling one role on a goal within a sprint.
@@ -115,9 +122,10 @@ export type GoalAssignment = {
   org_id: string;
   sprint_id: string;
   goal_id: string;
+  role_requirement_id: string | null;
   role: string;
   user_id: string;
-  allocation_pct: number;
+  allocated_points: number;
   created_at: string;
 };
 

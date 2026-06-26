@@ -12,26 +12,39 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createGoal, updateGoal } from "@/app/(app)/sprints/goals-actions";
-import { ROLE_OPTIONS } from "@/lib/sprintGoals";
-import type { SprintGoal, Stream } from "@/types";
+import type { CapacityRoleDefinition, SprintGoal, Stream } from "@/types";
 import { toast } from "sonner";
 import { Target, Plus, X } from "lucide-react";
 
 interface RoleReqRow {
+  id: string;
   role: string;
-  pct: string;
+  points: string;
 }
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   streams: Stream[];
+  roles: CapacityRoleDefinition[];
   sprint: { id: string; start_date: string; end_date: string };
   goal?: SprintGoal | null;
   onSaved: (goal: SprintGoal) => void;
 }
 
-export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goal, onSaved }: Props) {
+function makeRoleReqId(seed = "new") {
+  return globalThis.crypto?.randomUUID?.() ?? `role_${seed}`;
+}
+
+function toRoleRows(goal: SprintGoal | null | undefined): RoleReqRow[] {
+  return (goal?.role_requirements ?? []).map((r, index) => ({
+    id: r.id || makeRoleReqId(`${goal?.id ?? "goal"}_${index}`),
+    role: r.role,
+    points: r.points !== null && r.points !== undefined ? String(r.points) : "",
+  }));
+}
+
+export default function NewGoalDialog({ open, onOpenChange, streams, roles, sprint, goal, onSaved }: Props) {
   const editing = !!goal;
   const [title, setTitle] = useState(goal?.title ?? "");
   const [description, setDescription] = useState(goal?.description ?? "");
@@ -40,12 +53,11 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
   const [points, setPoints] = useState<string>(goal?.points !== null && goal?.points !== undefined ? String(goal.points) : "");
   const [streamIds, setStreamIds] = useState<string[]>(goal?.stream_ids ?? []);
   const [tagsInput, setTagsInput] = useState((goal?.tags ?? []).join(", "));
-  const [roleReqs, setRoleReqs] = useState<RoleReqRow[]>(
-    (goal?.role_requirements ?? []).map((r) => ({ role: r.role, pct: String(r.pct) })),
-  );
+  const [roleReqs, setRoleReqs] = useState<RoleReqRow[]>(toRoleRows(goal));
   const [isPending, startTransition] = useTransition();
 
   const activeStreams = streams.filter((s) => !s.is_archived || streamIds.includes(s.id));
+  const activeRoles = roles.filter((r) => !r.is_archived || roleReqs.some((req) => req.role === r.name));
 
   function resetFromGoal(nextGoal: SprintGoal | null | undefined) {
     setTitle(nextGoal?.title ?? "");
@@ -55,7 +67,7 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
     setPoints(nextGoal?.points !== null && nextGoal?.points !== undefined ? String(nextGoal.points) : "");
     setStreamIds(nextGoal?.stream_ids ?? []);
     setTagsInput((nextGoal?.tags ?? []).join(", "));
-    setRoleReqs((nextGoal?.role_requirements ?? []).map((r) => ({ role: r.role, pct: String(r.pct) })));
+    setRoleReqs(toRoleRows(nextGoal));
   }
 
   function toggleStream(id: string) {
@@ -63,11 +75,13 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
   }
 
   function addRoleRow() {
-    setRoleReqs((prev) => [...prev, { role: "", pct: "" }]);
+    setRoleReqs((prev) => [...prev, { id: makeRoleReqId(`new_${prev.length}`), role: "", points: "" }]);
   }
+
   function removeRoleRow(index: number) {
     setRoleReqs((prev) => prev.filter((_, i) => i !== index));
   }
+
   function updateRoleRow(index: number, patch: Partial<RoleReqRow>) {
     setRoleReqs((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   }
@@ -78,10 +92,18 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
     if ((start && !end) || (!start && end)) return toast.error("Choose both start and end dates, or leave both blank.");
     if (pts !== null && (!Number.isFinite(pts) || pts <= 0)) return toast.error("Points must be a positive number.");
 
+    for (const row of roleReqs) {
+      if (!row.role) continue;
+      if (row.points.trim() !== "") {
+        const n = Number(row.points);
+        if (!Number.isFinite(n) || n <= 0) return toast.error(`${row.role}: role points must be greater than 0.`);
+      }
+    }
+
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
     const role_requirements = roleReqs
-      .filter((r) => r.role && r.pct)
-      .map((r) => ({ role: r.role, pct: Number(r.pct) }));
+      .filter((r) => r.role)
+      .map((r) => ({ id: r.id, role: r.role, points: r.points.trim() === "" ? null : Number(r.points) }));
     const payload = {
       title,
       description: description.trim() || null,
@@ -109,65 +131,53 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg w-full p-0 gap-0 max-h-[88vh] flex flex-col" showCloseButton={false}>
-        <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100">
+      <DialogContent className="max-h-[88vh] w-full max-w-lg flex-col gap-0 p-0" showCloseButton={false}>
+        <DialogHeader className="border-b border-slate-100 px-5 pb-3 pt-5">
           <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
             <Target className="h-4 w-4 text-indigo-600" />
             {editing ? "Edit Sprint Goal" : "New Sprint Goal"}
           </DialogTitle>
-          <p className="text-xs text-slate-500 mt-0.5">Goals appear in any sprint whose dates they overlap.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Goals appear in any sprint whose dates they overlap.</p>
         </DialogHeader>
 
-        <div className="px-5 py-4 space-y-4 overflow-y-auto">
+        <div className="space-y-4 overflow-y-auto px-5 py-4">
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1.5">Goal Title <span className="text-red-500">*</span></label>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Goal Title <span className="text-red-500">*</span></label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="e.g. Launch Customer Portal v2" className="text-sm" autoFocus />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1.5">Description <span className="font-normal text-slate-400">(optional)</span></label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={500}
-              rows={3}
-              placeholder="Add context, success criteria, or notes..."
-              className="resize-none text-sm"
-            />
-            <p className="text-right text-[10px] text-slate-400 mt-1">{description.length}/500</p>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Description <span className="font-normal text-slate-400">(optional)</span></label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} rows={3} placeholder="Add context, success criteria, or notes..." className="resize-none text-sm" />
+            <p className="mt-1 text-right text-[10px] text-slate-400">{description.length}/500</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-600 block mb-1.5">Start Date <span className="font-normal text-slate-400">(optional)</span></label>
+              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Start Date <span className="font-normal text-slate-400">(optional)</span></label>
               <Input type="date" value={start} max={end || undefined} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd(e.target.value); }} className="text-sm" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-600 block mb-1.5">End Date <span className="font-normal text-slate-400">(optional)</span></label>
+              <label className="mb-1.5 block text-xs font-semibold text-slate-600">End Date <span className="font-normal text-slate-400">(optional)</span></label>
               <Input type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} className="text-sm" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1.5">Points <span className="font-normal text-slate-400">(optional)</span></label>
-            <Input type="number" min={0.1} step="any" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="e.g. 5.5" className="text-sm w-32" />
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Points <span className="font-normal text-slate-400">(optional)</span></label>
+            <Input type="number" min={0.1} step="any" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="e.g. 5.5" className="w-32 text-sm" />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1.5">Streams</label>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Streams</label>
             {activeStreams.length === 0 ? (
-              <p className="text-xs text-slate-400">No streams yet — create them in the Streams tab.</p>
+              <p className="text-xs text-slate-400">No streams yet. Create them in the Streams tab.</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {activeStreams.map((s) => {
                   const on = streamIds.includes(s.id);
                   return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => toggleStream(s.id)}
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${on ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-indigo-300"}`}
-                    >
+                    <button key={s.id} type="button" onClick={() => toggleStream(s.id)} className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"}`}>
                       {s.name}
                     </button>
                   );
@@ -177,69 +187,40 @@ export default function NewGoalDialog({ open, onOpenChange, streams, sprint, goa
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1.5">
-              Required Roles <span className="font-normal text-slate-400">(roles + % needed to complete this goal)</span>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+              Required Roles <span className="font-normal text-slate-400">(points auto-fill from goal points when blank)</span>
             </label>
             <div className="space-y-1.5">
-              {roleReqs.map((row, i) => {
-                // Roles already chosen in other rows can't be picked again.
-                const taken = new Set(roleReqs.filter((_, j) => j !== i).map((r) => r.role));
-                return (
-                  <div key={i} className="grid grid-cols-[1fr_84px_32px] gap-1.5 items-center">
-                    <select
-                      value={row.role}
-                      onChange={(e) => updateRoleRow(i, { role: e.target.value })}
-                      className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-indigo-400"
-                    >
-                      <option value="">Select role…</option>
-                      {ROLE_OPTIONS.filter((r) => r === row.role || !taken.has(r)).map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        min={10}
-                        max={100}
-                        step={10}
-                        value={row.pct}
-                        onChange={(e) => updateRoleRow(i, { pct: e.target.value })}
-                        placeholder="%"
-                        className="text-xs h-8 pr-5 text-right"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeRoleRow(i)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 hover:bg-red-100"
-                      title="Remove role"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+              {roleReqs.map((row, i) => (
+                <div key={row.id} className="grid grid-cols-[1fr_96px_32px] items-center gap-1.5">
+                  <select value={row.role} onChange={(e) => updateRoleRow(i, { role: e.target.value })} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-indigo-400">
+                    <option value="">Select role...</option>
+                    {activeRoles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
+                  </select>
+                  <div className="relative">
+                    <Input type="number" min={0.1} step="any" value={row.points} onChange={(e) => updateRoleRow(i, { points: e.target.value })} placeholder="pts" className="h-8 pr-7 text-right text-xs" />
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">pts</span>
                   </div>
-                );
-              })}
+                  <button type="button" onClick={() => removeRoleRow(i)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 hover:bg-red-100" title="Remove role">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
-            <button
-              type="button"
-              onClick={addRoleRow}
-              disabled={roleReqs.length >= ROLE_OPTIONS.length}
-              className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-40"
-            >
+            <button type="button" onClick={addRoleRow} disabled={activeRoles.length === 0} className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-40">
               <Plus className="h-3.5 w-3.5" /> Add role
             </button>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1.5">Custom Tags <span className="font-normal text-slate-400">(comma-separated)</span></label>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Custom Tags <span className="font-normal text-slate-400">(comma-separated)</span></label>
             <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="e.g. Q1 initiative, high priority" className="text-sm" />
           </div>
         </div>
 
         <DialogFooter className="mx-0 mb-0 border-t border-slate-100 bg-slate-50/50" showCloseButton>
-          <Button onClick={handleSave} disabled={isPending} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-            {isPending ? "Saving…" : editing ? "Save Changes" : "Create Goal"}
+          <Button onClick={handleSave} disabled={isPending} className="bg-indigo-600 text-white hover:bg-indigo-700">
+            {isPending ? "Saving..." : editing ? "Save Changes" : "Create Goal"}
           </Button>
         </DialogFooter>
       </DialogContent>

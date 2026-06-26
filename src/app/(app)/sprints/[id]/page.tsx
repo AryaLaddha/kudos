@@ -4,6 +4,7 @@ import {
   getSprintGoals,
   getGoalHistory,
   getStreams,
+  getRoles,
   getGoalAssignments,
 } from "@/app/(app)/sprints/goals-actions";
 import { notFound } from "next/navigation";
@@ -19,13 +20,14 @@ export default async function SprintDetailPage({ params }: Props) {
   await requireSprintManager();
   const { id } = await params;
 
-  const [sprint, participants, orgUsers, goals, history, streams, assignments] = await Promise.all([
+  const [sprint, participants, orgUsers, goals, history, streams, roles, assignments] = await Promise.all([
     getSprintById(id),
     getSprintParticipants(id),
     getOrgUsers(),
     getSprintGoals(id),
     getGoalHistory(),
     getStreams(),
+    getRoles(),
     getGoalAssignments(id),
   ]);
 
@@ -40,6 +42,7 @@ export default async function SprintDetailPage({ params }: Props) {
       historyGoals={history.goals}
       allSprints={history.sprints}
       streams={streams}
+      roles={roles}
       assignments={assignments}
     />
   );

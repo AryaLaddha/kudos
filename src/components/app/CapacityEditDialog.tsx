@@ -11,8 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateParticipantCapacity } from "@/app/(app)/sprints/goals-actions";
-import { ROLE_OPTIONS } from "@/lib/sprintGoals";
-import type { Stream } from "@/types";
+import type { CapacityRoleDefinition, Stream } from "@/types";
 import { toast } from "sonner";
 import { SlidersHorizontal } from "lucide-react";
 
@@ -36,12 +35,13 @@ interface Props {
   sprint: { id: string };
   participant: CapParticipant;
   streams: Stream[];
+  roles: CapacityRoleDefinition[];
   /** Points currently allocated to this member via role assignments (for reference). */
   allocatedPoints: number;
   onSaved: (patch: CapacityPatch) => void;
 }
 
-export default function CapacityEditDialog({ open, onOpenChange, sprint, participant, streams, allocatedPoints, onSaved }: Props) {
+export default function CapacityEditDialog({ open, onOpenChange, sprint, participant, streams, roles, allocatedPoints, onSaved }: Props) {
   const [role, setRole] = useState(participant.role ?? "");
   const [overrideInput, setOverrideInput] = useState(
     participant.expected_override !== null && participant.expected_override !== undefined ? String(participant.expected_override) : "",
@@ -71,6 +71,7 @@ export default function CapacityEditDialog({ open, onOpenChange, sprint, partici
   }
 
   const activeStreams = streams.filter((s) => !s.is_archived || streamIds.includes(s.id));
+  const activeRoles = roles.filter((r) => !r.is_archived || r.name === role);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -92,7 +93,7 @@ export default function CapacityEditDialog({ open, onOpenChange, sprint, partici
               className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700 outline-none focus:border-indigo-400"
             >
               <option value="">No role</option>
-              {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              {activeRoles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
             </select>
           </div>
 

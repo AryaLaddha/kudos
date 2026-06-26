@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { canManageSprints } from "@/lib/auth";
-import { sanitizeRoleRequirements } from "@/lib/sprintGoals";
-import type { GoalAssignment, GoalDelay, GoalSubtask, RoleRequirement, SprintGoal, SprintRef, Stream } from "@/types";
+import { DEFAULT_ROLE_NAMES, sanitizeRoleRequirements } from "@/lib/sprintGoals";
+import type { CapacityRoleDefinition, GoalAssignment, GoalDelay, GoalSubtask, RoleRequirement, SprintGoal, SprintRef, Stream } from "@/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_TITLE = 120;
@@ -13,6 +13,7 @@ const MAX_DESCRIPTION = 500;
 const MAX_TAG = 30;
 const MAX_REASON = 280;
 const MAX_STREAM_NAME = 40;
+const MAX_ROLE_NAME = 40;
 
 // Authorize as admin or sprint manager. Sprint managers (non-DB-admins) use the
 // service-role client to bypass RLS — authorization is enforced here first.
@@ -34,6 +35,19 @@ function sortGoalChildren(goal: SprintGoal) {
   goal.subtasks?.sort((a, b) => a.created_at.localeCompare(b.created_at));
   goal.delays?.sort((a, b) => b.created_at.localeCompare(a.created_at));
   return goal;
+}
+
+async function getRoleNamesForOrg(
+  supabase: Awaited<ReturnType<typeof requireSprintClient>>["supabase"],
+  orgId: string,
+) {
+  const { data } = await supabase
+    .from("capacity_roles")
+    .select("name")
+    .eq("org_id", orgId)
+    .order("name");
+  const names = ((data as { name: string }[]) ?? []).map((r) => r.name);
+  return names.length > 0 ? names : DEFAULT_ROLE_NAMES;
 }
 
 // ── Streams ───────────────────────────────────────────────────────────────────
@@ -68,6 +82,38 @@ export async function createStream(name: string): Promise<{ error?: string; stre
 export async function setStreamArchived(id: string, archived: boolean): Promise<{ error?: string }> {
   const { supabase, orgId } = await requireSprintClient();
   const { error } = await supabase.from("streams").update({ is_archived: archived }).eq("id", id).eq("org_id", orgId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// Roles are org-level and managed from within a sprint, mirroring streams.
+export async function getRoles(): Promise<CapacityRoleDefinition[]> {
+  const { supabase, orgId } = await requireSprintClient();
+  const { data } = await supabase
+    .from("capacity_roles")
+    .select("id, name, is_archived")
+    .eq("org_id", orgId)
+    .order("name");
+  return (data as CapacityRoleDefinition[]) ?? [];
+}
+
+export async function createRole(name: string): Promise<{ error?: string; role?: CapacityRoleDefinition }> {
+  const { supabase, orgId } = await requireSprintClient();
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Role name is required." };
+  if (trimmed.length > MAX_ROLE_NAME) return { error: `Name must be ${MAX_ROLE_NAME} characters or fewer.` };
+  const { data, error } = await supabase
+    .from("capacity_roles")
+    .insert({ name: trimmed, org_id: orgId })
+    .select("id, name, is_archived")
+    .single();
+  if (error) return { error: error.message };
+  return { role: data as CapacityRoleDefinition };
+}
+
+export async function setRoleArchived(id: string, archived: boolean): Promise<{ error?: string }> {
+  const { supabase, orgId } = await requireSprintClient();
+  const { error } = await supabase.from("capacity_roles").update({ is_archived: archived }).eq("id", id).eq("org_id", orgId);
   if (error) return { error: error.message };
   return {};
 }
@@ -176,7 +222,8 @@ export async function createGoal(payload: {
   const err = validateGoalInput({ ...payload, description, points, start_date: startDate, end_date: endDate });
   if (err) return { error: err };
   const tags = payload.tags.map((t) => t.trim()).filter(Boolean).filter((t) => t.length <= MAX_TAG);
-  const roleRequirements = sanitizeRoleRequirements(payload.role_requirements ?? []);
+  const roleNames = await getRoleNamesForOrg(supabase, orgId);
+  const roleRequirements = sanitizeRoleRequirements(payload.role_requirements ?? [], roleNames, points);
   const { data, error } = await supabase
     .from("sprint_goals")
     .insert({
@@ -203,7 +250,7 @@ export async function updateGoal(
   id: string,
   payload: GoalInput,
 ): Promise<{ error?: string; goal?: SprintGoal }> {
-  const { supabase } = await requireSprintClient();
+  const { supabase, orgId } = await requireSprintClient();
   const points = normalizeOptionalPoints(payload.points);
   const startDate = normalizeOptionalDate(payload.start_date);
   const endDate = normalizeOptionalDate(payload.end_date);
@@ -211,6 +258,7 @@ export async function updateGoal(
   const err = validateGoalInput({ ...payload, description, points, start_date: startDate, end_date: endDate });
   if (err) return { error: err };
   const tags = payload.tags.map((t) => t.trim()).filter(Boolean).filter((t) => t.length <= MAX_TAG);
+  const roleNames = await getRoleNamesForOrg(supabase, orgId);
   const patch: Record<string, unknown> = {
     title: payload.title.trim(),
     description,
@@ -219,7 +267,7 @@ export async function updateGoal(
     end_date: endDate,
     stream_ids: payload.stream_ids,
     tags,
-    role_requirements: sanitizeRoleRequirements(payload.role_requirements ?? []),
+    role_requirements: sanitizeRoleRequirements(payload.role_requirements ?? [], roleNames, points),
   };
   if (payload.status) patch.status = payload.status;
   const { data, error } = await supabase.from("sprint_goals").update(patch).eq("id", id).select(GOAL_SELECT).single();
@@ -246,6 +294,7 @@ export async function updateGoalsBulk(
   if (updates.length === 0) return { goals: [] };
 
   const saved: SprintGoal[] = [];
+  const roleNames = await getRoleNamesForOrg(supabase, orgId);
   for (const update of updates) {
     const points = normalizeOptionalPoints(update.points);
     const startDate = normalizeOptionalDate(update.start_date);
@@ -263,7 +312,7 @@ export async function updateGoalsBulk(
       end_date: endDate,
       stream_ids: update.stream_ids,
       tags,
-      role_requirements: sanitizeRoleRequirements(update.role_requirements ?? []),
+      role_requirements: sanitizeRoleRequirements(update.role_requirements ?? [], roleNames, points),
     };
     if (update.status) patch.status = update.status;
 
@@ -287,10 +336,12 @@ export async function setGoalRoleRequirements(
   id: string,
   roleRequirements: RoleRequirement[],
 ): Promise<{ error?: string; goal?: SprintGoal }> {
-  const { supabase } = await requireSprintClient();
+  const { supabase, orgId } = await requireSprintClient();
+  const roleNames = await getRoleNamesForOrg(supabase, orgId);
+  const { data: current } = await supabase.from("sprint_goals").select("points").eq("id", id).single();
   const { data, error } = await supabase
     .from("sprint_goals")
-    .update({ role_requirements: sanitizeRoleRequirements(roleRequirements) })
+    .update({ role_requirements: sanitizeRoleRequirements(roleRequirements, roleNames, current?.points ?? null) })
     .eq("id", id)
     .select(GOAL_SELECT)
     .single();
@@ -411,14 +462,16 @@ export async function getGoalAssignments(sprintId: string): Promise<GoalAssignme
 export async function assignRole(payload: {
   sprintId: string;
   goalId: string;
+  roleRequirementId: string;
   role: string;
   userId: string;
-  allocationPct: number;
+  allocatedPoints: number;
 }): Promise<{ error?: string; assignment?: GoalAssignment }> {
   const { supabase, orgId } = await requireSprintClient();
-  const pct = Math.round(Number(payload.allocationPct));
+  const points = Math.round(Number(payload.allocatedPoints) * 100) / 100;
   if (!payload.userId) return { error: "Pick a person to assign." };
-  if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return { error: "Allocation must be between 1 and 100%." };
+  if (!payload.roleRequirementId) return { error: "Role row is missing." };
+  if (!Number.isFinite(points) || points <= 0) return { error: "Assigned points must be greater than 0." };
   const { data, error } = await supabase
     .from("goal_assignments")
     .upsert(
@@ -426,11 +479,12 @@ export async function assignRole(payload: {
         org_id: orgId,
         sprint_id: payload.sprintId,
         goal_id: payload.goalId,
+        role_requirement_id: payload.roleRequirementId,
         role: payload.role,
         user_id: payload.userId,
-        allocation_pct: pct,
+        allocated_points: points,
       },
-      { onConflict: "sprint_id,goal_id,role" },
+      { onConflict: "sprint_id,goal_id,role_requirement_id" },
     )
     .select("*")
     .single();
@@ -443,7 +497,7 @@ export async function assignRole(payload: {
 export async function unassignRole(payload: {
   sprintId: string;
   goalId: string;
-  role: string;
+  roleRequirementId: string;
 }): Promise<{ error?: string }> {
   const { supabase, orgId } = await requireSprintClient();
   const { error } = await supabase
@@ -452,7 +506,7 @@ export async function unassignRole(payload: {
     .eq("org_id", orgId)
     .eq("sprint_id", payload.sprintId)
     .eq("goal_id", payload.goalId)
-    .eq("role", payload.role);
+    .eq("role_requirement_id", payload.roleRequirementId);
   if (error) return { error: error.message };
   revalidatePath(`/sprints/${payload.sprintId}`);
   return {};
@@ -526,9 +580,10 @@ export async function updateCapacityPlanBulk(
     }[];
     assignments: {
       goal_id: string;
+      role_requirement_id: string;
       role: string;
       user_id: string | null;
-      allocation_pct: number | null;
+      allocated_points: number | null;
     }[];
   },
 ): Promise<{ error?: string; goals?: SprintGoal[]; assignments?: GoalAssignment[] }> {
@@ -554,10 +609,12 @@ export async function updateCapacityPlanBulk(
   }
 
   const savedGoals: SprintGoal[] = [];
+  const roleNames = await getRoleNamesForOrg(supabase, orgId);
   for (const g of payload.roleRequirements) {
+    const { data: current } = await supabase.from("sprint_goals").select("points").eq("id", g.goal_id).eq("org_id", orgId).single();
     const { data, error } = await supabase
       .from("sprint_goals")
-      .update({ role_requirements: sanitizeRoleRequirements(g.role_requirements) })
+      .update({ role_requirements: sanitizeRoleRequirements(g.role_requirements, roleNames, current?.points ?? null) })
       .eq("id", g.goal_id)
       .eq("org_id", orgId)
       .select(GOAL_SELECT)
@@ -567,7 +624,7 @@ export async function updateCapacityPlanBulk(
   }
 
   for (const a of payload.assignments) {
-    const pct = a.allocation_pct === null || a.allocation_pct === undefined ? null : Math.round(Number(a.allocation_pct));
+    const points = a.allocated_points === null || a.allocated_points === undefined ? null : Math.round(Number(a.allocated_points) * 100) / 100;
     if (!a.user_id) {
       const { error } = await supabase
         .from("goal_assignments")
@@ -575,11 +632,11 @@ export async function updateCapacityPlanBulk(
         .eq("org_id", orgId)
         .eq("sprint_id", sprintId)
         .eq("goal_id", a.goal_id)
-        .eq("role", a.role);
+        .eq("role_requirement_id", a.role_requirement_id);
       if (error) return { error: error.message };
       continue;
     }
-    if (!Number.isFinite(pct) || pct === null || pct <= 0 || pct > 100) return { error: "Allocation must be between 1 and 100%." };
+    if (!Number.isFinite(points) || points === null || points <= 0) return { error: "Assigned points must be greater than 0." };
 
     const { error } = await supabase
       .from("goal_assignments")
@@ -588,11 +645,12 @@ export async function updateCapacityPlanBulk(
           org_id: orgId,
           sprint_id: sprintId,
           goal_id: a.goal_id,
+          role_requirement_id: a.role_requirement_id,
           role: a.role,
           user_id: a.user_id,
-          allocation_pct: pct,
+          allocated_points: points,
         },
-        { onConflict: "sprint_id,goal_id,role" },
+        { onConflict: "sprint_id,goal_id,role_requirement_id" },
       );
     if (error) return { error: error.message };
   }

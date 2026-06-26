@@ -21,7 +21,7 @@ import {
   formatRolePoints,
   type RoleCoverage,
 } from "@/lib/sprintGoals";
-import { assignRole, unassignRole, addSprintMember, setGoalRoleRequirements, updateCapacityPlanBulk } from "@/app/(app)/sprints/goals-actions";
+import { assignRole, unassignRole, addSprintMember, createRole, setGoalRoleRequirements, updateCapacityPlanBulk } from "@/app/(app)/sprints/goals-actions";
 import { formatDateRange } from "@/lib/leave";
 import type { CapacityRoleDefinition, GoalAssignment, RoleRequirement, SprintGoal, Stream } from "@/types";
 import { Pencil, Users, Plus, X, Check, Trash2, Save, LayoutGrid, Table2 } from "lucide-react";
@@ -43,6 +43,7 @@ interface Props {
   goals: SprintGoal[];
   streams: Stream[];
   roles: CapacityRoleDefinition[];
+  setRoles?: React.Dispatch<React.SetStateAction<CapacityRoleDefinition[]>>;
   assignments: GoalAssignment[];
   setAssignments: React.Dispatch<React.SetStateAction<GoalAssignment[]>>;
   orgUsers: OrgUser[];
@@ -78,7 +79,7 @@ type RoleDraft = {
 };
 
 export default function CapacityPlanningClient({
-  sprint, participants, goals, streams, roles, assignments, setAssignments, orgUsers,
+  sprint, participants, goals, streams, roles, setRoles, assignments, setAssignments, orgUsers,
   onPatchParticipant, onMemberUpserted, onRemoveMember, onGoalChange, readOnly = false,
 }: Props) {
   const [editing, setEditing] = useState<CapacityMember | null>(null);
@@ -379,6 +380,30 @@ export default function CapacityPlanningClient({
     return roleFilter === "all" ? activeRoleNames : activeRoleNames.filter((role) => role === roleFilter);
   }
 
+  async function createRoleFromCapacity(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error("Role name is required.");
+      return null;
+    }
+    const existing = roles.find((r) => r.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      if (existing.is_archived) {
+        toast.error("That role is archived. Restore it from the Roles tab first.");
+        return null;
+      }
+      return existing;
+    }
+    const res = await createRole(trimmed);
+    if (res.error || !res.role) {
+      toast.error(res.error ?? "Something went wrong.");
+      return null;
+    }
+    setRoles?.((prev) => [...prev, res.role!].sort((a, b) => a.name.localeCompare(b.name)));
+    toast.success("Role created.");
+    return res.role;
+  }
+
   function renderRoleRows(goal: SprintGoal) {
     const coverage = visibleCoverage(goal);
     return (
@@ -419,6 +444,7 @@ export default function CapacityPlanningClient({
         {!readOnly && !bulkEditing && (
           <AddRoleInline
             availableRoles={availableRolesForGoal()}
+            onCreateRole={setRoles ? createRoleFromCapacity : undefined}
             onAdd={(role, points) => addRoleToGoal(goal, role, points)}
           />
         )}
@@ -937,48 +963,145 @@ function BulkRoleAssignRow({
 
 // ── Add-role-to-goal inline control ─────────────────────────────────────────────
 
-function AddRoleInline({ availableRoles, onAdd }: { availableRoles: readonly string[]; onAdd: (role: string, points: number | null) => Promise<void> }) {
+function AddRoleInline({
+  availableRoles,
+  onAdd,
+  onCreateRole,
+}: {
+  availableRoles: readonly string[];
+  onAdd: (role: string, points: number | null) => Promise<void>;
+  onCreateRole?: (name: string) => Promise<CapacityRoleDefinition | null>;
+}) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"existing" | "new">("existing");
   const [role, setRole] = useState("");
+  const [newRole, setNewRole] = useState("");
   const [points, setPoints] = useState("");
   const [saving, setSaving] = useState(false);
 
-  if (availableRoles.length === 0 && !open) return null;
+  if (availableRoles.length === 0 && !onCreateRole && !open) return null;
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="inline-flex w-fit items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700">
+      <button
+        onClick={() => {
+          setOpen(true);
+          if (availableRoles.length === 0 && onCreateRole) setMode("new");
+        }}
+        className="inline-flex w-fit items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
+      >
         <Plus className="h-3 w-3" /> Add role
       </button>
     );
   }
 
+  function parsePoints() {
+    const n = points.trim() === "" ? null : Number(points);
+    if (n !== null && (!Number.isFinite(n) || n <= 0)) {
+      toast.error("Enter points greater than 0, or leave blank to auto-fill.");
+      return "invalid" as const;
+    }
+    return n;
+  }
+
+  function reset() {
+    setOpen(false);
+    setMode("existing");
+    setRole("");
+    setNewRole("");
+    setPoints("");
+  }
+
   async function handleAdd() {
     if (!role) { toast.error("Pick a role."); return; }
-    const n = points.trim() === "" ? null : Number(points);
-    if (n !== null && (!Number.isFinite(n) || n <= 0)) { toast.error("Enter points greater than 0, or leave blank to auto-fill."); return; }
+    const n = parsePoints();
+    if (n === "invalid") return;
     setSaving(true);
-    await onAdd(role, n);
-    setSaving(false);
-    setOpen(false); setRole(""); setPoints("");
+    try {
+      await onAdd(role, n);
+      reset();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleCreateAndAdd() {
+    if (!onCreateRole) return;
+    const trimmed = newRole.trim();
+    if (!trimmed) { toast.error("Role name is required."); return; }
+    const n = parsePoints();
+    if (n === "invalid") return;
+    setSaving(true);
+    try {
+      const created = await onCreateRole(trimmed);
+      if (!created) return;
+      await onAdd(created.name, n);
+      reset();
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/40 px-2.5 py-1.5">
-      <select value={role} onChange={(e) => setRole(e.target.value)} className="h-7 min-w-[110px] rounded-md border border-slate-200 bg-white px-1.5 text-[11px] text-slate-700 outline-none">
-        <option value="">Select role…</option>
-        {availableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
-      </select>
-      <div className="relative">
-        <Input type="number" min={0.1} step="any" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="pts" className="h-7 w-20 text-[11px] text-right pr-7 px-1" />
-        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">pts</span>
+      {onCreateRole && (
+        <div className="inline-flex h-7 rounded-md border border-slate-200 bg-white p-0.5">
+          <button
+            type="button"
+            onClick={() => setMode("existing")}
+            disabled={availableRoles.length === 0 || saving}
+            className={`rounded px-2 text-[11px] font-semibold ${mode === "existing" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700 disabled:text-slate-300"}`}
+          >
+            Existing
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("new")}
+            disabled={saving}
+            className={`rounded px-2 text-[11px] font-semibold ${mode === "new" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            New
+          </button>
+        </div>
+      )}
+
+      {mode === "new" && onCreateRole ? (
+        <Input
+          value={newRole}
+          onChange={(e) => setNewRole(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void handleCreateAndAdd(); }}
+          placeholder="Role name"
+          maxLength={40}
+          className="h-7 min-w-[130px] flex-1 text-[11px]"
+          disabled={saving}
+        />
+      ) : (
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          disabled={saving}
+          className="h-7 min-w-[130px] rounded-md border border-slate-200 bg-white px-1.5 text-[11px] text-slate-700 outline-none disabled:opacity-50"
+        >
+          <option value="">Select role...</option>
+          {availableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+      )}
+
+      <div className="relative shrink-0">
+        <Input type="number" min={0.1} step="any" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="pts" className="h-7 w-20 text-[11px] text-right pr-7 px-1" disabled={saving} />
+        <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">pts</span>
       </div>
-      <button onClick={handleAdd} disabled={saving} className="flex h-7 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"><Check className="h-3 w-3" /> Add</button>
-      <button onClick={() => { setOpen(false); setRole(""); setPoints(""); }} className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:bg-slate-100" title="Cancel"><X className="h-3 w-3" /></button>
+      <button
+        onClick={mode === "new" && onCreateRole ? handleCreateAndAdd : handleAdd}
+        disabled={saving || (mode === "existing" && !role) || (mode === "new" && !newRole.trim())}
+        className="flex h-7 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+      >
+        <Check className="h-3 w-3" /> {mode === "new" && onCreateRole ? "Create & add" : "Add"}
+      </button>
+      <button onClick={reset} disabled={saving} className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:bg-slate-100 disabled:opacity-50" title="Cancel"><X className="h-3 w-3" /></button>
     </div>
   );
 }
-
 // ── Add member dialog ───────────────────────────────────────────────────────────
 
 interface AddMemberDialogProps {

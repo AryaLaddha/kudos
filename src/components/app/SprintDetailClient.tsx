@@ -17,7 +17,8 @@ import SprintGoalsClient from "@/components/app/SprintGoalsClient";
 import CapacityPlanningClient from "@/components/app/CapacityPlanningClient";
 import GoalHistoryClient from "@/components/app/GoalHistoryClient";
 import StreamsManagementClient from "@/components/app/StreamsManagementClient";
-import type { GoalAssignment, SprintGoal, SprintRef, Stream } from "@/types";
+import RolesManagementClient from "@/components/app/RolesManagementClient";
+import type { CapacityRoleDefinition, GoalAssignment, SprintGoal, SprintRef, Stream } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,7 @@ interface Props {
   historyGoals: SprintGoal[];
   allSprints: SprintRef[];
   streams: Stream[];
+  roles: CapacityRoleDefinition[];
   assignments: GoalAssignment[];
 }
 
@@ -61,6 +63,7 @@ const TABS = [
   { id: "goals", label: "Sprint Goals" },
   { id: "capacity", label: "Capacity Planning" },
   { id: "streams", label: "Streams" },
+  { id: "roles", label: "Roles" },
   { id: "history", label: "Goal History" },
   { id: "analytics", label: "Analytics" },
   { id: "grid", label: "Grid Tracker" },
@@ -85,6 +88,7 @@ export default function SprintDetailClient({
   historyGoals,
   allSprints,
   streams: initStreams,
+  roles: initRoles,
   assignments: initAssignments,
 }: Props) {
   const router = useRouter();
@@ -94,6 +98,7 @@ export default function SprintDetailClient({
   const [assignments, setAssignments] = useState<GoalAssignment[]>(initAssignments);
   // Streams are an org-wide catalogue, managed from the Streams tab within the sprint.
   const [streams, setStreams] = useState<Stream[]>(initStreams);
+  const [roles, setRoles] = useState<CapacityRoleDefinition[]>(initRoles);
   const [showAddUser, setShowAddUser] = useState(false);
   const [tab, setTab] = useState<TabId>("goals");
 
@@ -293,6 +298,7 @@ export default function SprintDetailClient({
           goals={goals}
           setGoals={setGoals}
           streams={streams}
+          roles={roles}
           sprint={sprint}
           orgUsers={orgUsers}
         />
@@ -305,6 +311,7 @@ export default function SprintDetailClient({
           participants={participants}
           goals={goals}
           streams={streams}
+          roles={roles}
           assignments={assignments}
           setAssignments={setAssignments}
           orgUsers={orgUsers}
@@ -318,6 +325,10 @@ export default function SprintDetailClient({
       {/* ── STREAMS ────────────────────────────────────────── */}
       {tab === "streams" && (
         <StreamsManagementClient streams={streams} setStreams={setStreams} />
+      )}
+
+      {tab === "roles" && (
+        <RolesManagementClient roles={roles} setRoles={setRoles} />
       )}
 
       {/* ── GOAL HISTORY ───────────────────────────────────── */}

@@ -18,12 +18,12 @@ import {
   goalRoleCoverage,
   GOAL_STATUS_META,
   GOAL_STATUSES,
-  ROLE_OPTIONS,
+  formatRolePoints,
   type RoleCoverage,
 } from "@/lib/sprintGoals";
 import { assignRole, unassignRole, addSprintMember, setGoalRoleRequirements, updateCapacityPlanBulk } from "@/app/(app)/sprints/goals-actions";
 import { formatDateRange } from "@/lib/leave";
-import type { GoalAssignment, RoleRequirement, SprintGoal, Stream } from "@/types";
+import type { CapacityRoleDefinition, GoalAssignment, RoleRequirement, SprintGoal, Stream } from "@/types";
 import { Pencil, Users, Plus, X, Check, Trash2, Save, LayoutGrid, Table2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,6 +42,7 @@ interface Props {
   participants: CapacityMember[];
   goals: SprintGoal[];
   streams: Stream[];
+  roles: CapacityRoleDefinition[];
   assignments: GoalAssignment[];
   setAssignments: React.Dispatch<React.SetStateAction<GoalAssignment[]>>;
   orgUsers: OrgUser[];
@@ -72,12 +73,12 @@ type MemberDraft = {
 
 type RoleDraft = {
   user_id: string;
-  allocation_pct: string;
-  required_pct: string;
+  allocated_points: string;
+  required_points: string;
 };
 
 export default function CapacityPlanningClient({
-  sprint, participants, goals, streams, assignments, setAssignments, orgUsers,
+  sprint, participants, goals, streams, roles, assignments, setAssignments, orgUsers,
   onPatchParticipant, onMemberUpserted, onRemoveMember, onGoalChange, readOnly = false,
 }: Props) {
   const [editing, setEditing] = useState<CapacityMember | null>(null);
@@ -94,13 +95,14 @@ export default function CapacityPlanningClient({
   const [userFilter, setUserFilter] = useState("all");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
 
-  // Inline role-assignment editor state. editKey = `${goalId}::${role}`.
+  // Inline role-assignment editor state. editKey = `${goalId}::${roleRequirementId}`.
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editUser, setEditUser] = useState("");
-  const [editPct, setEditPct] = useState("");
+  const [editPoints, setEditPoints] = useState("");
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const goalsById = useMemo(() => new Map(goals.map((g) => [g.id, g])), [goals]);
+  const activeRoleNames = useMemo(() => roles.filter((r) => !r.is_archived).map((r) => r.name), [roles]);
   const memberName = useMemo(() => {
     const m = new Map<string, string>();
     participants.forEach((p) => m.set(p.user_id, p.profile.full_name));
@@ -208,50 +210,51 @@ export default function CapacityPlanningClient({
 
   // ── Assignment mutations ──────────────────────────────────────
   function applyAssignment(a: GoalAssignment) {
-    setAssignments((prev) => [...prev.filter((x) => !(x.goal_id === a.goal_id && x.role === a.role)), a]);
+    setAssignments((prev) => [...prev.filter((x) => !(x.goal_id === a.goal_id && x.role_requirement_id === a.role_requirement_id)), a]);
   }
-  function dropAssignment(goalId: string, role: string) {
-    setAssignments((prev) => prev.filter((x) => !(x.goal_id === goalId && x.role === role)));
+  function dropAssignment(goalId: string, roleRequirementId: string) {
+    setAssignments((prev) => prev.filter((x) => !(x.goal_id === goalId && x.role_requirement_id === roleRequirementId)));
   }
 
-  function startEdit(goalId: string, role: string, current: GoalAssignment | null, requiredPct: number) {
-    setEditKey(`${goalId}::${role}`);
+  function startEdit(goalId: string, reqId: string, current: GoalAssignment | null, requiredPoints: number | null) {
+    setEditKey(roleKey(goalId, reqId));
     setEditUser(current?.user_id ?? "");
-    setEditPct(String(current?.allocation_pct ?? requiredPct));
+    setEditPoints(String(current?.allocated_points ?? requiredPoints ?? ""));
   }
   function cancelEdit() {
     setEditKey(null);
     setEditUser("");
-    setEditPct("");
+    setEditPoints("");
   }
-  async function saveEdit(goalId: string, role: string) {
-    const key = `${goalId}::${role}`;
+  async function saveEdit(goalId: string, reqId: string, role: string) {
+    const key = roleKey(goalId, reqId);
     setSavingKey(key);
-    const res = await assignRole({ sprintId: sprint.id, goalId, role, userId: editUser, allocationPct: Number(editPct) });
+    const res = await assignRole({ sprintId: sprint.id, goalId, roleRequirementId: reqId, role, userId: editUser, allocatedPoints: Number(editPoints) });
     setSavingKey(null);
     if (res.error || !res.assignment) { toast.error(res.error ?? "Couldn't assign."); return; }
     applyAssignment(res.assignment);
     cancelEdit();
     toast.success("Role assigned.");
   }
-  async function clearAssign(goalId: string, role: string) {
-    const res = await unassignRole({ sprintId: sprint.id, goalId, role });
+  async function clearAssign(goalId: string, reqId: string) {
+    const res = await unassignRole({ sprintId: sprint.id, goalId, roleRequirementId: reqId });
     if (res.error) { toast.error(res.error); return; }
-    dropAssignment(goalId, role);
+    dropAssignment(goalId, reqId);
     cancelEdit();
   }
 
   // Add a required role to a goal — persists on the goal so the Sprint Goals tab updates too.
-  async function addRoleToGoal(goal: SprintGoal, role: string, pct: number) {
-    const next = [...(goal.role_requirements ?? []), { role, pct }];
+  async function addRoleToGoal(goal: SprintGoal, role: string, points: number | null) {
+    const id = globalThis.crypto?.randomUUID?.() ?? `${goal.id}_${(goal.role_requirements ?? []).length}_${role.replace(/\W/g, "_")}`;
+    const next = [...(goal.role_requirements ?? []), { id, role, points }];
     const res = await setGoalRoleRequirements(goal.id, next);
     if (res.error || !res.goal) { toast.error(res.error ?? "Couldn't add role."); return; }
     onGoalChange(res.goal);
     toast.success("Role added to goal.");
   }
 
-  function roleKey(goalId: string, role: string) {
-    return `${goalId}::${role}`;
+  function roleKey(goalId: string, reqId: string) {
+    return `${goalId}::${reqId}`;
   }
 
   function startEditAll() {
@@ -261,13 +264,13 @@ export default function CapacityPlanningClient({
       stream_ids: p.stream_ids ?? [],
     } satisfies MemberDraft])));
 
-    const assignmentByGoalRole = new Map(assignments.map((a) => [roleKey(a.goal_id, a.role), a]));
+    const assignmentByReq = new Map(assignments.map((a) => [roleKey(a.goal_id, a.role_requirement_id ?? a.role), a]));
     setRoleDrafts(Object.fromEntries(goals.flatMap((goal) => (goal.role_requirements ?? []).map((req) => {
-      const current = assignmentByGoalRole.get(roleKey(goal.id, req.role));
-      return [roleKey(goal.id, req.role), {
+      const current = assignmentByReq.get(roleKey(goal.id, req.id));
+      return [roleKey(goal.id, req.id), {
         user_id: current?.user_id ?? "",
-        allocation_pct: current ? String(current.allocation_pct) : String(req.pct),
-        required_pct: String(req.pct),
+        allocated_points: current ? String(current.allocated_points) : String(req.points ?? ""),
+        required_points: req.points !== null && req.points !== undefined ? String(req.points) : "",
       } satisfies RoleDraft];
     }))));
     setBulkEditing(true);
@@ -315,30 +318,31 @@ export default function CapacityPlanningClient({
     const roleRequirements = goals.map((goal) => {
       const reqs: RoleRequirement[] = [];
       for (const req of goal.role_requirements ?? []) {
-        const draft = roleDrafts[roleKey(goal.id, req.role)];
-        const pct = Math.round(Number(draft?.required_pct ?? req.pct));
-        if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
-          toast.error(`${goal.title}: required ${req.role} must be between 1 and 100%.`);
+        const draft = roleDrafts[roleKey(goal.id, req.id)];
+        const points = draft?.required_points.trim() === "" ? null : Number(draft?.required_points ?? req.points);
+        if (points !== null && (!Number.isFinite(points) || points <= 0)) {
+          toast.error(`${goal.title}: required ${req.role} points must be greater than 0.`);
           return "invalid" as const;
         }
-        reqs.push({ role: req.role, pct });
+        reqs.push({ id: req.id, role: req.role, points });
       }
       return { goal_id: goal.id, role_requirements: reqs };
     });
     if (roleRequirements.includes("invalid")) return;
 
     const assignmentPayload = goals.flatMap((goal) => (goal.role_requirements ?? []).map((req) => {
-      const draft = roleDrafts[roleKey(goal.id, req.role)];
-      const allocation = draft?.allocation_pct.trim() === "" ? null : Number(draft?.allocation_pct ?? req.pct);
-      if (draft?.user_id && (allocation === null || !Number.isFinite(allocation) || allocation <= 0 || allocation > 100)) {
-        toast.error(`${goal.title}: ${req.role} allocation must be between 1 and 100%.`);
+      const draft = roleDrafts[roleKey(goal.id, req.id)];
+      const points = draft?.allocated_points.trim() === "" ? null : Number(draft?.allocated_points ?? req.points);
+      if (draft?.user_id && (points === null || !Number.isFinite(points) || points <= 0)) {
+        toast.error(`${goal.title}: ${req.role} assigned points must be greater than 0.`);
         return "invalid" as const;
       }
       return {
         goal_id: goal.id,
+        role_requirement_id: req.id,
         role: req.role,
         user_id: draft?.user_id || null,
-        allocation_pct: allocation,
+        allocated_points: points,
       };
     }));
     if (assignmentPayload.includes("invalid")) return;
@@ -371,9 +375,8 @@ export default function CapacityPlanningClient({
     return goalRoleCoverage(goal, assignments).filter((coverage) => roleFilter === "all" || coverage.role === roleFilter);
   }
 
-  function availableRolesForGoal(goal: SprintGoal) {
-    const available = ROLE_OPTIONS.filter((r) => !(goal.role_requirements ?? []).some((rr) => rr.role === r));
-    return roleFilter === "all" ? available : available.filter((role) => role === roleFilter);
+  function availableRolesForGoal() {
+    return roleFilter === "all" ? activeRoleNames : activeRoleNames.filter((role) => role === roleFilter);
   }
 
   function renderRoleRows(goal: SprintGoal) {
@@ -386,37 +389,37 @@ export default function CapacityPlanningClient({
         {coverage.map((c) => (
           bulkEditing ? (
             <BulkRoleAssignRow
-              key={c.role}
+              key={c.id}
               coverage={c}
               members={participants}
-              draft={roleDrafts[roleKey(goal.id, c.role)]}
-              onPatch={(patch) => patchRoleDraft(roleKey(goal.id, c.role), patch)}
+              draft={roleDrafts[roleKey(goal.id, c.id)]}
+              onPatch={(patch) => patchRoleDraft(roleKey(goal.id, c.id), patch)}
             />
           ) : (
             <RoleAssignRow
-              key={c.role}
+              key={c.id}
               goalId={goal.id}
               coverage={c}
-              editing={editKey === `${goal.id}::${c.role}`}
-              saving={savingKey === `${goal.id}::${c.role}`}
+              editing={editKey === roleKey(goal.id, c.id)}
+              saving={savingKey === roleKey(goal.id, c.id)}
               members={participants}
               memberName={memberName}
               editUser={editUser}
-              editPct={editPct}
+              editPoints={editPoints}
               setEditUser={setEditUser}
-              setEditPct={setEditPct}
-              onStart={() => startEdit(goal.id, c.role, c.assignment, c.requiredPct)}
-              onSave={() => saveEdit(goal.id, c.role)}
+              setEditPoints={setEditPoints}
+              onStart={() => startEdit(goal.id, c.id, c.assignment, c.requiredPoints)}
+              onSave={() => saveEdit(goal.id, c.id, c.role)}
               onCancel={cancelEdit}
-              onClear={() => clearAssign(goal.id, c.role)}
+              onClear={() => clearAssign(goal.id, c.id)}
               readOnly={readOnly}
             />
           )
         ))}
         {!readOnly && !bulkEditing && (
           <AddRoleInline
-            availableRoles={availableRolesForGoal(goal)}
-            onAdd={(role, pct) => addRoleToGoal(goal, role, pct)}
+            availableRoles={availableRolesForGoal()}
+            onAdd={(role, points) => addRoleToGoal(goal, role, points)}
           />
         )}
       </div>
@@ -446,7 +449,7 @@ export default function CapacityPlanningClient({
         </select>
         <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-600 outline-none">
           <option value="all">All Roles</option>
-          {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+          {activeRoleNames.map((role) => <option key={role} value={role}>{role}</option>)}
         </select>
         <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-600 outline-none">
           <option value="all">All Members</option>
@@ -636,7 +639,7 @@ export default function CapacityPlanningClient({
                       <span className="text-[11px] text-slate-400 italic">No assignments</span>
                     ) : r.userAssignments.map((a) => {
                       const g = goalsById.get(a.goal_id);
-                      const pts = g ? Math.round(((g.points ?? 0) * a.allocation_pct) / 100 * 10) / 10 : 0;
+                      const pts = a.allocated_points;
                       return (
                         <div key={a.id} className="flex items-center justify-between gap-2 text-[11px]">
                           <span className="truncate text-slate-600">{g?.title ?? "Goal"} <span className="text-slate-300">· {a.role}</span></span>
@@ -696,7 +699,7 @@ export default function CapacityPlanningClient({
                               className="h-8 w-full min-w-[120px] rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none"
                             >
                               <option value="">No role</option>
-                              {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+                              {activeRoleNames.map((role) => <option key={role} value={role}>{role}</option>)}
                             </select>
                             <div className="flex flex-wrap gap-1">
                               {streams.filter((s) => !s.is_archived || memberDrafts[r.member.user_id]?.stream_ids.includes(s.id)).map((s) => {
@@ -744,12 +747,11 @@ export default function CapacityPlanningClient({
                           <div className="flex flex-col gap-1">
                             {r.userAssignments.map((a) => {
                               const g = goalsById.get(a.goal_id);
-                              const pts = g ? Math.round(((g.points ?? 0) * a.allocation_pct) / 100 * 10) / 10 : 0;
+                              const pts = a.allocated_points;
                               return (
                                 <div key={a.id} className="flex items-center justify-between gap-3 text-[11px]">
                                   <span className="truncate text-slate-600">{g?.title ?? "Goal"} <span className="text-slate-300">· {a.role}</span></span>
                                   <span className="flex items-center gap-1.5 flex-shrink-0">
-                                    <span className="text-[10px] text-slate-400">{a.allocation_pct}%</span>
                                     <span className="rounded bg-indigo-50 px-1.5 py-0.5 font-bold text-indigo-600">{pts} pts</span>
                                   </span>
                                 </div>
@@ -802,6 +804,7 @@ export default function CapacityPlanningClient({
           sprint={sprint}
           participant={editing}
           streams={streams}
+          roles={roles}
           allocatedPoints={rowByUser.get(editing.user_id)?.allocated ?? 0}
           onSaved={(patch: CapacityPatch) => { onPatchParticipant(editing.user_id, patch); setEditing(null); }}
         />
@@ -813,6 +816,7 @@ export default function CapacityPlanningClient({
         onOpenChange={setAddOpen}
         sprint={sprint}
         orgUsers={orgUsers}
+        roles={roles}
         existingIds={new Set(participants.map((p) => p.user_id))}
         onAdded={(userId, role, expected) => { onMemberUpserted(userId, role, expected); setAddOpen(false); }}
       />
@@ -830,9 +834,9 @@ interface RoleAssignRowProps {
   members: CapacityMember[];
   memberName: (id: string) => string;
   editUser: string;
-  editPct: string;
+  editPoints: string;
   setEditUser: (v: string) => void;
-  setEditPct: (v: string) => void;
+  setEditPoints: (v: string) => void;
   onStart: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -840,17 +844,17 @@ interface RoleAssignRowProps {
   readOnly?: boolean;
 }
 
-function RoleAssignRow({ coverage: c, editing, saving, members, memberName, editUser, editPct, setEditUser, setEditPct, onStart, onSave, onCancel, onClear, readOnly = false }: RoleAssignRowProps) {
+function RoleAssignRow({ coverage: c, editing, saving, members, memberName, editUser, editPoints, setEditUser, setEditPoints, onStart, onSave, onCancel, onClear, readOnly = false }: RoleAssignRowProps) {
   if (editing) {
     return (
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-300 bg-white px-2.5 py-1.5">
         <span className="text-[11px] font-bold text-slate-600 min-w-[44px]">{c.role}</span>
-        <span className="text-[10px] text-slate-400">req {c.requiredPct}%</span>
+        <span className="text-[10px] text-slate-400">req {formatRolePoints(c.requiredPoints)}</span>
         <select value={editUser} onChange={(e) => setEditUser(e.target.value)} className="ml-auto h-7 min-w-[130px] rounded-md border border-slate-200 bg-white px-1.5 text-[11px] text-slate-700 outline-none">
           <option value="">— Pick person —</option>
           {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.profile.full_name}</option>)}
         </select>
-        <Input type="number" min={10} max={100} step={10} value={editPct} onChange={(e) => setEditPct(e.target.value)} className="h-7 w-14 text-[11px] text-center px-1" />
+        <Input type="number" min={0.1} step="any" value={editPoints} onChange={(e) => setEditPoints(e.target.value)} className="h-7 w-16 text-[11px] text-center px-1" />
         <button onClick={onSave} disabled={saving} className="flex h-7 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"><Check className="h-3 w-3" /> Save</button>
         {c.assignment && <button onClick={onClear} className="flex h-7 w-7 items-center justify-center rounded-md border border-red-100 bg-red-50 text-red-500 hover:bg-red-100" title="Clear"><Trash2 className="h-3 w-3" /></button>}
         <button onClick={onCancel} className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:bg-slate-100" title="Cancel"><X className="h-3 w-3" /></button>
@@ -862,22 +866,22 @@ function RoleAssignRow({ coverage: c, editing, saving, members, memberName, edit
     return (
       <div className="flex items-center gap-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-2.5 py-1.5">
         <span className="text-[11px] font-bold text-slate-600 min-w-[44px]">{c.role}</span>
-        <span className="text-[10px] text-slate-400">req {c.requiredPct}%</span>
+        <span className="text-[10px] text-slate-400">req {formatRolePoints(c.requiredPoints)}</span>
         <span className="ml-auto text-[11px] font-medium text-amber-700">Unassigned</span>
         {!readOnly && <button onClick={onStart} className="rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-amber-600">Assign</button>}
       </div>
     );
   }
 
-  const over = c.gap < 0;
-  const under = c.gap > 0;
+  const over = c.gap !== null && c.gap < 0;
+  const under = c.gap !== null && c.gap > 0;
   const allocCls = over ? "text-red-600" : under ? "text-amber-600" : "text-indigo-600";
   return (
     <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${under || over ? "border-amber-200 bg-amber-50/40" : "border-slate-100 bg-slate-50"}`}>
       <span className="text-[11px] font-bold text-slate-600 min-w-[44px]">{c.role}</span>
-      <span className="text-[10px] text-slate-400">req {c.requiredPct}%</span>
+      <span className="text-[10px] text-slate-400">req {formatRolePoints(c.requiredPoints)}</span>
       <span className="ml-auto text-[11px] font-semibold text-slate-800">{memberName(c.assignment.user_id)}</span>
-      <span className={`text-[11px] font-bold ${allocCls}`}>{c.assignedPct}%{(under || over) && " ⚠"}</span>
+      <span className={`text-[11px] font-bold ${allocCls}`}>{formatRolePoints(c.assignedPoints)}{(under || over) && " !"}</span>
       {!readOnly && <button onClick={onStart} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-100">Edit</button>}
     </div>
   );
@@ -900,13 +904,13 @@ function BulkRoleAssignRow({
       <div className="relative">
         <Input
           type="number"
-          min={1}
-          max={100}
-          value={draft?.required_pct ?? String(c.requiredPct)}
-          onChange={(e) => onPatch({ required_pct: e.target.value })}
-          className="h-7 pr-5 text-right text-[11px]"
+          min={0.1}
+          step="any"
+          value={draft?.required_points ?? String(c.requiredPoints ?? "")}
+          onChange={(e) => onPatch({ required_points: e.target.value })}
+          className="h-7 pr-7 text-right text-[11px]"
         />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">pts</span>
       </div>
       <select
         value={draft?.user_id ?? ""}
@@ -919,13 +923,13 @@ function BulkRoleAssignRow({
       <div className="relative">
         <Input
           type="number"
-          min={1}
-          max={100}
-          value={draft?.allocation_pct ?? String(c.assignedPct || c.requiredPct)}
-          onChange={(e) => onPatch({ allocation_pct: e.target.value })}
-          className="h-7 pr-5 text-right text-[11px]"
+          min={0.1}
+          step="any"
+          value={draft?.allocated_points ?? String(c.assignedPoints || c.requiredPoints || "")}
+          onChange={(e) => onPatch({ allocated_points: e.target.value })}
+          className="h-7 pr-7 text-right text-[11px]"
         />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">pts</span>
       </div>
     </div>
   );
@@ -933,10 +937,10 @@ function BulkRoleAssignRow({
 
 // ── Add-role-to-goal inline control ─────────────────────────────────────────────
 
-function AddRoleInline({ availableRoles, onAdd }: { availableRoles: readonly string[]; onAdd: (role: string, pct: number) => Promise<void> }) {
+function AddRoleInline({ availableRoles, onAdd }: { availableRoles: readonly string[]; onAdd: (role: string, points: number | null) => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState("");
-  const [pct, setPct] = useState("");
+  const [points, setPoints] = useState("");
   const [saving, setSaving] = useState(false);
 
   if (availableRoles.length === 0 && !open) return null;
@@ -951,12 +955,12 @@ function AddRoleInline({ availableRoles, onAdd }: { availableRoles: readonly str
 
   async function handleAdd() {
     if (!role) { toast.error("Pick a role."); return; }
-    const n = Number(pct);
-    if (!Number.isFinite(n) || n <= 0 || n > 100) { toast.error("Enter a % between 1 and 100."); return; }
+    const n = points.trim() === "" ? null : Number(points);
+    if (n !== null && (!Number.isFinite(n) || n <= 0)) { toast.error("Enter points greater than 0, or leave blank to auto-fill."); return; }
     setSaving(true);
     await onAdd(role, n);
     setSaving(false);
-    setOpen(false); setRole(""); setPct("");
+    setOpen(false); setRole(""); setPoints("");
   }
 
   return (
@@ -966,11 +970,11 @@ function AddRoleInline({ availableRoles, onAdd }: { availableRoles: readonly str
         {availableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
       </select>
       <div className="relative">
-        <Input type="number" min={10} max={100} step={10} value={pct} onChange={(e) => setPct(e.target.value)} placeholder="%" className="h-7 w-16 text-[11px] text-right pr-4 px-1" />
-        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+        <Input type="number" min={0.1} step="any" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="pts" className="h-7 w-20 text-[11px] text-right pr-7 px-1" />
+        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">pts</span>
       </div>
       <button onClick={handleAdd} disabled={saving} className="flex h-7 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"><Check className="h-3 w-3" /> Add</button>
-      <button onClick={() => { setOpen(false); setRole(""); setPct(""); }} className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:bg-slate-100" title="Cancel"><X className="h-3 w-3" /></button>
+      <button onClick={() => { setOpen(false); setRole(""); setPoints(""); }} className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:bg-slate-100" title="Cancel"><X className="h-3 w-3" /></button>
     </div>
   );
 }
@@ -982,17 +986,19 @@ interface AddMemberDialogProps {
   onOpenChange: (v: boolean) => void;
   sprint: { id: string };
   orgUsers: OrgUser[];
+  roles: CapacityRoleDefinition[];
   existingIds: Set<string>;
   onAdded: (userId: string, role: string | null, expected: number | null) => void;
 }
 
-function AddMemberDialog({ open, onOpenChange, sprint, orgUsers, existingIds, onAdded }: AddMemberDialogProps) {
+function AddMemberDialog({ open, onOpenChange, sprint, orgUsers, roles, existingIds, onAdded }: AddMemberDialogProps) {
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState("");
   const [expected, setExpected] = useState("");
   const [saving, setSaving] = useState(false);
 
   const available = orgUsers.filter((u) => !existingIds.has(u.id));
+  const activeRoles = roles.filter((r) => !r.is_archived || r.name === role);
 
   async function handleSave() {
     if (!userId) return toast.error("Pick a person to add.");
@@ -1027,7 +1033,7 @@ function AddMemberDialog({ open, onOpenChange, sprint, orgUsers, existingIds, on
               <label className="text-xs font-semibold text-slate-600 block mb-1.5">Role</label>
               <select value={role} onChange={(e) => setRole(e.target.value)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700 outline-none focus:border-indigo-400">
                 <option value="">Select role…</option>
-                {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                {activeRoles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
               </select>
             </div>
             <div>
@@ -1060,10 +1066,10 @@ function Stat({ label, value, color }: { label: string; value: number | string; 
 
 function gapBadge(coverage: RoleCoverage[]): { label: string; cls: string } {
   if (coverage.length === 0) return { label: "No roles", cls: "border-slate-200 bg-slate-50 text-slate-400" };
-  const missing = coverage.filter((c) => c.gap > 0);
-  const over = coverage.filter((c) => c.gap < 0);
-  if (missing.length) return { label: `Missing ${missing.map((m) => `${m.gap}% ${m.role}`).join(", ")}`, cls: "border-red-200 bg-red-50 text-red-600" };
-  if (over.length) return { label: `${over[0].role} over ${over[0].assignedPct}%`, cls: "border-amber-300 bg-amber-50 text-amber-700" };
+  const missing = coverage.filter((c) => c.gap !== null && c.gap > 0);
+  const over = coverage.filter((c) => c.gap !== null && c.gap < 0);
+  if (missing.length) return { label: `Missing ${missing.map((m) => `${formatRolePoints(m.gap)} ${m.role}`).join(", ")}`, cls: "border-red-200 bg-red-50 text-red-600" };
+  if (over.length) return { label: `${over[0].role} over by ${formatRolePoints(Math.abs(over[0].gap ?? 0))}`, cls: "border-amber-300 bg-amber-50 text-amber-700" };
   return { label: "Fully covered", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
 }
 
@@ -1073,3 +1079,4 @@ function memberStatus(over: boolean, under: boolean, hasExpected: boolean): { la
   if (under) return { label: "Under-utilized", cls: "border-amber-300 bg-amber-50 text-amber-700" };
   return { label: "Fully allocated", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
 }
+

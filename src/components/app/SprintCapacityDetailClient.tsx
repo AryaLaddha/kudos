@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Zap } from "lucide-react";
 import CapacityPlanningClient from "@/components/app/CapacityPlanningClient";
-import type { GoalAssignment, SprintGoal, Stream } from "@/types";
+import type { CapacityRoleDefinition, GoalAssignment, SprintGoal, Stream } from "@/types";
 
 interface Sprint {
   id: string;
@@ -40,6 +40,7 @@ interface Props {
   orgUsers: Profile[];
   goals: SprintGoal[];
   streams: Stream[];
+  roles: CapacityRoleDefinition[];
   assignments: GoalAssignment[];
 }
 
@@ -47,7 +48,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export default function SprintCapacityDetailClient({ sprint, participants, orgUsers, goals, streams, assignments }: Props) {
+export default function SprintCapacityDetailClient({ sprint, participants, orgUsers, goals, streams, roles, assignments }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
 
@@ -79,6 +80,7 @@ export default function SprintCapacityDetailClient({ sprint, participants, orgUs
         participants={participants}
         goals={goals}
         streams={streams}
+        roles={roles}
         assignments={assignments}
         setAssignments={() => {}}
         orgUsers={orgUsers}

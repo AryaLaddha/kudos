@@ -13,9 +13,9 @@ import {
   deleteSubtask,
   updateGoalsBulk,
 } from "@/app/(app)/sprints/goals-actions";
-import { GOAL_STATUS_META, GOAL_STATUSES, ROLE_OPTIONS, colorForId } from "@/lib/sprintGoals";
+import { GOAL_STATUS_META, GOAL_STATUSES, colorForId, formatRolePoints } from "@/lib/sprintGoals";
 import { formatDateRange, formatShortDate } from "@/lib/leave";
-import type { GoalStatus, RoleRequirement, SprintGoal, Stream } from "@/types";
+import type { CapacityRoleDefinition, GoalStatus, RoleRequirement, SprintGoal, Stream } from "@/types";
 import { toast } from "sonner";
 import {
   Plus, ChevronDown, Trash2, AlertTriangle, CheckCircle2, Circle, Pencil, CalendarDays, ListChecks, Save, X, LayoutGrid, Table2,
@@ -26,6 +26,7 @@ interface Props {
   goals: SprintGoal[];
   setGoals: React.Dispatch<React.SetStateAction<SprintGoal[]>>;
   streams: Stream[];
+  roles: CapacityRoleDefinition[];
   sprint: { id: string; start_date: string; end_date: string };
   orgUsers: OrgUser[];
 }
@@ -46,7 +47,7 @@ type GoalDraft = {
 };
 
 function roleRequirementsText(reqs: RoleRequirement[]) {
-  return reqs.map((r) => `${r.role}:${r.pct}`).join(", ");
+  return reqs.map((r) => `${r.role}:${r.points ?? ""}`).join(", ");
 }
 
 function goalPointsLabel(points: number | null) {
@@ -62,27 +63,24 @@ function goalDateLabel(goal: Pick<SprintGoal, "start_date" | "end_date">) {
   return formatDateRange(goal.start_date, goal.end_date);
 }
 
-function parseRoleRequirements(value: string): RoleRequirement[] | string {
+function parseRoleRequirements(value: string, validRoleNames: string[]): RoleRequirement[] | string {
   const trimmed = value.trim();
   if (!trimmed) return [];
-  const validRoles = new Set<string>(ROLE_OPTIONS);
-  const seen = new Set<string>();
+  const validRoles = new Set<string>(validRoleNames);
   const out: RoleRequirement[] = [];
 
   for (const part of trimmed.split(",")) {
-    const [roleRaw, pctRaw] = part.split(":").map((s) => s?.trim());
-    if (!roleRaw || !pctRaw) return "Use role requirements like Dev:50, QA:50.";
+    const [roleRaw, pointsRaw = ""] = part.split(":").map((s) => s?.trim());
+    if (!roleRaw) return "Use role requirements like Dev:5, QA:3.";
     if (!validRoles.has(roleRaw)) return `${roleRaw} is not a valid role.`;
-    if (seen.has(roleRaw)) return `${roleRaw} is listed more than once.`;
-    const pct = Math.round(Number(pctRaw));
-    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return "Role percentages must be between 1 and 100.";
-    seen.add(roleRaw);
-    out.push({ role: roleRaw, pct });
+    const points = pointsRaw === "" ? null : Number(pointsRaw);
+    if (points !== null && (!Number.isFinite(points) || points <= 0)) return "Role points must be greater than 0.";
+    out.push({ id: globalThis.crypto?.randomUUID?.() ?? `${roleRaw}_${out.length}`, role: roleRaw, points });
   }
   return out;
 }
 
-export default function SprintGoalsClient({ goals, setGoals, streams, sprint, orgUsers }: Props) {
+export default function SprintGoalsClient({ goals, setGoals, streams, roles, sprint, orgUsers }: Props) {
   const [streamFilter, setStreamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [pointsFilter, setPointsFilter] = useState("all");
@@ -104,6 +102,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
     const m = new Map(streams.map((s) => [s.id, s.name]));
     return (id: string) => m.get(id) ?? "Stream";
   }, [streams]);
+  const activeRoleNames = useMemo(() => roles.filter((r) => !r.is_archived).map((r) => r.name), [roles]);
 
   const filtered = useMemo(() => {
     return goals.filter((g) => {
@@ -198,7 +197,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
       const draft = drafts[goal.id];
       if (!draft) return null;
       const points = draft.points.trim() === "" ? null : Number(draft.points);
-      const roleReqs = parseRoleRequirements(draft.role_requirements);
+      const roleReqs = parseRoleRequirements(draft.role_requirements, activeRoleNames);
       if (typeof roleReqs === "string") {
         toast.error(`${goal.title}: ${roleReqs}`);
         return "invalid";
@@ -307,6 +306,7 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
           grouped={grouped}
           drafts={drafts}
           streams={streams}
+          roles={roles}
           onPatch={patchDraft}
           onToggleStream={toggleDraftStream}
         />
@@ -358,13 +358,14 @@ export default function SprintGoalsClient({ goals, setGoals, streams, sprint, or
         </div>
       )}
 
-      <NewGoalDialog key={newDialogKey} open={newOpen} onOpenChange={setNewOpen} streams={streams} sprint={sprint} onSaved={upsertGoal} />
+      <NewGoalDialog key={newDialogKey} open={newOpen} onOpenChange={setNewOpen} streams={streams} roles={roles} sprint={sprint} onSaved={upsertGoal} />
       {editGoal && (
         <NewGoalDialog
           key={editGoal.id}
           open={!!editGoal}
           onOpenChange={(v) => !v && setEditGoal(null)}
           streams={streams}
+          roles={roles}
           sprint={sprint}
           goal={editGoal}
           onSaved={upsertGoal}
@@ -512,7 +513,7 @@ function GoalTableRow({
           {(goal.role_requirements ?? []).length === 0 ? (
             <span className="text-[11px] text-slate-400">No roles</span>
           ) : goal.role_requirements.map((r) => (
-            <span key={r.role} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{r.role} {r.pct}%</span>
+            <span key={r.id} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{r.role} {formatRolePoints(r.points)}</span>
           ))}
         </div>
       </td>
@@ -539,12 +540,14 @@ function BulkGoalsEditor({
   grouped,
   drafts,
   streams,
+  roles,
   onPatch,
   onToggleStream,
 }: {
   grouped: { key: string; label: string; goals: SprintGoal[] }[];
   drafts: Record<string, GoalDraft>;
   streams: Stream[];
+  roles: CapacityRoleDefinition[];
   onPatch: (id: string, patch: Partial<GoalDraft>) => void;
   onToggleStream: (goalId: string, streamId: string) => void;
 }) {
@@ -637,7 +640,7 @@ function BulkGoalsEditor({
                         <Input value={draft.tags} onChange={(e) => onPatch(goal.id, { tags: e.target.value })} placeholder="tag, tag" className="h-8 text-xs" />
                       </td>
                       <td className="px-3 py-3">
-                        <Input value={draft.role_requirements} onChange={(e) => onPatch(goal.id, { role_requirements: e.target.value })} placeholder="Dev:50, QA:50" className="h-8 text-xs" />
+                        <Input value={draft.role_requirements} onChange={(e) => onPatch(goal.id, { role_requirements: e.target.value })} placeholder="Dev:5, Dev:8, QA:3" className="h-8 text-xs" />
                       </td>
                     </tr>
                   );
@@ -647,7 +650,7 @@ function BulkGoalsEditor({
           </div>
         </div>
       ))}
-      <p className="text-[11px] text-slate-400">Role format: Dev:50, QA:50. Leaving roles blank removes required roles for that goal.</p>
+      <p className="text-[11px] text-slate-400">Role format: Dev:5, Dev:8, QA:3. Blank points auto-fill from the goal points. Active roles: {roles.filter((r) => !r.is_archived).map((r) => r.name).join(", ") || "none"}.</p>
     </div>
   );
 }
@@ -780,8 +783,8 @@ function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, o
           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Required Roles</p>
           <div className="flex flex-wrap gap-1.5">
             {goal.role_requirements.map((r) => (
-              <span key={r.role} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                {r.role} <span className="text-indigo-600 font-bold">{r.pct}%</span>
+              <span key={r.id} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                {r.role} <span className="text-indigo-600 font-bold">{formatRolePoints(r.points)}</span>
               </span>
             ))}
           </div>

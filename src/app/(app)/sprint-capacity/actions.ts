@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { GoalAssignment, SprintGoal, Stream } from "@/types";
+import type { CapacityRoleDefinition, GoalAssignment, SprintGoal, Stream } from "@/types";
 
 const GOAL_SELECT = "*, subtasks:goal_subtasks(*), delays:goal_delays(*)";
 
@@ -94,6 +94,7 @@ export async function getSprintCapacityReadModel(sprintId: string): Promise<{
   orgUsers: { id: string; full_name: string; avatar_url: string | null; job_title?: string | null }[];
   goals: SprintGoal[];
   streams: Stream[];
+  roles: CapacityRoleDefinition[];
   assignments: GoalAssignment[];
 }> {
   const { supabase, orgId } = await requireOrgMember();
@@ -106,10 +107,10 @@ export async function getSprintCapacityReadModel(sprintId: string): Promise<{
     .eq("status", "active")
     .single();
   if (!sprint) {
-    return { sprint: null, participants: [], orgUsers: [], goals: [], streams: [], assignments: [] };
+    return { sprint: null, participants: [], orgUsers: [], goals: [], streams: [], roles: [], assignments: [] };
   }
 
-  const [{ data: participants }, { data: orgUsers }, goals, { data: streams }, { data: assignments }] = await Promise.all([
+  const [{ data: participants }, { data: orgUsers }, goals, { data: streams }, { data: roles }, { data: assignments }] = await Promise.all([
     supabase
       .from("sprint_participants")
       .select("*, profile:profiles(id, full_name, avatar_url, job_title)")
@@ -122,6 +123,11 @@ export async function getSprintCapacityReadModel(sprintId: string): Promise<{
     selectGoalsForSprint(supabase, orgId, sprintId, sprint),
     supabase
       .from("streams")
+      .select("id, name, is_archived")
+      .eq("org_id", orgId)
+      .order("name"),
+    supabase
+      .from("capacity_roles")
       .select("id, name, is_archived")
       .eq("org_id", orgId)
       .order("name"),
@@ -142,6 +148,7 @@ export async function getSprintCapacityReadModel(sprintId: string): Promise<{
     orgUsers: orgUsers ?? [],
     goals,
     streams: (streams as Stream[]) ?? [],
+    roles: (roles as CapacityRoleDefinition[]) ?? [],
     assignments: (assignments as GoalAssignment[]) ?? [],
   };
 }

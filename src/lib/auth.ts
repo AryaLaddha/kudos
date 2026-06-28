@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 // ── Scoped permission allowlists ──────────────────────────────────────────────
 // Admins always have all permissions. These lists grant specific access to
 // non-admin users without making them full admins.
-const USER_MANAGERS  = ["arya.laddha@scape.com.au"];
+const USER_MANAGERS  = ["arya.laddha@scape.com.au", "angelica.chavez@scape.com.au"];
 const SPRINT_MANAGERS = ["angelica.chavez@scape.com.au"];
 
 async function getCurrentUserEmail(): Promise<{ email: string | null; isAdmin: boolean }> {

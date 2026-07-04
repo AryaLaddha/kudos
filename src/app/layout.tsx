@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import NextTopLoader from "nextjs-toploader";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -26,6 +27,7 @@ export default function RootLayout({
         <NextTopLoader color="#6366f1" height={3} showSpinner={false} />
         {children}
         <Toaster position="bottom-right" />
+        <Analytics />
       </body>
     </html>
   );

@@ -334,17 +334,17 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                   {/* Controls */}
                   <div className="flex-shrink-0 flex items-center gap-4">
 
-                    {/* Get login link */}
+                    {/* Generate a manual password-reset link */}
                     <div className="flex flex-col items-center gap-1">
                       <button
                         onClick={() => handleGetLink(user)}
-                        title="Generate login link"
+                        title="Generate password reset link"
                         className="flex items-center justify-center h-8 w-8 rounded-xl border-2 bg-slate-50 border-slate-200 text-slate-300 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-500 transition-all duration-200 focus:outline-none cursor-pointer"
                       >
                         <Link2 className="h-3.5 w-3.5" />
                       </button>
                       <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                        Link
+                        Reset
                       </span>
                     </div>
 
@@ -437,7 +437,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                   <Link2 className="h-5 w-5 text-indigo-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Login Link</h2>
+                  <h2 className="text-lg font-black text-slate-900">Reset Password</h2>
                   <p className="text-xs text-slate-400 font-medium truncate max-w-[220px]">{linkModalUser.full_name || linkModalUser.email}</p>
                 </div>
               </div>
@@ -467,7 +467,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
               {linkResult && (
                 <div className="space-y-3">
                   <p className="text-sm text-slate-500 font-medium">
-                    Share this one-time link so the user can set their password:
+                    Share this one-time password reset link with the user:
                   </p>
                   <div className="relative">
                     <input

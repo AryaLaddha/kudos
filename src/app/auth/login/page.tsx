@@ -52,6 +52,18 @@ function InactiveBanner() {
   );
 }
 
+function PasswordResetBanner() {
+  const searchParams = useSearchParams();
+  if (searchParams.get("reset") !== "1") return null;
+  return (
+    <div className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+      <p className="text-sm font-medium text-emerald-700">
+        Password updated. Sign in with your new password.
+      </p>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -165,6 +177,7 @@ export default function LoginPage() {
           {/* Inactive account banner */}
           <Suspense fallback={null}>
             <InactiveBanner />
+            <PasswordResetBanner />
           </Suspense>
 
           {/* Heading */}

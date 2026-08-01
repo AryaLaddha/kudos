@@ -7,7 +7,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { WorkstationLoader } from "@/components/app/WorkstationLoader";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -17,7 +16,6 @@ export default function ResetPasswordPage() {
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmFocused, setConfirmFocused] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
   const supabase = createClient();
@@ -42,12 +40,9 @@ export default function ResetPasswordPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      setDone(true);
+      await supabase.auth.signOut();
+      router.replace("/auth/login?reset=1");
     }
-  }
-
-  if (done) {
-    return <WorkstationLoader onComplete={() => router.push("/feed")} />;
   }
 
   return (

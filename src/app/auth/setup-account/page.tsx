@@ -16,7 +16,8 @@ function SetupAccountContent() {
 
   function handleSetup() {
     try {
-      const url = atob(t!);
+      const base64 = t!.replace(/-/g, "+").replace(/_/g, "/");
+      const url = atob(base64);
       window.location.href = url;
     } catch {
       router.replace("/auth/login");

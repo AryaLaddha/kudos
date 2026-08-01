@@ -36,7 +36,7 @@ export async function isAdmin(): Promise<boolean> {
 export async function canManageUsers(): Promise<boolean> {
   const { email, isAdmin } = await getCurrentUserEmail();
   if (isAdmin) return true;
-  return email !== null && USER_MANAGERS.includes(email);
+  return email !== null && USER_MANAGERS.includes(email.toLowerCase());
 }
 
 /**
@@ -46,7 +46,7 @@ export async function canManageUsers(): Promise<boolean> {
 export async function canManageSprints(): Promise<boolean> {
   const { email, isAdmin } = await getCurrentUserEmail();
   if (isAdmin) return true;
-  return email !== null && SPRINT_MANAGERS.includes(email);
+  return email !== null && SPRINT_MANAGERS.includes(email.toLowerCase());
 }
 
 /**

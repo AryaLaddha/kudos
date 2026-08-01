@@ -30,15 +30,20 @@ export async function getOrgUsers(): Promise<(Profile & { email: string })[]> {
     return [];
   }
 
-  // Fetch emails from auth.users via admin RPC — fall back to empty string if unavailable
-  const { data: authUsers } = await supabase.rpc("get_org_user_emails", {
-    p_org_id: profile.org_id,
+  // Fetch emails from auth.users via the service-role client; fall back to empty strings if unavailable.
+  const emailMap: Record<string, string> = {};
+  const adminClient = createAdminClient();
+  const { data: listedUsers, error: listedUsersError } = await adminClient.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
   });
 
-  const emailMap: Record<string, string> = {};
-  if (authUsers) {
-    for (const u of authUsers as { id: string; email: string }[]) {
-      emailMap[u.id] = u.email;
+  if (listedUsersError) {
+    console.error("Error fetching auth users:", listedUsersError);
+  } else {
+    const profileIds = new Set((data as Profile[]).map((p) => p.id));
+    for (const u of listedUsers.users) {
+      if (profileIds.has(u.id)) emailMap[u.id] = u.email ?? "";
     }
   }
 
@@ -55,10 +60,33 @@ export async function setUserActive(
   if (!(await canManageUsers())) return { error: "Not authorized" };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_user_active", {
-    p_user_id: userId,
-    p_is_active: isActive,
-  });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+  if (user.id === userId) return { error: "You cannot deactivate your own account." };
+
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!callerProfile?.org_id) return { error: "No organisation found for your account." };
+
+  const adminClient = createAdminClient();
+  const { data: targetProfile } = await adminClient
+    .from("profiles")
+    .select("org_id")
+    .eq("id", userId)
+    .single();
+
+  if (targetProfile?.org_id !== callerProfile.org_id) {
+    return { error: "That user is not in your organisation." };
+  }
+
+  const { error } = await adminClient
+    .from("profiles")
+    .update({ is_active: isActive })
+    .eq("id", userId);
 
   if (error) {
     console.error("Error setting user active:", error);
@@ -76,20 +104,36 @@ export async function setUserAdmin(
   if (!(await canManageUsers())) return { error: "Not authorized" };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_user_admin", {
-    p_user_id: userId,
-    p_is_admin: adminFlag,
-  });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+  if (user.id === userId && !adminFlag) return { error: "You cannot remove your own admin access." };
+
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!callerProfile?.org_id) return { error: "No organisation found for your account." };
+
+  const adminClient = createAdminClient();
+  const { data: targetProfile } = await adminClient
+    .from("profiles")
+    .select("org_id")
+    .eq("id", userId)
+    .single();
+
+  if (targetProfile?.org_id !== callerProfile.org_id) {
+    return { error: "That user is not in your organisation." };
+  }
+
+  const { error } = await adminClient
+    .from("profiles")
+    .update({ is_admin: adminFlag })
+    .eq("id", userId);
 
   if (error) {
     console.error("Error setting user admin:", error);
-    // Surface the friendly guard messages from the RPC
-    if (error.message.includes("cannot_demote_self")) {
-      return { error: "You cannot remove your own admin access." };
-    }
-    if (error.message.includes("org_mismatch")) {
-      return { error: "That user is not in your organisation." };
-    }
     return { error: error.message };
   }
 
@@ -135,13 +179,14 @@ export async function generateLoginLink(
     },
   });
 
-  if (linkError || !linkData?.properties?.action_link) {
+  if (linkError || !linkData?.properties?.hashed_token) {
     return { error: linkError?.message ?? "Could not generate link." };
   }
 
   // Wrap in an intermediate page so messaging apps (Slack, Teams, email)
   // don't consume the one-time Supabase token via link-preview crawling.
-  const encoded = Buffer.from(linkData.properties.action_link).toString("base64");
+  const recoveryUrl = `${appUrl}/auth/confirm?token_hash=${encodeURIComponent(linkData.properties.hashed_token)}&type=recovery`;
+  const encoded = Buffer.from(recoveryUrl).toString("base64url");
   return { setupLink: `${appUrl}/auth/setup-account?t=${encoded}` };
 }
 
@@ -219,15 +264,18 @@ export async function inviteUser(formData: {
     }
   });
 
-  if (linkError || !linkData?.properties?.action_link) {
+  if (linkError || !linkData?.properties?.hashed_token) {
     console.warn("Could not generate setup link:", linkError?.message);
   }
 
   revalidatePath("/admin/users");
 
-  const rawLink = linkData?.properties?.action_link;
-  const wrappedLink = rawLink
-    ? `${appUrl}/auth/setup-account?t=${Buffer.from(rawLink).toString("base64")}`
+  const tokenHash = linkData?.properties?.hashed_token;
+  const recoveryUrl = tokenHash
+    ? `${appUrl}/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
+    : undefined;
+  const wrappedLink = recoveryUrl
+    ? `${appUrl}/auth/setup-account?t=${Buffer.from(recoveryUrl).toString("base64url")}`
     : undefined;
 
   return { setupLink: wrappedLink };

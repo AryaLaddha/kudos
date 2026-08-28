@@ -28,6 +28,7 @@ export async function updatePasswordWithRecoveryToken(
   const adminClient = createAdminClient();
   const { error: updateError } = await adminClient.auth.admin.updateUserById(data.user.id, {
     password,
+    email_confirm: true,
   });
 
   if (updateError) {

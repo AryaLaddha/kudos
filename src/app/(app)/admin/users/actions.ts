@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canManageUsers } from "@/lib/auth";
@@ -160,6 +161,16 @@ export async function generateLoginLink(
 
   const adminClient = createAdminClient();
 
+  const { data: targetProfile } = await adminClient
+    .from("profiles")
+    .select("org_id")
+    .eq("id", userId)
+    .single();
+
+  if (targetProfile?.org_id !== adminProfile.org_id) {
+    return { error: "That user is not in your organisation." };
+  }
+
   // Fetch the target user's email via admin API
   const { data: targetUser, error: fetchError } = await adminClient.auth.admin.getUserById(userId);
   if (fetchError || !targetUser?.user?.email) {
@@ -188,6 +199,57 @@ export async function generateLoginLink(
   const recoveryUrl = `${appUrl}/auth/reset-password?token_hash=${encodeURIComponent(linkData.properties.hashed_token)}&type=recovery`;
   const encoded = Buffer.from(recoveryUrl).toString("base64url");
   return { setupLink: `${appUrl}/auth/setup-account?t=${encoded}` };
+}
+
+export async function setTemporaryPassword(
+  userId: string
+): Promise<{ error?: string; temporaryPassword?: string }> {
+  if (!(await canManageUsers())) return { error: "Not authorized" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!callerProfile?.org_id) return { error: "No organisation found for your account." };
+
+  const adminClient = createAdminClient();
+  const { data: targetProfile } = await adminClient
+    .from("profiles")
+    .select("org_id")
+    .eq("id", userId)
+    .single();
+
+  if (targetProfile?.org_id !== callerProfile.org_id) {
+    return { error: "That user is not in your organisation." };
+  }
+
+  const temporaryPassword = `Kudos-${randomBytes(9).toString("base64url")}!7`;
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, {
+    password: temporaryPassword,
+    email_confirm: true,
+  });
+
+  if (updateError) {
+    return { error: updateError.message };
+  }
+
+  const { error: activateError } = await adminClient
+    .from("profiles")
+    .update({ is_active: true })
+    .eq("id", userId);
+
+  if (activateError) {
+    return { error: activateError.message };
+  }
+
+  revalidatePath("/admin/users");
+  return { temporaryPassword };
 }
 
 export async function inviteUser(formData: {

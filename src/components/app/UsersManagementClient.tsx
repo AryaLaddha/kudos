@@ -14,9 +14,10 @@ import {
   Shield,
   Copy,
   Link2,
+  KeyRound,
 } from "lucide-react";
 import { type Profile } from "@/types";
-import { setUserActive, setUserAdmin, inviteUser, generateLoginLink } from "@/app/(app)/admin/users/actions";
+import { setUserActive, setUserAdmin, inviteUser, generateLoginLink, setTemporaryPassword } from "@/app/(app)/admin/users/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +54,9 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
   const [linkPending, setLinkPending] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [temporaryPassword, setTemporaryPasswordResult] = useState<string | null>(null);
+  const [temporaryPasswordPending, setTemporaryPasswordPending] = useState(false);
+  const [temporaryPasswordCopied, setTemporaryPasswordCopied] = useState(false);
 
   const searchLower = search.toLowerCase().trim();
   const filtered = useMemo(() => {
@@ -171,6 +175,9 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
     setLinkResult(null);
     setLinkError(null);
     setLinkCopied(false);
+    setTemporaryPasswordResult(null);
+    setTemporaryPasswordPending(false);
+    setTemporaryPasswordCopied(false);
   }
 
   function handleGetLink(user: UserRow) {
@@ -178,6 +185,8 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
     setLinkResult(null);
     setLinkError(null);
     setLinkCopied(false);
+    setTemporaryPasswordResult(null);
+    setTemporaryPasswordCopied(false);
     setLinkPending(true);
     generateLoginLink(user.id).then(result => {
       setLinkPending(false);
@@ -189,11 +198,37 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
     });
   }
 
+  function handleSetTemporaryPassword() {
+    if (!linkModalUser) return;
+    setLinkError(null);
+    setTemporaryPasswordPending(true);
+    setTemporaryPasswordResult(null);
+    setTemporaryPasswordCopied(false);
+    setTemporaryPassword(linkModalUser.id).then(result => {
+      setTemporaryPasswordPending(false);
+      if (result.error) {
+        setLinkError(result.error);
+      } else if (result.temporaryPassword) {
+        setTemporaryPasswordResult(result.temporaryPassword);
+        setUsers(prev =>
+          prev.map(u => u.id === linkModalUser.id ? { ...u, is_active: true } : u)
+        );
+      }
+    });
+  }
+
   function handleCopyLoginLink() {
     if (!linkResult) return;
     navigator.clipboard.writeText(linkResult);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
+  }
+
+  function handleCopyTemporaryPassword() {
+    if (!temporaryPassword) return;
+    navigator.clipboard.writeText(temporaryPassword);
+    setTemporaryPasswordCopied(true);
+    setTimeout(() => setTemporaryPasswordCopied(false), 2000);
   }
 
   function handleCopyLink() {
@@ -493,6 +528,50 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                   </p>
                 </div>
               )}
+
+              {!linkPending && (
+                <div className="mt-5 border-t border-slate-100 pt-5">
+                  {temporaryPassword ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-slate-500 font-medium">
+                        Send this temporary password to the user:
+                      </p>
+                      <div className="relative">
+                        <input
+                          readOnly
+                          value={temporaryPassword}
+                          className="w-full pl-4 pr-12 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-500 outline-none"
+                        />
+                        <button
+                          onClick={handleCopyTemporaryPassword}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 shadow-sm transition-all"
+                        >
+                          {temporaryPasswordCopied ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <button
+                        onClick={handleCopyTemporaryPassword}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white font-bold text-sm shadow-slate-100 shadow-lg hover:bg-slate-800 transition-all"
+                      >
+                        {temporaryPasswordCopied ? "Copied!" : "Copy Temporary Password"}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleSetTemporaryPassword}
+                      disabled={temporaryPasswordPending}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white font-bold text-sm shadow-slate-100 shadow-lg hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 transition-all"
+                    >
+                      {temporaryPasswordPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <KeyRound className="h-4 w-4" />
+                      )}
+                      {temporaryPasswordPending ? "Setting password..." : "Set Temporary Password"}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -517,7 +596,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                 </div>
                 <div>
                   <h2 className="text-lg font-black text-slate-900">Add User</h2>
-                  <p className="text-xs text-slate-400 font-medium">They&apos;ll get an email to set their password</p>
+                  <p className="text-xs text-slate-400 font-medium">Create a setup link to share manually</p>
                 </div>
               </div>
               <button
@@ -538,7 +617,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                   <div className="w-full">
                     <p className="font-black text-slate-900 text-lg">Account created!</p>
                     <p className="text-sm text-slate-500 mt-1">
-                      {setupLink ? "The account is ready. Send this setup link to:" : "A password-setup email has been sent to"}
+                      {setupLink ? "The account is ready. Send this setup link to:" : "The account was created, but no setup link was generated for"}
                     </p>
                     <p className="text-sm font-bold text-slate-700 mt-0.5">{inviteEmail}</p>
 
@@ -571,7 +650,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
 
                     {!setupLink && (
                       <p className="text-xs text-slate-400 mt-6 pt-6 border-t border-slate-50">
-                        They can also use <span className="font-semibold text-slate-600 underline">Forgot password</span> on the login page at any time.
+                        Generate a reset link from User Management or set a temporary password.
                       </p>
                     )}
                   </div>
@@ -656,7 +735,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                   <div className="flex items-start gap-2.5 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
                     <Mail className="h-4 w-4 text-indigo-400 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-indigo-600 font-medium leading-relaxed">
-                      The user will receive an email with a link to set their password. Their login email will be the address you entered above.
+                      Copy the setup link after creating the account and send it to the user manually.
                     </p>
                   </div>
 

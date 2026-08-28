@@ -34,6 +34,15 @@ export async function updatePasswordWithRecoveryToken(
     return { error: updateError.message };
   }
 
+  const { error: activateError } = await adminClient
+    .from("profiles")
+    .update({ is_active: true })
+    .eq("id", data.user.id);
+
+  if (activateError) {
+    return { error: activateError.message };
+  }
+
   await supabase.auth.signOut();
   return {};
 }

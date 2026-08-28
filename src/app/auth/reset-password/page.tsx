@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { updatePasswordWithRecoveryToken } from "./actions";
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +19,11 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
-  const supabase = createClient();
+  const searchParams = useSearchParams();
+  const supabase = useMemo(() => createClient(), []);
+  const recoveryTokenHash = searchParams.get("token_hash");
+  const recoveryType = searchParams.get("type");
+  const isManualRecoveryLink = Boolean(recoveryTokenHash && recoveryType === "recovery");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,10 +39,29 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    if (isManualRecoveryLink && recoveryTokenHash) {
+      const result = await updatePasswordWithRecoveryToken(recoveryTokenHash, password);
+      if (result.error) {
+        setError(result.error);
+        setLoading(false);
+      } else {
+        await supabase.auth.signOut();
+        router.replace("/auth/login?reset=1");
+      }
+      return;
+    }
 
-    if (error) {
-      setError(error.message);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setError("This password reset session has expired. Please ask your admin for a new link.");
+      setLoading(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+
+    if (updateError) {
+      setError(updateError.message);
       setLoading(false);
     } else {
       await supabase.auth.signOut();
@@ -164,5 +188,13 @@ export default function ResetPasswordPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

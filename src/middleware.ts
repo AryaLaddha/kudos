@@ -32,6 +32,11 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAuthPage = pathname.startsWith("/auth");
   const isPublicPage = pathname === "/" || isAuthPage;
+  const isRecoveryPage =
+    pathname === "/auth/setup-account" ||
+    pathname === "/auth/confirm" ||
+    pathname === "/auth/recover" ||
+    pathname === "/auth/reset-password";
 
   if (!user && !isPublicPage) {
     const url = request.nextUrl.clone();
@@ -39,7 +44,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage && pathname !== "/auth/reset-password") {
+  if (user && isAuthPage && !isRecoveryPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/feed";
     return NextResponse.redirect(url);

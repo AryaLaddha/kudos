@@ -185,7 +185,7 @@ export async function generateLoginLink(
 
   // Wrap in an intermediate page so messaging apps (Slack, Teams, email)
   // don't consume the one-time Supabase token via link-preview crawling.
-  const recoveryUrl = `${appUrl}/auth/confirm?token_hash=${encodeURIComponent(linkData.properties.hashed_token)}&type=recovery`;
+  const recoveryUrl = `${appUrl}/auth/reset-password?token_hash=${encodeURIComponent(linkData.properties.hashed_token)}&type=recovery`;
   const encoded = Buffer.from(recoveryUrl).toString("base64url");
   return { setupLink: `${appUrl}/auth/setup-account?t=${encoded}` };
 }
@@ -272,7 +272,7 @@ export async function inviteUser(formData: {
 
   const tokenHash = linkData?.properties?.hashed_token;
   const recoveryUrl = tokenHash
-    ? `${appUrl}/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
+    ? `${appUrl}/auth/reset-password?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
     : undefined;
   const wrappedLink = recoveryUrl
     ? `${appUrl}/auth/setup-account?t=${Buffer.from(recoveryUrl).toString("base64url")}`

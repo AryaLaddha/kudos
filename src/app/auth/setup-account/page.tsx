@@ -17,8 +17,10 @@ function SetupAccountContent() {
   function handleSetup() {
     try {
       const base64 = t!.replace(/-/g, "+").replace(/_/g, "/");
-      const url = atob(base64);
-      window.location.href = url;
+      const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+      const url = new URL(atob(padded), window.location.origin);
+      if (url.origin !== window.location.origin) throw new Error("Invalid setup link origin");
+      window.location.href = url.toString();
     } catch {
       router.replace("/auth/login");
     }

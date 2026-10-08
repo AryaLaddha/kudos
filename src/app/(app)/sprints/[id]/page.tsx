@@ -7,6 +7,7 @@ import {
   getRoles,
   getGoalAssignments,
 } from "@/app/(app)/sprints/goals-actions";
+import { getPublicHolidays, getGoalNotes } from "@/app/(app)/sprints/planning-actions";
 import { notFound } from "next/navigation";
 import SprintDetailClient from "@/components/app/SprintDetailClient";
 
@@ -33,6 +34,8 @@ export default async function SprintDetailPage({ params }: Props) {
 
   if (!sprint) notFound();
 
+  const [holidays, notes] = await Promise.all([getPublicHolidays(), getGoalNotes(goals.map((g) => g.id))]);
+
   return (
     <SprintDetailClient
       sprint={sprint}
@@ -44,6 +47,8 @@ export default async function SprintDetailPage({ params }: Props) {
       streams={streams}
       roles={roles}
       assignments={assignments}
+      holidays={holidays}
+      notes={notes}
     />
   );
 }

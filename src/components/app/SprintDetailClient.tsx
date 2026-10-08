@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, ChevronDown, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -18,7 +18,11 @@ import CapacityPlanningClient from "@/components/app/CapacityPlanningClient";
 import GoalHistoryClient from "@/components/app/GoalHistoryClient";
 import StreamsManagementClient from "@/components/app/StreamsManagementClient";
 import RolesManagementClient from "@/components/app/RolesManagementClient";
-import type { CapacityRoleDefinition, GoalAssignment, SprintGoal, SprintRef, Stream } from "@/types";
+import SprintOverviewClient from "@/components/app/SprintOverviewClient";
+import SprintAvailabilityClient from "@/components/app/SprintAvailabilityClient";
+import SprintCoverageClient from "@/components/app/SprintCoverageClient";
+import CloneSprintDialog from "@/components/app/CloneSprintDialog";
+import type { AvailabilityMap, CapacityRoleDefinition, GoalAssignment, GoalNote, PublicHoliday, SprintGoal, SprintRef, Stream } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +48,11 @@ interface Participant {
   expected_override: number | null;
   role: string | null;
   stream_ids: string[];
+  // Planning columns (supabase/sprint_planning.sql); absent until that migration has run.
+  location?: string | null;
+  buddy_user_ids?: string[];
+  deducted_points?: number;
+  availability?: AvailabilityMap;
   profile: Profile;
 }
 
@@ -57,11 +66,16 @@ interface Props {
   streams: Stream[];
   roles: CapacityRoleDefinition[];
   assignments: GoalAssignment[];
+  holidays: PublicHoliday[];
+  notes: GoalNote[];
 }
 
 const TABS = [
+  { id: "overview", label: "Overview" },
   { id: "goals", label: "Sprint Goals" },
   { id: "capacity", label: "Capacity Planning" },
+  { id: "availability", label: "Availability" },
+  { id: "coverage", label: "Buddy Coverage" },
   { id: "streams", label: "Streams" },
   { id: "roles", label: "Roles" },
   { id: "history", label: "Goal History" },
@@ -90,6 +104,8 @@ export default function SprintDetailClient({
   streams: initStreams,
   roles: initRoles,
   assignments: initAssignments,
+  holidays: initHolidays,
+  notes: initNotes,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -100,7 +116,10 @@ export default function SprintDetailClient({
   const [streams, setStreams] = useState<Stream[]>(initStreams);
   const [roles, setRoles] = useState<CapacityRoleDefinition[]>(initRoles);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [tab, setTab] = useState<TabId>("goals");
+  const [tab, setTab] = useState<TabId>("overview");
+  const [holidays, setHolidays] = useState<PublicHoliday[]>(initHolidays);
+  const [notes, setNotes] = useState<GoalNote[]>(initNotes);
+  const [cloneOpen, setCloneOpen] = useState(false);
 
   // Capacity edits update the shared participant array so other tabs stay in sync.
   function patchParticipant(userId: string, patch: Partial<Participant>) {
@@ -258,6 +277,15 @@ export default function SprintDetailClient({
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setCloneOpen(true)}
+            className="h-9 px-3 gap-2"
+          >
+            <Copy className="h-4 w-4" />
+            <span className="hidden sm:inline">Create next sprint</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleToggleStatus}
             className="h-9 px-3 gap-2"
           >
@@ -292,6 +320,19 @@ export default function SprintDetailClient({
         ))}
       </div>
 
+      {/* ── OVERVIEW ───────────────────────────────────────── */}
+      {tab === "overview" && (
+        <SprintOverviewClient
+          sprint={sprint}
+          participants={participants}
+          goals={goals}
+          assignments={assignments}
+          streams={streams}
+          holidays={holidays}
+          onOpenTab={setTab}
+        />
+      )}
+
       {/* ── SPRINT GOALS ───────────────────────────────────── */}
       {tab === "goals" && (
         <SprintGoalsClient
@@ -301,8 +342,29 @@ export default function SprintDetailClient({
           roles={roles}
           sprint={sprint}
           orgUsers={orgUsers}
+          notes={notes}
+          onNoteAdded={(note) => setNotes((prev) => [note, ...prev])}
         />
       )}
+
+      {/* ── AVAILABILITY ───────────────────────────────────── */}
+      {tab === "availability" && (
+        <SprintAvailabilityClient
+          sprint={sprint}
+          participants={participants}
+          streams={streams}
+          holidays={holidays}
+          setHolidays={setHolidays}
+          onPatchParticipant={patchParticipant}
+        />
+      )}
+
+      {/* ── BUDDY COVERAGE ─────────────────────────────────── */}
+      {tab === "coverage" && (
+        <SprintCoverageClient sprint={sprint} participants={participants} holidays={holidays} />
+      )}
+
+      <CloneSprintDialog open={cloneOpen} onOpenChange={setCloneOpen} sprint={sprint} />
 
       {/* ── CAPACITY PLANNING ──────────────────────────────── */}
       {tab === "capacity" && (

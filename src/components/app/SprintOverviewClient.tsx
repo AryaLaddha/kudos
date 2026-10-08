@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { AlertTriangle, Info } from "lucide-react";
 import { GOAL_STATUS_META, GOAL_STATUSES } from "@/lib/sprintGoals";
 import { goalsWithoutPeople, streamTotals, workingDays, type PlanningParticipant } from "@/lib/sprintAvailability";
 import { findCoverageGaps } from "@/components/app/SprintCoverageClient";
 import type { GoalAssignment, PublicHoliday, SprintGoal, Stream } from "@/types";
+
+export type PlannerTab = "overview" | "capacity" | "goals" | "coverage" | "history" | "setup" | "grid";
 
 interface Props {
   sprint: { start_date: string; end_date: string };
@@ -14,12 +15,19 @@ interface Props {
   assignments: GoalAssignment[];
   streams: Stream[];
   holidays: PublicHoliday[];
-  onOpenTab: (tab: "goals" | "capacity" | "availability" | "coverage") => void;
+  onOpenTab: (tab: PlannerTab) => void;
 }
 
-type Alert = { level: "bad" | "warn"; text: string; tab: "goals" | "capacity" | "availability" | "coverage" };
+type Alert = { level: "bad" | "warn"; text: string; tab: PlannerTab };
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
+
+const STATUS_PILL: Record<string, string> = {
+  on_track: "p-ok",
+  delayed: "p-bad",
+  completed: "p-done",
+  carried_over: "p-hold",
+};
 
 export default function SprintOverviewClient({ sprint, participants, goals, assignments, streams, holidays, onOpenTab }: Props) {
   const days = useMemo(() => workingDays(sprint.start_date, sprint.end_date), [sprint.start_date, sprint.end_date]);
@@ -59,116 +67,102 @@ export default function SprintOverviewClient({ sprint, participants, goals, assi
   }, [participants, goals, assignments, holidays, days]);
 
   const pct = totalCapacity > 0 ? Math.round((totalAllocated / totalCapacity) * 100) : 0;
+  const needs = alerts.length;
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Total expected" value={`${totalCapacity}`} sub="points across the team" />
-        <Kpi label="Allocated" value={`${totalAllocated}`} sub={`${pct}% of capacity`} />
-        <Kpi label="Goals" value={`${goals.length}`} sub={`${statusCounts.get("completed") ?? 0} completed`} />
-        <Kpi label="Needs attention" value={`${alerts.length}`} sub={alerts.length === 0 ? "all clear" : "see alerts below"} tone={alerts.length ? "bad" : "ok"} />
+    <div className="sp-screen">
+      <div className="sp-grid sp-g-kpi">
+        <Kpi label="Total expected points" value={`${totalCapacity}`} note="sum of everyone's net capacity" />
+        <Kpi label="Allocated" value={`${totalAllocated}`} note={`${pct}% of capacity`} />
+        <Kpi label="Goals this sprint" value={`${goals.length}`} note={`${statusCounts.get("completed") ?? 0} completed`} />
+        <Kpi label="Needs attention" value={`${needs}`} note={needs === 0 ? "all clear" : "see alerts below"} color={needs ? "var(--sp-bad)" : undefined} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-          <h3 className="mb-1 text-sm font-bold text-slate-900">Capacity vs allocation by stream</h3>
-          <div className="mb-3 flex flex-wrap gap-x-4 text-[11px] text-slate-500">
-            <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-indigo-100" />Capacity</span>
-            <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-indigo-600" />Allocated</span>
-            <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />Over capacity</span>
+      <div className="sp-grid sp-g-2">
+        <div className="sp-panel">
+          <h2>Capacity vs allocation by stream <span className="note">points</span></h2>
+          <div className="sp-key">
+            <span><i style={{ background: "var(--sp-cell-full)" }} />Capacity</span>
+            <span><i style={{ background: "var(--sp-accent)" }} />Planned</span>
+            <span><i style={{ background: "var(--sp-bad)" }} />Over capacity</span>
           </div>
           {totals.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-500">Add people in Capacity Planning to see streams here.</p>
+            <div className="sp-empty">Add people in Capacity &amp; allocation to see streams here.</div>
           ) : (
-            <div className="space-y-2">
-              {totals
-                .slice()
-                .sort((a, b) => b.capacity - a.capacity)
-                .map((t) => {
-                  const over = t.allocated > t.capacity;
-                  return (
-                    <div key={t.streamId ?? "none"} className="grid grid-cols-[6.5rem_minmax(0,1fr)_5.5rem] items-center gap-3">
-                      <span className="truncate text-xs font-semibold text-slate-700">{t.streamId ? streamName.get(t.streamId) ?? "Stream" : "No stream"}</span>
-                      <div className="relative h-4 rounded bg-slate-100">
-                        <div className="absolute inset-y-0 left-0 rounded bg-indigo-100" style={{ width: `${(t.capacity / maxBar) * 100}%` }} />
-                        <div className={`absolute inset-y-1 left-0 rounded ${over ? "bg-red-500" : "bg-indigo-600"}`} style={{ width: `${(Math.min(t.allocated, maxBar) / maxBar) * 100}%` }} />
-                      </div>
-                      <span className="text-right font-mono text-xs tabular-nums text-slate-500">{t.allocated} / {t.capacity}</span>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </section>
-
-        <div className="space-y-4">
-          <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-bold text-slate-900">Goal status</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {GOAL_STATUSES.map((s) => {
-                const m = GOAL_STATUS_META[s];
-                return (
-                  <div key={s} className="rounded-xl px-3 py-2" style={{ background: m.pillBg, color: m.pillText }}>
-                    <div className="text-xl font-extrabold leading-tight">{statusCounts.get(s) ?? 0}</div>
-                    <div className="text-[11px] font-semibold">{m.label}</div>
+            totals
+              .slice()
+              .sort((a, b) => b.capacity - a.capacity)
+              .map((t) => (
+                <div key={t.streamId ?? "none"} className={`sp-sbar${t.allocated > t.capacity ? " over" : ""}`}>
+                  <span className="nm">{t.streamId ? streamName.get(t.streamId) ?? "Stream" : "No stream"}</span>
+                  <div className="sp-track">
+                    <div className="sp-cap" style={{ width: `${(t.capacity / maxBar) * 100}%` }} />
+                    <div className="sp-alloc" style={{ width: `${(Math.min(t.allocated, maxBar) / maxBar) * 100}%` }} />
                   </div>
-                );
-              })}
-            </div>
-          </section>
+                  <span className="nums mono">{t.allocated} / {t.capacity}</span>
+                </div>
+              ))
+          )}
+        </div>
 
-          <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <h3 className="mb-2 text-sm font-bold text-slate-900">At-risk goals</h3>
+        <div className="sp-col">
+          <div className="sp-panel">
+            <h2>Goal status</h2>
+            <div className="sp-counts">
+              {GOAL_STATUSES.map((s) => (
+                <div key={s}>
+                  <div className="n" style={{ color: `var(--sp-${s === "on_track" ? "ok" : s === "delayed" ? "bad" : s === "completed" ? "accent" : "hold"})` }}>
+                    {statusCounts.get(s) ?? 0}
+                  </div>
+                  <span className="note">{GOAL_STATUS_META[s].label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="sp-panel">
+            <h2>At-risk goals</h2>
             {atRisk.length === 0 ? (
-              <p className="text-sm text-slate-500">No delayed goals.</p>
+              <span className="note">No delayed goals.</span>
             ) : (
-              <ul className="divide-y divide-slate-100">
-                {atRisk.map((g) => (
-                  <li key={g.id} className="py-2 first:pt-0 last:pb-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-900">{g.title}</span>
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">Delayed</span>
-                    </div>
-                    {g.delays?.[0] && <p className="mt-0.5 text-xs italic text-slate-500">&ldquo;{g.delays[0].reason}&rdquo;</p>}
-                  </li>
-                ))}
-              </ul>
+              atRisk.map((g) => (
+                <div key={g.id} className="sp-risk">
+                  <div className="r1">
+                    <b style={{ fontSize: 13.5 }}>{g.title}</b>
+                    <span className={`sp-pill ${STATUS_PILL[g.status]}`}>{GOAL_STATUS_META[g.status].label}</span>
+                  </div>
+                  {g.delays?.[0] && <span className="note">&ldquo;{g.delays[0].reason}&rdquo;</span>}
+                </div>
+              ))
             )}
-          </section>
+          </div>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-bold text-slate-900">Alerts</h3>
-        {alerts.length === 0 ? (
-          <p className="text-sm text-slate-500">Nothing needs attention.</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {alerts.map((a, i) => (
-              <li key={i}>
-                <button
-                  type="button"
-                  onClick={() => onOpenTab(a.tab)}
-                  className={`flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm hover:brightness-95 ${a.level === "bad" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}
-                >
-                  {a.level === "bad" ? <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> : <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />}
-                  <span>{a.text}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="sp-panel">
+        <h2>Alerts <span className="note">from the planning rules</span></h2>
+        <div className="sp-alerts">
+          {alerts.length === 0 ? (
+            <div className="sp-alert ok"><span className="ic">✓</span><span>Nothing needs attention.</span></div>
+          ) : (
+            alerts.map((a, i) => (
+              <button key={i} type="button" onClick={() => onOpenTab(a.tab)} className={`sp-alert${a.level === "bad" ? " bad" : ""}`}>
+                <span className="ic">{a.level === "bad" ? "!!" : "!"}</span>
+                <span>{a.text}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: "bad" | "ok" }) {
+function Kpi({ label, value, note, color }: { label: string; value: string; note: string; color?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-      <p className="text-[11px] font-semibold text-slate-500">{label}</p>
-      <p className={`mt-1 font-mono text-2xl font-bold tabular-nums ${tone === "bad" ? "text-red-600" : "text-slate-900"}`}>{value}</p>
-      <p className="text-[11px] text-slate-400">{sub}</p>
+    <div className="sp-panel sp-kpi">
+      <span className="l">{label}</span>
+      <span className="v" style={color ? { color } : undefined}>{value}</span>
+      <span className="note">{note}</span>
     </div>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, X, Loader2, Trophy, Users, Zap, ChevronDown, Copy } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, ChevronDown } from "lucide-react";
+import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -13,18 +14,20 @@ import {
   updateSprintStatus,
   updateAllParticipants,
 } from "@/app/(app)/sprints/actions";
-import SprintGoalsClient from "@/components/app/SprintGoalsClient";
-import CapacityPlanningClient from "@/components/app/CapacityPlanningClient";
-import GoalHistoryClient from "@/components/app/GoalHistoryClient";
-import StreamsManagementClient from "@/components/app/StreamsManagementClient";
-import RolesManagementClient from "@/components/app/RolesManagementClient";
-import SprintOverviewClient from "@/components/app/SprintOverviewClient";
-import SprintAvailabilityClient from "@/components/app/SprintAvailabilityClient";
+import type { SprintStat } from "@/app/(app)/sprints/planning-actions";
+import SprintOverviewClient, { type PlannerTab } from "@/components/app/SprintOverviewClient";
+import SprintCapacityClient from "@/components/app/SprintCapacityClient";
+import SprintGoalsTab from "@/components/app/SprintGoalsTab";
 import SprintCoverageClient from "@/components/app/SprintCoverageClient";
-import CloneSprintDialog from "@/components/app/CloneSprintDialog";
+import SprintHistoryClient from "@/components/app/SprintHistoryClient";
+import SprintSetupClient from "@/components/app/SprintSetupClient";
+import "@/components/app/sprint-planner.css";
 import type { AvailabilityMap, CapacityRoleDefinition, GoalAssignment, GoalNote, PublicHoliday, SprintGoal, SprintRef, Stream } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const sans = Instrument_Sans({ subsets: ["latin"], variable: "--sp-sans", display: "swap" });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--sp-mono", display: "swap" });
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -68,24 +71,21 @@ interface Props {
   assignments: GoalAssignment[];
   holidays: PublicHoliday[];
   notes: GoalNote[];
+  stats: SprintStat[];
 }
 
-const TABS = [
+const TABS: { id: PlannerTab; label: string }[] = [
   { id: "overview", label: "Overview" },
-  { id: "goals", label: "Sprint Goals" },
-  { id: "capacity", label: "Capacity Planning" },
-  { id: "availability", label: "Availability" },
-  { id: "coverage", label: "Buddy Coverage" },
-  { id: "streams", label: "Streams" },
-  { id: "roles", label: "Roles" },
-  { id: "history", label: "Goal History" },
-  { id: "analytics", label: "Analytics" },
+  { id: "capacity", label: "Capacity & allocation" },
+  { id: "goals", label: "Goals" },
+  { id: "coverage", label: "Buddy coverage" },
+  { id: "history", label: "History" },
+  { id: "setup", label: "Sprint setup" },
   { id: "grid", label: "Grid Tracker" },
-] as const;
-type TabId = (typeof TABS)[number]["id"];
+];
 
 function getInitials(n: string) { return n.split(" ").map(p => p[0]).join("").toUpperCase().slice(0, 2); }
-function formatDate(d: string) { return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+function formatDate(d: string) { return new Date(`${d}T00:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }); }
 
 // Compute grand total for a participant
 function grandTotal(p: Participant) {
@@ -106,20 +106,20 @@ export default function SprintDetailClient({
   assignments: initAssignments,
   holidays: initHolidays,
   notes: initNotes,
+  stats,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [participants, setParticipants] = useState<Participant[]>(initParticipants);
   const [goals, setGoals] = useState<SprintGoal[]>(initGoals);
   const [assignments, setAssignments] = useState<GoalAssignment[]>(initAssignments);
-  // Streams are an org-wide catalogue, managed from the Streams tab within the sprint.
+  // Streams and roles are org-wide catalogues, managed from the Sprint setup tab.
   const [streams, setStreams] = useState<Stream[]>(initStreams);
   const [roles, setRoles] = useState<CapacityRoleDefinition[]>(initRoles);
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [tab, setTab] = useState<TabId>("overview");
   const [holidays, setHolidays] = useState<PublicHoliday[]>(initHolidays);
   const [notes, setNotes] = useState<GoalNote[]>(initNotes);
-  const [cloneOpen, setCloneOpen] = useState(false);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [tab, setTab] = useState<PlannerTab>("overview");
 
   // Capacity edits update the shared participant array so other tabs stay in sync.
   function patchParticipant(userId: string, patch: Partial<Participant>) {
@@ -139,7 +139,7 @@ export default function SprintDetailClient({
   const wonCols = sprint.columns?.won ?? [];
   const dedCols = sprint.columns?.deducted ?? [];
 
-  // ── Local Editing ──────────────────────────────────────────
+  // ── Local Editing (Grid Tracker) ───────────────────────────
   function setScore(userId: string, colId: string, value: number) {
     setParticipants(prev =>
       prev.map(p => p.user_id === userId ? { ...p, scores: { ...p.scores, [colId]: value } } : p)
@@ -160,7 +160,7 @@ export default function SprintDetailClient({
     else toast.success(`Saved ${p.profile.full_name}`);
   }
 
-  // ── Add Participant ────────────────────────────────────────
+  // ── Add Participant (Grid Tracker) ─────────────────────────
   const existingIds = new Set(participants.map(p => p.user_id));
   const availableUsers = orgUsers.filter(u => !existingIds.has(u.id));
 
@@ -201,6 +201,7 @@ export default function SprintDetailClient({
     const res = await removeParticipant(sprint.id, userId);
     if ("error" in res && res.error) { toast.error(res.error); return; }
     setParticipants(prev => prev.filter(p => p.user_id !== userId));
+    setAssignments(prev => prev.filter(a => a.user_id !== userId));
     toast.success("Removed from sprint");
   }
 
@@ -213,17 +214,6 @@ export default function SprintDetailClient({
       startTransition(() => router.push("/sprints"));
     }
   }
-
-  // ── Analytics ─────────────────────────────────────────────
-  const ranked = useMemo(() =>
-    [...participants]
-      .map(p => ({ ...p, total: grandTotal(p) }))
-      .sort((a, b) => {
-        if (b.total !== a.total) return b.total - a.total;
-        return a.profile.full_name.localeCompare(b.profile.full_name);
-      }),
-    [participants]
-  );
 
   async function handleToggleStatus() {
     const next = sprint.status === "completed" ? "active" : "completed";
@@ -244,229 +234,131 @@ export default function SprintDetailClient({
     else toast.success("All changes saved!");
   }
 
-  const winner = ranked[0];
+  const sortedSprints = [...allSprints].sort((a, b) => b.start_date.localeCompare(a.start_date));
+  const days = (() => {
+    let n = 0;
+    for (let t = new Date(`${sprint.start_date}T00:00:00Z`).getTime(); t <= new Date(`${sprint.end_date}T00:00:00Z`).getTime(); t += 86_400_000) {
+      const d = new Date(t).getUTCDay();
+      if (d !== 0 && d !== 6) n++;
+    }
+    return n;
+  })();
 
   return (
-    <div className="max-w-full px-4 sm:px-6 py-6 sm:py-8">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => startTransition(() => router.push("/sprints"))}
-          className="text-slate-500 hover:text-slate-700 transition-colors flex-shrink-0"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-violet-100">
-            <Zap className="h-5 w-5 text-violet-600" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 truncate">{sprint.name}</h1>
-              <div className={cn(
-                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex-shrink-0",
-                sprint.status === "completed" ? "bg-slate-100 text-slate-500" : "bg-green-100 text-green-700"
-              )}>
-                {sprint.status === "completed" ? "Completed" : "In Progress"}
-              </div>
+    <div className={cn("sp", sans.variable, mono.variable)}>
+      <div className="sp-app">
+        {/* Header */}
+        <header className="sp-top">
+          <div className="sp-brand">
+            <button className="sp-back" aria-label="Back to sprints" onClick={() => startTransition(() => router.push("/sprints"))}>
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="sp-logo">SP</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="sp-sprint-title">{sprint.name}</div>
+              <span className="note">
+                {formatDate(sprint.start_date)} – {formatDate(sprint.end_date)} · {days} working days ·{" "}
+                <span className={cn("sp-pill", sprint.status === "completed" ? "p-done" : "p-ok")} style={{ padding: "1px 8px" }}>
+                  {sprint.status === "completed" ? "Completed" : "In progress"}
+                </span>
+              </span>
             </div>
-            <p className="text-sm text-slate-500 truncate">{formatDate(sprint.start_date)} – {formatDate(sprint.end_date)}</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCloneOpen(true)}
-            className="h-9 px-3 gap-2"
-          >
-            <Copy className="h-4 w-4" />
-            <span className="hidden sm:inline">Create next sprint</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleToggleStatus}
-            className="h-9 px-3 gap-2"
-          >
-            {sprint.status === "completed" ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
-            <span className="sm:hidden">{sprint.status === "completed" ? "Re-open" : "Complete"}</span>
-            <span className="hidden sm:inline">{sprint.status === "completed" ? "Re-open Sprint" : "Complete Sprint"}</span>
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={handleDeleteSprint}
-            className="text-slate-400 hover:text-red-500 hover:bg-red-50 gap-2 h-9 px-3"
-          >
-            <X className="h-4 w-4" />
-            <span className="hidden sm:inline">Delete</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 mb-6 w-full sm:w-fit">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "flex-shrink-0 rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap",
-              tab === t.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          <div className="sp-actions">
+            {sortedSprints.length > 1 && (
+              <select
+                className="sp-select" aria-label="Switch sprint" value={sprint.id}
+                onChange={(e) => e.target.value !== sprint.id && startTransition(() => router.push(`/sprints/${e.target.value}`))}
+              >
+                {sortedSprints.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── OVERVIEW ───────────────────────────────────────── */}
-      {tab === "overview" && (
-        <SprintOverviewClient
-          sprint={sprint}
-          participants={participants}
-          goals={goals}
-          assignments={assignments}
-          streams={streams}
-          holidays={holidays}
-          onOpenTab={setTab}
-        />
-      )}
-
-      {/* ── SPRINT GOALS ───────────────────────────────────── */}
-      {tab === "goals" && (
-        <SprintGoalsClient
-          goals={goals}
-          setGoals={setGoals}
-          streams={streams}
-          roles={roles}
-          sprint={sprint}
-          orgUsers={orgUsers}
-          notes={notes}
-          onNoteAdded={(note) => setNotes((prev) => [note, ...prev])}
-        />
-      )}
-
-      {/* ── AVAILABILITY ───────────────────────────────────── */}
-      {tab === "availability" && (
-        <SprintAvailabilityClient
-          sprint={sprint}
-          participants={participants}
-          streams={streams}
-          holidays={holidays}
-          setHolidays={setHolidays}
-          onPatchParticipant={patchParticipant}
-        />
-      )}
-
-      {/* ── BUDDY COVERAGE ─────────────────────────────────── */}
-      {tab === "coverage" && (
-        <SprintCoverageClient sprint={sprint} participants={participants} holidays={holidays} />
-      )}
-
-      <CloneSprintDialog open={cloneOpen} onOpenChange={setCloneOpen} sprint={sprint} />
-
-      {/* ── CAPACITY PLANNING ──────────────────────────────── */}
-      {tab === "capacity" && (
-        <CapacityPlanningClient
-          sprint={sprint}
-          participants={participants}
-          goals={goals}
-          streams={streams}
-          roles={roles}
-          setRoles={setRoles}
-          assignments={assignments}
-          setAssignments={setAssignments}
-          orgUsers={orgUsers}
-          onPatchParticipant={patchParticipant}
-          onMemberUpserted={handleMemberUpserted}
-          onRemoveMember={handleRemove}
-          onGoalChange={(g) => setGoals((prev) => prev.map((x) => (x.id === g.id ? g : x)))}
-        />
-      )}
-
-      {/* ── STREAMS ────────────────────────────────────────── */}
-      {tab === "streams" && (
-        <StreamsManagementClient streams={streams} setStreams={setStreams} />
-      )}
-
-      {tab === "roles" && (
-        <RolesManagementClient roles={roles} setRoles={setRoles} />
-      )}
-
-      {/* ── GOAL HISTORY ───────────────────────────────────── */}
-      {tab === "history" && (
-        <GoalHistoryClient
-          goals={historyGoals}
-          sprints={allSprints}
-          streams={streams}
-          orgUsers={orgUsers}
-        />
-      )}
-
-      {/* ── ANALYTICS VIEW ─────────────────────────────────── */}
-      {tab === "analytics" && (
-        <div className="space-y-6">
-          {/* Winner Card */}
-          {winner && (
-            <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <Trophy className="h-5 w-5 text-amber-500" />
-                <span className="text-sm font-bold uppercase tracking-widest text-amber-600">Sprint Leader</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14 ring-4 ring-amber-200">
-                  <AvatarFallback className="bg-amber-100 text-amber-700 text-lg font-bold">
-                    {getInitials(winner.profile.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-xl font-extrabold text-slate-900">{winner.profile.full_name}</p>
-                  {winner.profile.job_title && <p className="text-sm text-slate-500">{winner.profile.job_title}</p>}
-                  <p className="text-2xl font-extrabold text-amber-600 mt-1">{winner.total} pts</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Leaderboard Rankings */}
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="h-4 w-4 text-slate-400" />
-              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">All Participants</h2>
-            </div>
-            {ranked.length === 0 ? (
-              <p className="text-sm text-slate-400">No participants yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {ranked.map((p, i) => (
-                  <div key={p.user_id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3">
-                    <div className={cn(
-                      "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-extrabold",
-                      i === 0 ? "bg-amber-100 text-amber-600" : i === 1 ? "bg-slate-100 text-slate-500" : i === 2 ? "bg-orange-100 text-orange-500" : "bg-slate-50 text-slate-400"
-                    )}>
-                      {i === 0 ? <Trophy className="h-4 w-4" /> : i + 1}
-                    </div>
-                    <Avatar className="h-8 w-8 flex-shrink-0">
-                      <AvatarImage src={p.profile.avatar_url ?? undefined} />
-                      <AvatarFallback className="bg-violet-100 text-violet-700 text-xs font-bold">
-                        {getInitials(p.profile.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{p.profile.full_name}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className={cn("text-base font-extrabold whitespace-nowrap", i === 0 ? "text-amber-600" : "text-violet-600")}>{p.total} pts</p>
-                      <p className="text-[10px] text-slate-400 whitespace-nowrap">base: {p.base_points}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <button className="sp-btn" onClick={handleToggleStatus}>
+              {sprint.status === "completed" ? "Re-open sprint" : "Complete sprint"}
+            </button>
+            <button className="sp-btn primary" onClick={() => setTab("setup")}>Create next sprint</button>
+            <button className="sp-btn danger" onClick={handleDeleteSprint}>Delete</button>
           </div>
-        </div>
-      )}
+        </header>
+
+        {/* Tabs */}
+        <nav className="sp-tabs" role="tablist" aria-label="Sprint screens">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              className="sp-tab"
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        {tab === "overview" && (
+          <SprintOverviewClient
+            sprint={sprint}
+            participants={participants}
+            goals={goals}
+            assignments={assignments}
+            streams={streams}
+            holidays={holidays}
+            onOpenTab={setTab}
+          />
+        )}
+
+        {tab === "capacity" && (
+          <SprintCapacityClient
+            sprint={sprint}
+            participants={participants}
+            goals={goals}
+            streams={streams}
+            roles={roles}
+            assignments={assignments}
+            setAssignments={setAssignments}
+            holidays={holidays}
+            setHolidays={setHolidays}
+            orgUsers={orgUsers}
+            onPatchParticipant={patchParticipant}
+            onMemberUpserted={handleMemberUpserted}
+            onRemoveMember={handleRemove}
+          />
+        )}
+
+        {tab === "goals" && (
+          <SprintGoalsTab
+            goals={goals}
+            setGoals={setGoals}
+            assignments={assignments}
+            streams={streams}
+            roles={roles}
+            sprint={sprint}
+            allSprints={allSprints}
+            orgUsers={orgUsers}
+            notes={notes}
+            onNoteAdded={(note) => setNotes((prev) => [note, ...prev])}
+          />
+        )}
+
+        {tab === "coverage" && (
+          <SprintCoverageClient sprint={sprint} participants={participants} holidays={holidays} />
+        )}
+
+        {tab === "history" && (
+          <SprintHistoryClient sprint={sprint} goals={historyGoals} sprints={allSprints} stats={stats} streams={streams} />
+        )}
+
+        {tab === "setup" && (
+          <SprintSetupClient
+            sprint={sprint}
+            streams={streams}
+            setStreams={setStreams}
+            roles={roles}
+            setRoles={setRoles}
+            holidays={holidays}
+          />
+        )}
 
       {/* ── GRID TRACKER VIEW ─────────────────────────────── */}
       {tab === "grid" && (
@@ -758,6 +650,7 @@ export default function SprintDetailClient({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

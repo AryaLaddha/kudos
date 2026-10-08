@@ -288,3 +288,43 @@ export async function cloneSprint(
   revalidatePath("/sprints");
   return { sprintId: newId };
 }
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+export type SprintStat = {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  capacity: number;
+  allocated: number;
+};
+
+/** Capacity (sum of expected points) and allocated points for every sprint in the org, oldest first. */
+export async function getSprintStats(): Promise<SprintStat[]> {
+  const { supabase, orgId } = await requireSprintClient();
+  const { data: sprints } = await supabase
+    .from("sprints")
+    .select("id, name, start_date, end_date")
+    .eq("org_id", orgId)
+    .order("start_date");
+  const sprintIds = ((sprints ?? []) as { id: string }[]).map((s) => s.id);
+  if (sprintIds.length === 0) return [];
+  const [{ data: parts }, { data: assigns }] = await Promise.all([
+    supabase.from("sprint_participants").select("sprint_id, expected_override").in("sprint_id", sprintIds),
+    supabase.from("goal_assignments").select("sprint_id, allocated_points").eq("org_id", orgId),
+  ]);
+  const capacity = new Map<string, number>();
+  for (const p of (parts ?? []) as { sprint_id: string; expected_override: number | null }[]) {
+    capacity.set(p.sprint_id, (capacity.get(p.sprint_id) ?? 0) + (Number(p.expected_override) || 0));
+  }
+  const allocated = new Map<string, number>();
+  for (const a of (assigns ?? []) as { sprint_id: string; allocated_points: number | null }[]) {
+    allocated.set(a.sprint_id, (allocated.get(a.sprint_id) ?? 0) + (Number(a.allocated_points) || 0));
+  }
+  return ((sprints ?? []) as Omit<SprintStat, "capacity" | "allocated">[]).map((s) => ({
+    ...s,
+    capacity: Math.round((capacity.get(s.id) ?? 0) * 10) / 10,
+    allocated: Math.round((allocated.get(s.id) ?? 0) * 10) / 10,
+  }));
+}

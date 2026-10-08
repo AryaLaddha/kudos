@@ -524,7 +524,7 @@ export async function addSprintMember(payload: {
   const expected =
     payload.expectedPoints === null || payload.expectedPoints === undefined
       ? null
-      : Math.max(0, Math.round(Number(payload.expectedPoints)));
+      : Math.max(0, Math.round(Number(payload.expectedPoints) * 10) / 10);
   const { error } = await supabase.from("sprint_participants").upsert(
     {
       sprint_id: payload.sprintId,
@@ -593,7 +593,7 @@ export async function updateCapacityPlanBulk(
     const expected =
       p.expected_override === null || p.expected_override === undefined
         ? null
-        : Math.max(0, Math.round(Number(p.expected_override)));
+        : Math.max(0, Math.round(Number(p.expected_override) * 10) / 10);
     if (expected !== null && !Number.isFinite(expected)) return { error: "Expected points must be a number." };
 
     const { error } = await supabase

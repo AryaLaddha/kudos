@@ -13,9 +13,10 @@ import {
   deleteSubtask,
   updateGoalsBulk,
 } from "@/app/(app)/sprints/goals-actions";
+import { addGoalNote } from "@/app/(app)/sprints/planning-actions";
 import { GOAL_STATUS_META, GOAL_STATUSES, colorForId, formatRolePoints } from "@/lib/sprintGoals";
 import { formatDateRange, formatShortDate } from "@/lib/leave";
-import type { CapacityRoleDefinition, GoalStatus, RoleRequirement, SprintGoal, Stream } from "@/types";
+import type { CapacityRoleDefinition, GoalNote, GoalStatus, RoleRequirement, SprintGoal, Stream } from "@/types";
 import { toast } from "sonner";
 import {
   Plus, ChevronDown, Trash2, AlertTriangle, CheckCircle2, Circle, Pencil, CalendarDays, ListChecks, Save, X, LayoutGrid, Table2,
@@ -29,6 +30,8 @@ interface Props {
   roles: CapacityRoleDefinition[];
   sprint: { id: string; start_date: string; end_date: string };
   orgUsers: OrgUser[];
+  notes: GoalNote[];
+  onNoteAdded: (note: GoalNote) => void;
 }
 
 const NO_STREAM = "__none__";
@@ -73,7 +76,7 @@ function goalDateLabel(goal: Pick<SprintGoal, "start_date" | "end_date">) {
   return formatDateRange(goal.start_date, goal.end_date);
 }
 
-export default function SprintGoalsClient({ goals, setGoals, streams, roles, sprint, orgUsers }: Props) {
+export default function SprintGoalsClient({ goals, setGoals, streams, roles, sprint, orgUsers, notes, onNoteAdded }: Props) {
   const [streamFilter, setStreamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [pointsFilter, setPointsFilter] = useState("all");
@@ -396,6 +399,8 @@ export default function SprintGoalsClient({ goals, setGoals, streams, roles, spr
                     onComplete={upsertGoal}
                     onDeleted={(id) => setGoals((prev) => prev.filter((g) => g.id !== id))}
                     patchGoal={patchGoal}
+                    notes={notes.filter((n) => n.goal_id === goal.id)}
+                    onNoteAdded={onNoteAdded}
                   />
                 ))}
               </div>
@@ -801,10 +806,24 @@ interface GoalCardProps {
   onComplete: (goal: SprintGoal) => void;
   onDeleted: (id: string) => void;
   patchGoal: (id: string, patch: Partial<SprintGoal>) => void;
+  notes: GoalNote[];
+  onNoteAdded: (note: GoalNote) => void;
 }
 
-function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, onComplete, onDeleted, patchGoal }: GoalCardProps) {
+function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, onComplete, onDeleted, patchGoal, notes, onNoteAdded }: GoalCardProps) {
   const [isPending, startTransition] = useTransition();
+  const [newNote, setNewNote] = useState("");
+
+  function handleAddNote() {
+    const body = newNote.trim();
+    if (!body) return;
+    startTransition(async () => {
+      const res = await addGoalNote(goal.id, body);
+      if (res.error || !res.note) { toast.error(res.error ?? "Something went wrong."); return; }
+      onNoteAdded(res.note);
+      setNewNote("");
+    });
+  }
   const [newSubtask, setNewSubtask] = useState("");
   const [newSubDue, setNewSubDue] = useState("");
 
@@ -959,6 +978,32 @@ function GoalCard({ goal, expanded, onToggleExpand, userName, onEdit, onDelay, o
             <Input value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddSubtask(); }} placeholder="Add a subtask…" className="text-xs h-8 flex-1" />
             <Input type="date" value={newSubDue} onChange={(e) => setNewSubDue(e.target.value)} className="text-xs h-8 w-36" />
             <Button size="sm" onClick={handleAddSubtask} disabled={isPending || !newSubtask.trim()} className="h-8 px-2.5 text-xs bg-slate-700 hover:bg-slate-800 text-white">Add</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Notes */}
+      {expanded && (
+        <div className="border-t border-slate-100 px-4 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-2">Notes</p>
+          {notes.length === 0 ? (
+            <p className="text-xs text-slate-400">No notes yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {notes.map((n) => (
+                <li key={n.id} className="text-xs text-slate-700">
+                  <span className="font-semibold text-slate-900">{userName(n.author_id)}</span>
+                  <span className="ml-2 text-[10px] text-slate-400">
+                    {new Date(n.created_at).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                  </span>
+                  <p className="mt-0.5 whitespace-pre-wrap leading-relaxed">{n.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-2 flex items-center gap-2">
+            <Input value={newNote} onChange={(e) => setNewNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }} placeholder="Add a progress note…" maxLength={1000} className="text-xs h-8 flex-1" />
+            <Button size="sm" onClick={handleAddNote} disabled={isPending || !newNote.trim()} className="h-8 px-2.5 text-xs bg-slate-700 hover:bg-slate-800 text-white">Add note</Button>
           </div>
         </div>
       )}

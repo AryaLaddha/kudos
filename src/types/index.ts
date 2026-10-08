@@ -217,3 +217,26 @@ export type PendingGoal = {
   description: string;
   created_at: string;
 };
+
+// ── Sprint planning: availability, holidays, goal notes ───────────────────────
+
+// One day's availability override: a fraction of a day, or "AL" (approved leave).
+// Days with no entry are a full day unless a public holiday applies.
+export type AvailabilityValue = number | "AL";
+export type AvailabilityMap = Record<string, AvailabilityValue>; // keyed by YYYY-MM-DD
+
+export type PublicHoliday = {
+  id: string;
+  org_id: string;
+  location: string;
+  holiday_date: string;
+  name: string;
+};
+
+export type GoalNote = {
+  id: string;
+  goal_id: string;
+  author_id: string | null;
+  body: string;
+  created_at: string;
+};

@@ -44,7 +44,7 @@ create table if not exists recognitions (
   receiver_id  uuid not null references profiles(id) on delete cascade,
   receiver_ids uuid[] not null default '{}',   -- all recipient IDs (multi-receiver support)
   message      text not null,
-  points       int not null check (points > 0 and points <= 100),
+  points       int not null check (points > 0),
   hashtags     text[] not null default '{}',
   created_at   timestamptz not null default now()
 );

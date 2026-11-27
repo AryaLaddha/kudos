@@ -95,7 +95,7 @@ export default async function FeedPage({ searchParams }: Props) {
           <p className="text-sm text-slate-500 mt-0.5">See what your teammates are celebrating</p>
         </div>
         <Link href="/give">
-          <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
+          <Button className="gap-2 bg-action hover:bg-action-hover text-white">
             <Heart className="h-4 w-4" />
             Give Kudos
           </Button>

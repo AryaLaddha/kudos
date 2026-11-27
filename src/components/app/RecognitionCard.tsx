@@ -231,7 +231,7 @@ export default function RecognitionCard({ recognition, currentUserId }: Props) {
           <button
             type="submit"
             disabled={!previewMessage.trim() || submitting}
-            className="absolute right-2 bottom-2 rounded-lg bg-indigo-600 p-1.5 text-white disabled:opacity-30 hover:bg-indigo-700 transition-colors"
+            className="absolute right-2 bottom-2 rounded-lg bg-action p-1.5 text-white disabled:opacity-30 hover:bg-action-hover transition-colors"
           >
             <Send className="h-3 w-3" />
           </button>

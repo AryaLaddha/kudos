@@ -252,8 +252,8 @@ export default function LoginPage() {
               className={cn(
                 "relative h-12 w-full rounded-xl text-[15px] font-semibold text-white transition-all",
                 loading
-                  ? "bg-indigo-400 cursor-not-allowed"
-                  : "bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-200 active:translate-y-0"
+                  ? "bg-action/60 cursor-not-allowed"
+                  : "bg-action hover:bg-action-hover hover:-translate-y-0.5 hover:shadow-lg hover:shadow-action/20 active:translate-y-0"
               )}
             >
               {loading ? (

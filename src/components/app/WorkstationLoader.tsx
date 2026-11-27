@@ -291,7 +291,7 @@ export function WorkstationLoader({ onComplete, duration = 2700 }: WorkstationLo
             style={{
               height: "100%",
               width: `${progress}%`,
-              backgroundColor: C.bigApple,
+              backgroundColor: C.midnight,
               borderRadius: "9999px",
               transition: "width 55ms linear",
             }}

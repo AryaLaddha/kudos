@@ -195,7 +195,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               </div>
               {!isOwn && (
                 <Link href="/give">
-                  <Button size="sm" className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white">
+                  <Button size="sm" className="gap-1.5 bg-action hover:bg-action-hover text-white">
                     <Heart className="h-3.5 w-3.5" />
                     Give Kudos
                   </Button>
@@ -331,7 +331,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             </p>
             {activeTab === "received" && !isOwn && (
               <Link href="/give" className="mt-3 inline-block">
-                <Button size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
+                <Button size="sm" className="bg-action text-white hover:bg-action-hover">
                   Give Kudos
                 </Button>
               </Link>

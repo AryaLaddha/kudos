@@ -793,7 +793,7 @@ export default function CapacityPlanningClient({
                           </div>
                           {r.hasExpected && (
                             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
-                              <div className={`h-full rounded-full ${r.over ? "bg-gradient-to-r from-red-500 to-red-400" : r.under ? "bg-gradient-to-r from-amber-500 to-amber-400" : "bg-gradient-to-r from-emerald-500 to-emerald-400"}`} style={{ width: `${Math.min(r.utilization ?? 0, 100)}%` }} />
+                              <div className={`h-full rounded-full ${r.over ? "bg-red-500" : r.under ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(r.utilization ?? 0, 100)}%` }} />
                             </div>
                           )}
                           {r.utilization !== null && <span className="text-[10px] text-slate-400">{r.utilization}%</span>}

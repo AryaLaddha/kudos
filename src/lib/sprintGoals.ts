@@ -102,8 +102,9 @@ export type StatusMeta = { label: string; pillBg: string; pillText: string; dotB
 export const GOAL_STATUS_META: Record<GoalStatus, StatusMeta> = {
   on_track: { label: "On Track", pillBg: "#DCFCE7", pillText: "#166534", dotBg: "#DCFCE7", dotText: "#166534" },
   delayed: { label: "Delayed", pillBg: "#FEE2E2", pillText: "#991B1B", dotBg: "#FEE2E2", dotText: "#991B1B" },
-  completed: { label: "Completed", pillBg: "#DBEAFE", pillText: "#1E40AF", dotBg: "#DBEAFE", dotText: "#1E40AF" },
-  carried_over: { label: "Carried Over", pillBg: "#EDE9FE", pillText: "#5B21B6", dotBg: "#EDE9FE", dotText: "#5B21B6" },
+  // TLCo palette: Cornflower tint / Midnight shade, and Peach / Leather.
+  completed: { label: "Completed", pillBg: "#DDE8F9", pillText: "#333D4E", dotBg: "#DDE8F9", dotText: "#333D4E" },
+  carried_over: { label: "Carried Over", pillBg: "#FAD8CF", pillText: "#580703", dotBg: "#FAD8CF", dotText: "#580703" },
 };
 
 export const GOAL_STATUSES: GoalStatus[] = ["on_track", "delayed", "completed", "carried_over"];

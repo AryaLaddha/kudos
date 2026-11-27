@@ -1,19 +1,21 @@
 /* Sprint planner look: a flat, data-dense working surface scoped under .sp.
-   Tokens and class names follow the approved design mockup. */
+   Class names follow the approved design mockup; surface, text and accent
+   tokens use the TLCo palette (Ecru ground, Plum text, Big Apple accent).
+   Status and availability-cell colours stay functional. */
 .sp {
-  --sp-bg: #f3f5f7; --sp-surface: #ffffff; --sp-surface2: #eaeef2; --sp-line: #d9dfe5;
-  --sp-fg: #16202a; --sp-muted: #5d6b78;
-  --sp-accent: #0f5c7a; --sp-accent-soft: #dcedf3; --sp-accent-fg: #ffffff;
+  --sp-bg: #f6f6f4; --sp-surface: #ffffff; --sp-surface2: #ebe7e5; --sp-line: #dfd9d7;
+  --sp-fg: #380100; --sp-muted: #5a3a37;
+  --sp-accent: #ff222d; --sp-accent-soft: #fdf1ec; --sp-accent-fg: #ffffff;
   --sp-ok: #1f7a4d; --sp-ok-soft: #dcf1e5; --sp-warn: #9a6200; --sp-warn-soft: #fbecc9;
   --sp-bad: #b3261e; --sp-bad-soft: #fadcd9; --sp-hold: #5b5f97; --sp-hold-soft: #e4e5f6;
   --sp-cell-full: #cfe7ee; --sp-cell-half: #e6f2f5; --sp-cell-off: #eef0f2; --sp-cell-hol: #e9e2f4; --sp-cell-al: #fbe6d2;
-  font-family: var(--sp-sans, system-ui), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px; line-height: 1.45; color: var(--sp-fg); background: var(--sp-bg);
   padding: 16px; min-height: 100%;
 }
 .dark .sp {
-  --sp-bg: #0e1419; --sp-surface: #161e25; --sp-surface2: #1e2831; --sp-line: #2a3641; --sp-fg: #e6ecf1; --sp-muted: #94a3b0;
-  --sp-accent: #5cb8d6; --sp-accent-soft: #17323d; --sp-accent-fg: #06222c;
+  --sp-bg: #181d26; --sp-surface: #252a32; --sp-surface2: #33373f; --sp-line: #3c4047; --sp-fg: #f6f6f4; --sp-muted: #a8aaac;
+  --sp-accent: #ff222d; --sp-accent-soft: #421e27; --sp-accent-fg: #ffffff;
   --sp-ok: #5fcf97; --sp-ok-soft: #14301f; --sp-warn: #e8b34d; --sp-warn-soft: #33270e;
   --sp-bad: #ff8a80; --sp-bad-soft: #3a1916; --sp-hold: #a5a9ee; --sp-hold-soft: #25264a;
   --sp-cell-full: #1d4352; --sp-cell-half: #17313b; --sp-cell-off: #1a232b; --sp-cell-hol: #2f2646; --sp-cell-al: #45301a;

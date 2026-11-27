@@ -23,21 +23,21 @@ interface LeaderboardPresentationModeProps {
 const rankCopy: Record<number, { label: string; tone: string; glow: string; ring: string }> = {
   1: {
     label: "1st Place",
-    tone: "from-amber-200 via-yellow-400 to-orange-500 text-slate-950",
-    glow: "shadow-[0_0_90px_rgba(251,191,36,0.55)]",
-    ring: "border-amber-300/70",
+    tone: "bg-big-apple text-ecru",
+    glow: "shadow-[0_0_90px_rgba(255,34,45,0.55)]",
+    ring: "border-big-apple/70",
   },
   2: {
     label: "2nd Place",
-    tone: "from-slate-100 via-slate-300 to-slate-500 text-slate-950",
-    glow: "shadow-[0_0_80px_rgba(203,213,225,0.45)]",
-    ring: "border-slate-200/70",
+    tone: "bg-peach text-plum",
+    glow: "shadow-[0_0_80px_rgba(250,216,207,0.45)]",
+    ring: "border-peach/70",
   },
   3: {
     label: "3rd Place",
-    tone: "from-orange-200 via-orange-400 to-amber-700 text-white",
-    glow: "shadow-[0_0_80px_rgba(251,146,60,0.42)]",
-    ring: "border-orange-300/70",
+    tone: "bg-blush text-plum",
+    glow: "shadow-[0_0_80px_rgba(255,168,168,0.42)]",
+    ring: "border-blush/70",
   },
 };
 
@@ -106,7 +106,7 @@ export function LeaderboardPresentationMode({
       </Button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950 text-white">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-plum text-white">
           <button
             type="button"
             onClick={close}
@@ -116,9 +116,6 @@ export function LeaderboardPresentationMode({
             <X className="h-5 w-5" />
           </button>
 
-          {current && (
-            <div className="presentation-reveal absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,0.24),transparent_32%),radial-gradient(circle_at_24%_78%,rgba(245,158,11,0.16),transparent_28%),linear-gradient(135deg,#020617_0%,#0f172a_52%,#020617_100%)]" />
-          )}
           {current && (
             <div key={`bursts-${current.id}`} className="pointer-events-none absolute inset-0">
               {Array.from({ length: 18 }).map((_, index) => (
@@ -156,7 +153,7 @@ export function LeaderboardPresentationMode({
                   </Avatar>
                 </div>
 
-                <div className={cn("mb-6 inline-flex items-center rounded-full bg-gradient-to-r px-6 py-3 text-sm font-black uppercase tracking-[0.24em]", rankStyle.tone)}>
+                <div className={cn("mb-6 inline-flex items-center rounded-full px-6 py-3 text-sm font-black uppercase tracking-[0.24em]", rankStyle.tone)}>
                   {rank === 1 ? <Trophy className="mr-3 h-5 w-5" /> : <span className="mr-3 text-lg">#{rank}</span>}
                   {rankStyle.label}
                 </div>

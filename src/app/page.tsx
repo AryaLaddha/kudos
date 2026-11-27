@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Heart, Sparkles, TrendingUp, Users, Zap, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/app/BrandMark";
 
 const features = [
   {
@@ -86,12 +87,7 @@ export default function LandingPage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-slate-900">Kudos</span>
-          </div>
+          <BrandMark className="text-2xl" endorsed />
           <nav className="hidden items-center gap-8 md:flex">
             <a href="#features" className="text-sm text-slate-500 hover:text-slate-900 transition-colors">Features</a>
             <a href="#testimonials" className="text-sm text-slate-500 hover:text-slate-900 transition-colors">Reviews</a>
@@ -106,10 +102,7 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden px-6 pt-24 pb-20 text-center">
-        <div className="pointer-events-none absolute inset-0 flex items-start justify-center">
-          <div className="h-[600px] w-[900px] rounded-full bg-indigo-50 opacity-60 blur-3xl" />
-        </div>
+      <section className="relative overflow-hidden bg-ecru px-6 pt-24 pb-20 text-center">
         <div className="relative mx-auto max-w-3xl">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-4 py-1.5 text-xs font-semibold text-indigo-600">
             <Sparkles className="h-3 w-3" />
@@ -281,10 +274,8 @@ export default function LandingPage() {
       {/* CTA */}
       <section className="px-6 py-24 text-center">
         <div className="mx-auto max-w-2xl">
-          <div className="mb-4 flex items-center justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600">
-              <Sparkles className="h-7 w-7 text-white" />
-            </div>
+          <div className="mb-6 flex items-center justify-center">
+            <span className="h-5 w-5 rounded-full bg-big-apple" aria-hidden="true" />
           </div>
           <h2 className="mb-4 text-3xl font-extrabold text-slate-900 sm:text-4xl">Ready to start recognising?</h2>
           <p className="mb-8 text-lg text-slate-500">Join thousands of teams building healthier, happier cultures with Kudos.</p>
@@ -299,13 +290,8 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-slate-100 px-6 py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 md:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-600">
-              <Sparkles className="h-3 w-3 text-white" />
-            </div>
-            <span className="text-sm font-bold text-slate-900">Kudos</span>
-          </div>
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} Kudos. All rights reserved.</p>
+          <BrandMark className="text-base" />
+          <p className="text-xs text-slate-400">© {new Date().getFullYear()} The Living Company. All rights reserved.</p>
         </div>
       </footer>
     </div>

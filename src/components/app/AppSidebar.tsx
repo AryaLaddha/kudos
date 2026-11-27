@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
-import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck, Zap, Users, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck, Zap, Users, ClipboardCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { GlobalSearch } from "@/components/app/GlobalSearch";
+import { BrandMark } from "@/components/app/BrandMark";
 
 const navItems = [
   { href: "/feed", label: "Feed", icon: LayoutDashboard },
@@ -73,12 +74,7 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600">
-            <Sparkles className="h-3.5 w-3.5 text-white" />
-          </div>
-          <span className="text-sm font-bold text-slate-900">Kudos</span>
-        </div>
+        <BrandMark className="text-lg" />
       </header>
 
       {/* Mobile backdrop */}
@@ -96,10 +92,7 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
       )}>
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-100">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-base font-bold text-slate-900">Kudos</span>
+          <BrandMark className="text-xl" endorsed />
           <button
             onClick={() => setMobileOpen(false)}
             className="ml-auto rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors md:hidden"

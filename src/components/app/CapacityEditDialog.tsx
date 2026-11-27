@@ -125,7 +125,7 @@ export default function CapacityEditDialog({ open, onOpenChange, sprint, partici
         </div>
 
         <DialogFooter className="mx-0 mb-0 border-t border-slate-100 bg-slate-50/50" showCloseButton>
-          <Button onClick={handleSave} disabled={isPending} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          <Button onClick={handleSave} disabled={isPending} className="bg-action hover:bg-action-hover text-white">
             {isPending ? "Saving…" : "Save Capacity"}
           </Button>
         </DialogFooter>

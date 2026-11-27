@@ -508,7 +508,7 @@ export default function CapacityPlanningClient({
             <Button size="sm" variant="outline" onClick={cancelEditAll} disabled={bulkSaving} className="h-8 gap-1.5 text-xs px-3">
               <X className="h-3.5 w-3.5" /> Cancel
             </Button>
-            <Button size="sm" onClick={saveEditAll} disabled={bulkSaving} className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3">
+            <Button size="sm" onClick={saveEditAll} disabled={bulkSaving} className="h-8 gap-1.5 bg-action hover:bg-action-hover text-white text-xs px-3">
               <Save className="h-3.5 w-3.5" /> {bulkSaving ? "Saving..." : "Save all"}
             </Button>
           </>
@@ -614,7 +614,7 @@ export default function CapacityPlanningClient({
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
           <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">People Allocation Summary</span>
           {!readOnly && !bulkEditing && (
-            <Button size="sm" onClick={() => setAddOpen(true)} className="h-7 gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-2.5">
+            <Button size="sm" onClick={() => setAddOpen(true)} className="h-7 gap-1 bg-action hover:bg-action-hover text-white text-[11px] px-2.5">
               <Plus className="h-3.5 w-3.5" /> Add Member
             </Button>
           )}
@@ -881,7 +881,7 @@ function RoleAssignRow({ coverage: c, editing, saving, members, memberName, edit
           {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.profile.full_name}</option>)}
         </select>
         <Input type="number" min={0.1} step="any" value={editPoints} onChange={(e) => setEditPoints(e.target.value)} className="h-7 w-16 text-[11px] text-center px-1" />
-        <button onClick={onSave} disabled={saving} className="flex h-7 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"><Check className="h-3 w-3" /> Save</button>
+        <button onClick={onSave} disabled={saving} className="flex h-7 items-center gap-1 rounded-md bg-action px-2 text-[11px] font-semibold text-white hover:bg-action-hover disabled:opacity-50"><Check className="h-3 w-3" /> Save</button>
         {c.assignment && <button onClick={onClear} className="flex h-7 w-7 items-center justify-center rounded-md border border-red-100 bg-red-50 text-red-500 hover:bg-red-100" title="Clear"><Trash2 className="h-3 w-3" /></button>}
         <button onClick={onCancel} className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:bg-slate-100" title="Cancel"><X className="h-3 w-3" /></button>
       </div>
@@ -1094,7 +1094,7 @@ function AddRoleInline({
       <button
         onClick={mode === "new" && onCreateRole ? handleCreateAndAdd : handleAdd}
         disabled={saving || (mode === "existing" && !role) || (mode === "new" && !newRole.trim())}
-        className="flex h-7 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+        className="flex h-7 items-center gap-1 rounded-md bg-action px-2 text-[11px] font-semibold text-white hover:bg-action-hover disabled:opacity-50"
       >
         <Check className="h-3 w-3" /> {mode === "new" && onCreateRole ? "Create & add" : "Add"}
       </button>
@@ -1167,7 +1167,7 @@ function AddMemberDialog({ open, onOpenChange, sprint, orgUsers, roles, existing
           <p className="text-[11px] text-slate-400">Expected points = this member&apos;s capacity for the sprint. Over/under-allocation is judged by comparing allocated points to this number.</p>
         </div>
         <DialogFooter className="mx-0 mb-0 border-t border-slate-100 bg-slate-50/50" showCloseButton>
-          <Button onClick={handleSave} disabled={saving || !userId} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          <Button onClick={handleSave} disabled={saving || !userId} className="bg-action hover:bg-action-hover text-white">
             {saving ? "Adding…" : "Add Member"}
           </Button>
         </DialogFooter>

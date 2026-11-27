@@ -4,6 +4,95 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * TLCo brand palette (TLCo Brand Guidelines 2026 v1.0).
+ * Big Apple is the only true accent; Ecru is the ground.
+ * Use these names (bg-big-apple, text-plum, ...) in new code.
+ */
+@theme {
+  --color-big-apple: #ff222d;
+  --color-leather: #580703;
+  --color-plum: #380100;
+  --color-midnight: #181d26;
+  --color-cornflower: #9fbeef;
+  --color-blush: #ffa8a8;
+  --color-peach: #fad8cf;
+  --color-ecru: #f6f6f4;
+
+  /*
+   * Legacy Tailwind scales remapped onto the brand palette, so the
+   * slate / indigo / violet / sky / blue classes already used across the
+   * app render in TLCo colours. Every value is a brand colour or a mix of
+   * two brand colours. Status colours (red, amber, emerald, green, ...)
+   * keep their Tailwind defaults.
+   */
+
+  /* slate → warm neutrals, Ecru (50) to Plum (900) */
+  --color-slate-50: var(--color-ecru);
+  --color-slate-100: color-mix(in srgb, var(--color-plum) 6%, var(--color-ecru));
+  --color-slate-200: color-mix(in srgb, var(--color-plum) 12%, var(--color-ecru));
+  --color-slate-300: color-mix(in srgb, var(--color-plum) 24%, var(--color-ecru));
+  --color-slate-400: #8a6e6b; /* brand fg3 */
+  --color-slate-500: #725451;
+  --color-slate-600: #5a3a37; /* brand fg2 */
+  --color-slate-700: color-mix(in srgb, #5a3a37 50%, var(--color-plum));
+  --color-slate-800: color-mix(in srgb, #5a3a37 20%, var(--color-plum));
+  --color-slate-900: var(--color-plum);
+  --color-slate-950: color-mix(in srgb, var(--color-plum) 60%, #000);
+
+  /* indigo → Big Apple signal scale, Peach/Blush tints to Leather shades */
+  --color-indigo-50: color-mix(in srgb, var(--color-peach) 45%, #fff);
+  --color-indigo-100: var(--color-peach);
+  --color-indigo-200: color-mix(in srgb, var(--color-blush) 50%, var(--color-peach));
+  --color-indigo-300: var(--color-blush);
+  --color-indigo-400: color-mix(in srgb, var(--color-big-apple) 50%, var(--color-blush));
+  --color-indigo-500: var(--color-big-apple);
+  --color-indigo-600: var(--color-big-apple);
+  --color-indigo-700: color-mix(in srgb, var(--color-big-apple) 60%, var(--color-leather));
+  --color-indigo-800: var(--color-leather);
+  --color-indigo-900: color-mix(in srgb, var(--color-leather) 50%, var(--color-plum));
+  --color-indigo-950: var(--color-plum);
+
+  /* violet was a second accent; it follows the same signal scale */
+  --color-violet-50: var(--color-indigo-50);
+  --color-violet-100: var(--color-indigo-100);
+  --color-violet-200: var(--color-indigo-200);
+  --color-violet-300: var(--color-indigo-300);
+  --color-violet-400: var(--color-indigo-400);
+  --color-violet-500: var(--color-indigo-500);
+  --color-violet-600: var(--color-indigo-600);
+  --color-violet-700: var(--color-indigo-700);
+  --color-violet-800: var(--color-indigo-800);
+  --color-violet-900: var(--color-indigo-900);
+  --color-violet-950: var(--color-indigo-950);
+
+  /* sky → Cornflower scale, white tints to Midnight shades */
+  --color-sky-50: color-mix(in srgb, var(--color-cornflower) 20%, #fff);
+  --color-sky-100: color-mix(in srgb, var(--color-cornflower) 35%, #fff);
+  --color-sky-200: color-mix(in srgb, var(--color-cornflower) 60%, #fff);
+  --color-sky-300: var(--color-cornflower);
+  --color-sky-400: color-mix(in srgb, var(--color-cornflower) 70%, var(--color-midnight));
+  --color-sky-500: color-mix(in srgb, var(--color-cornflower) 50%, var(--color-midnight));
+  --color-sky-600: color-mix(in srgb, var(--color-cornflower) 35%, var(--color-midnight));
+  --color-sky-700: color-mix(in srgb, var(--color-cornflower) 20%, var(--color-midnight));
+  --color-sky-800: color-mix(in srgb, var(--color-cornflower) 10%, var(--color-midnight));
+  --color-sky-900: var(--color-midnight);
+  --color-sky-950: color-mix(in srgb, var(--color-midnight) 60%, #000);
+
+  /* blue follows sky */
+  --color-blue-50: var(--color-sky-50);
+  --color-blue-100: var(--color-sky-100);
+  --color-blue-200: var(--color-sky-200);
+  --color-blue-300: var(--color-sky-300);
+  --color-blue-400: var(--color-sky-400);
+  --color-blue-500: var(--color-sky-500);
+  --color-blue-600: var(--color-sky-600);
+  --color-blue-700: var(--color-sky-700);
+  --color-blue-800: var(--color-sky-800);
+  --color-blue-900: var(--color-sky-900);
+  --color-blue-950: var(--color-sky-950);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -47,78 +136,88 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Semantic tokens, per the TLCo design system: Ecru ground, white cards,
+   Plum text, Big Apple signal. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.13 0.02 264);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.13 0.02 264);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.13 0.02 264);
-  --primary: oklch(0.55 0.22 264);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0.005 264);
-  --secondary-foreground: oklch(0.13 0.02 264);
-  --muted: oklch(0.97 0.005 264);
-  --muted-foreground: oklch(0.52 0.02 264);
-  --accent: oklch(0.95 0.02 264);
-  --accent-foreground: oklch(0.55 0.22 264);
+  --background: var(--color-ecru);
+  --foreground: var(--color-plum);
+  --card: #ffffff;
+  --card-foreground: var(--color-plum);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-plum);
+  --primary: var(--color-big-apple);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-slate-100);
+  --secondary-foreground: var(--color-plum);
+  --muted: var(--color-slate-100);
+  --muted-foreground: #5a3a37;
+  --accent: var(--color-slate-100);
+  --accent-foreground: var(--color-plum);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.008 264);
-  --input: oklch(0.92 0.008 264);
-  --ring: oklch(0.55 0.22 264);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  --border: rgb(56 1 0 / 0.12);
+  --input: rgb(56 1 0 / 0.24);
+  --ring: var(--color-big-apple);
+  --chart-1: var(--color-big-apple);
+  --chart-2: var(--color-cornflower);
+  --chart-3: var(--color-plum);
+  --chart-4: var(--color-blush);
+  --chart-5: var(--color-midnight);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--color-plum);
+  --sidebar-primary: var(--color-big-apple);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--color-slate-100);
+  --sidebar-accent-foreground: var(--color-plum);
+  --sidebar-border: rgb(56 1 0 / 0.12);
+  --sidebar-ring: var(--color-big-apple);
 }
 
+/* Dark mode is not switched on anywhere yet; these keep it on-brand
+   (Midnight ground, Ecru text) if it ever is. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: var(--color-midnight);
+  --foreground: var(--color-ecru);
+  --card: color-mix(in srgb, var(--color-ecru) 6%, var(--color-midnight));
+  --card-foreground: var(--color-ecru);
+  --popover: color-mix(in srgb, var(--color-ecru) 6%, var(--color-midnight));
+  --popover-foreground: var(--color-ecru);
+  --primary: var(--color-big-apple);
+  --primary-foreground: #ffffff;
+  --secondary: color-mix(in srgb, var(--color-ecru) 12%, var(--color-midnight));
+  --secondary-foreground: var(--color-ecru);
+  --muted: color-mix(in srgb, var(--color-ecru) 12%, var(--color-midnight));
+  --muted-foreground: color-mix(in srgb, var(--color-ecru) 65%, var(--color-midnight));
+  --accent: color-mix(in srgb, var(--color-ecru) 12%, var(--color-midnight));
+  --accent-foreground: var(--color-ecru);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: rgb(246 246 244 / 0.16);
+  --input: rgb(246 246 244 / 0.24);
+  --ring: var(--color-big-apple);
+  --chart-1: var(--color-big-apple);
+  --chart-2: var(--color-cornflower);
+  --chart-3: var(--color-peach);
+  --chart-4: var(--color-blush);
+  --chart-5: var(--color-ecru);
+  --sidebar: var(--color-midnight);
+  --sidebar-foreground: var(--color-ecru);
+  --sidebar-primary: var(--color-big-apple);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: color-mix(in srgb, var(--color-ecru) 12%, var(--color-midnight));
+  --sidebar-accent-foreground: var(--color-ecru);
+  --sidebar-border: rgb(246 246 244 / 0.16);
+  --sidebar-ring: var(--color-big-apple);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Brand focus ring: 2px Big Apple outline, 1px offset. Components that
+     draw their own ring (outline-none + ring-*) keep theirs. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
   }
   body {
     @apply bg-background text-foreground;

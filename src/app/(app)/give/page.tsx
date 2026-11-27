@@ -537,7 +537,7 @@ export default function GiveKudosPage() {
           <Button
             type="submit"
             disabled={!canSubmit || submitting}
-            className="flex-1 h-12 gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-base disabled:opacity-50"
+            className="flex-1 h-12 gap-2 bg-action hover:bg-action-hover text-white font-semibold text-base disabled:opacity-50"
           >
             {submitting ? "Sending…" : <><Heart className="h-4 w-4" /> Send Kudos</>}
           </Button>
@@ -628,7 +628,7 @@ export default function GiveKudosPage() {
                 type="button"
                 onClick={handleConfirmedSubmit}
                 disabled={submitting}
-                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6"
+                className="gap-2 bg-action hover:bg-action-hover text-white px-6"
               >
                 {submitting
                   ? "Sending…"

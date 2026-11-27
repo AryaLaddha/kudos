@@ -6,8 +6,20 @@
 
 /*
  * TLCo brand palette (TLCo Brand Guidelines 2026 v1.0).
- * Big Apple is the only true accent; Ecru is the ground.
- * Use these names (bg-big-apple, text-plum, ...) in new code.
+ *
+ * How colour is used (the brand guide + "90-95% neutral, one accent"):
+ *   - Ground and ink: Ecru ground, white cards, Plum text, Plum 12% lines.
+ *   - Signal, used sparingly: Big Apple, only for the main action button
+ *     (bg-action), the focus ring and the Big Apple dot ("live",
+ *     "you are here", the wordmark full stop). Never for decoration.
+ *   - Cool support: Midnight + Cornflower for interactive and selected
+ *     states, links, icon tiles and info.
+ *   - Warm support: Peach, Blush, Leather for avatars, badges and
+ *     secondary highlights.
+ *   - Status colours (red, amber, emerald, green, ...) keep their
+ *     Tailwind defaults so errors still read as errors.
+ *
+ * Use the brand names (bg-big-apple, text-plum, bg-action, ...) in new code.
  */
 @theme {
   --color-big-apple: #ff222d;
@@ -19,12 +31,15 @@
   --color-peach: #fad8cf;
   --color-ecru: #f6f6f4;
 
+  /* The one filled accent: the main action on a screen. */
+  --color-action: var(--color-big-apple);
+  --color-action-hover: color-mix(in srgb, var(--color-big-apple) 82%, var(--color-leather));
+
   /*
    * Legacy Tailwind scales remapped onto the brand palette, so the
    * slate / indigo / violet / sky / blue classes already used across the
    * app render in TLCo colours. Every value is a brand colour or a mix of
-   * two brand colours. Status colours (red, amber, emerald, green, ...)
-   * keep their Tailwind defaults.
+   * two brand colours (or of one with white/black).
    */
 
   /* slate → warm neutrals, Ecru (50) to Plum (900) */
@@ -40,31 +55,33 @@
   --color-slate-900: var(--color-plum);
   --color-slate-950: color-mix(in srgb, var(--color-plum) 60%, #000);
 
-  /* indigo → Big Apple signal scale, Peach/Blush tints to Leather shades */
-  --color-indigo-50: color-mix(in srgb, var(--color-peach) 45%, #fff);
-  --color-indigo-100: var(--color-peach);
-  --color-indigo-200: color-mix(in srgb, var(--color-blush) 50%, var(--color-peach));
-  --color-indigo-300: var(--color-blush);
-  --color-indigo-400: color-mix(in srgb, var(--color-big-apple) 50%, var(--color-blush));
-  --color-indigo-500: var(--color-big-apple);
-  --color-indigo-600: var(--color-big-apple);
-  --color-indigo-700: color-mix(in srgb, var(--color-big-apple) 60%, var(--color-leather));
-  --color-indigo-800: var(--color-leather);
-  --color-indigo-900: color-mix(in srgb, var(--color-leather) 50%, var(--color-plum));
-  --color-indigo-950: var(--color-plum);
+  /* indigo (the old interactive colour) → cool Cornflower tints to
+     Midnight shades: links, selected states, icon tiles. */
+  --color-indigo-50: color-mix(in srgb, var(--color-cornflower) 14%, #fff);
+  --color-indigo-100: color-mix(in srgb, var(--color-cornflower) 28%, #fff);
+  --color-indigo-200: color-mix(in srgb, var(--color-cornflower) 50%, #fff);
+  --color-indigo-300: var(--color-cornflower);
+  --color-indigo-400: color-mix(in srgb, var(--color-cornflower) 65%, var(--color-midnight));
+  --color-indigo-500: color-mix(in srgb, var(--color-cornflower) 40%, var(--color-midnight));
+  --color-indigo-600: color-mix(in srgb, var(--color-cornflower) 22%, var(--color-midnight));
+  --color-indigo-700: color-mix(in srgb, var(--color-cornflower) 10%, var(--color-midnight));
+  --color-indigo-800: var(--color-midnight);
+  --color-indigo-900: color-mix(in srgb, var(--color-midnight) 80%, #000);
+  --color-indigo-950: color-mix(in srgb, var(--color-midnight) 60%, #000);
 
-  /* violet was a second accent; it follows the same signal scale */
-  --color-violet-50: var(--color-indigo-50);
-  --color-violet-100: var(--color-indigo-100);
-  --color-violet-200: var(--color-indigo-200);
-  --color-violet-300: var(--color-indigo-300);
-  --color-violet-400: var(--color-indigo-400);
-  --color-violet-500: var(--color-indigo-500);
-  --color-violet-600: var(--color-indigo-600);
-  --color-violet-700: var(--color-indigo-700);
-  --color-violet-800: var(--color-indigo-800);
-  --color-violet-900: var(--color-indigo-900);
-  --color-violet-950: var(--color-indigo-950);
+  /* violet (the old second accent) → warm Peach / Blush tints to Leather
+     and Plum shades: avatars, badges, secondary highlights. */
+  --color-violet-50: color-mix(in srgb, var(--color-peach) 40%, #fff);
+  --color-violet-100: var(--color-peach);
+  --color-violet-200: color-mix(in srgb, var(--color-blush) 50%, var(--color-peach));
+  --color-violet-300: var(--color-blush);
+  --color-violet-400: color-mix(in srgb, var(--color-blush) 55%, var(--color-leather));
+  --color-violet-500: color-mix(in srgb, var(--color-blush) 35%, var(--color-leather));
+  --color-violet-600: var(--color-leather);
+  --color-violet-700: color-mix(in srgb, var(--color-leather) 50%, var(--color-plum));
+  --color-violet-800: var(--color-plum);
+  --color-violet-900: color-mix(in srgb, var(--color-plum) 70%, #000);
+  --color-violet-950: color-mix(in srgb, var(--color-plum) 50%, #000);
 
   /* sky → Cornflower scale, white tints to Midnight shades */
   --color-sky-50: color-mix(in srgb, var(--color-cornflower) 20%, #fff);

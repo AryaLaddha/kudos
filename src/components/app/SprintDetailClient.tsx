@@ -380,7 +380,7 @@ export default function SprintDetailClient({
             <Button
               size="sm"
               onClick={() => setShowAddUser(v => !v)}
-              className="gap-1.5 text-xs h-8 bg-violet-600 hover:bg-violet-700 text-white"
+              className="gap-1.5 text-xs h-8 bg-action hover:bg-action-hover text-white"
             >
               <Plus className="h-3.5 w-3.5" />
               Add Person
@@ -501,7 +501,7 @@ export default function SprintDetailClient({
                           size="sm"
                           onClick={() => saveParticipant(p)}
                           disabled={isSaving}
-                          className="h-7 px-4 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1"
+                          className="h-7 px-4 text-xs bg-action hover:bg-action-hover text-white gap-1"
                         >
                           {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
                         </Button>
@@ -630,7 +630,7 @@ export default function SprintDetailClient({
                             size="sm"
                             onClick={() => saveParticipant(p)}
                             disabled={isSaving}
-                            className="h-7 px-3 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1"
+                            className="h-7 px-3 text-xs bg-action hover:bg-action-hover text-white gap-1"
                           >
                             {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
                           </Button>

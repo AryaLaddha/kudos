@@ -35,6 +35,11 @@ interface Props {
   canManageSprints: boolean;
 }
 
+/** TLCo Big Apple dot: the brand's "you are here" marker for the active nav item. */
+function YouAreHereDot() {
+  return <span className="ml-auto h-1.5 w-1.5 flex-shrink-0 rounded-full bg-big-apple" aria-hidden="true" />;
+}
+
 export default function AppSidebar({ user, profile, canManageUsers, canManageSprints }: Props) {
   const pathname = usePathname();
   const router = useRouter();
@@ -137,15 +142,17 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
                 className={cn(
                   "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   active
-                    ? "bg-indigo-50 text-indigo-700"
+                    ? "bg-slate-100 text-slate-900"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 )}
+                aria-current={active ? "page" : undefined}
               >
                 {loading
-                  ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
-                  : <item.icon className={cn("h-4 w-4", active ? "text-indigo-600" : "text-slate-400")} />
+                  ? <Loader2 className="h-4 w-4 text-slate-500 animate-spin" />
+                  : <item.icon className={cn("h-4 w-4", active ? "text-slate-900" : "text-slate-400")} />
                 }
                 {label}
+                {active && <YouAreHereDot />}
               </button>
             );
           })}
@@ -155,15 +162,17 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
             className={cn(
               "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
               pathname.startsWith("/profile") || pendingHref?.startsWith("/profile")
-                ? "bg-indigo-50 text-indigo-700"
+                ? "bg-slate-100 text-slate-900"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             )}
+            aria-current={pathname.startsWith("/profile") ? "page" : undefined}
           >
             {isPending && pendingHref?.startsWith("/profile")
-              ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
-              : <User className={cn("h-4 w-4", pathname.startsWith("/profile") ? "text-indigo-600" : "text-slate-400")} />
+              ? <Loader2 className="h-4 w-4 text-slate-500 animate-spin" />
+              : <User className={cn("h-4 w-4", pathname.startsWith("/profile") ? "text-slate-900" : "text-slate-400")} />
             }
             My Profile
+            {pathname.startsWith("/profile") && <YouAreHereDot />}
           </button>
 
           {/* Scoped nav items */}
@@ -187,15 +196,17 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
                       className={cn(
                         "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                         active
-                          ? "bg-violet-50 text-violet-700"
+                          ? "bg-slate-100 text-slate-900"
                           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                       )}
+                      aria-current={active ? "page" : undefined}
                     >
                       {loading
-                        ? <Loader2 className="h-4 w-4 text-violet-500 animate-spin" />
-                        : <item.icon className={cn("h-4 w-4", active ? "text-violet-600" : "text-slate-400")} />
+                        ? <Loader2 className="h-4 w-4 text-slate-500 animate-spin" />
+                        : <item.icon className={cn("h-4 w-4", active ? "text-slate-900" : "text-slate-400")} />
                       }
                       {item.label}
+                      {active && <YouAreHereDot />}
                     </button>
                   );
                 })}

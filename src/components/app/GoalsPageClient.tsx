@@ -109,7 +109,7 @@ export default function GoalsPageClient({
             <Button
               size="sm"
               onClick={() => openPicker("achieved")}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white h-8 gap-1.5 text-xs px-3"
+              className="bg-action hover:bg-action-hover text-white h-8 gap-1.5 text-xs px-3"
             >
               <Plus className="h-3.5 w-3.5" />
               Log Achievement

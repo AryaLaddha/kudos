@@ -95,7 +95,7 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-3">
             <Link href="/auth/login">
-              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">Sign in</Button>
+              <Button size="sm" className="bg-action hover:bg-action-hover text-white">Sign in</Button>
             </Link>
           </div>
         </div>
@@ -117,7 +117,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/auth/login">
-              <Button size="lg" className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 h-12">
+              <Button size="lg" className="gap-2 bg-action hover:bg-action-hover text-white px-8 h-12">
                 Sign in <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -259,7 +259,7 @@ export default function LandingPage() {
                     className={`w-full ${
                       plan.highlight
                         ? "bg-white text-indigo-600 hover:bg-indigo-50"
-                        : "bg-indigo-600 text-white hover:bg-indigo-700"
+                        : "bg-action text-white hover:bg-action-hover"
                     }`}
                   >
                     Sign in
@@ -280,7 +280,7 @@ export default function LandingPage() {
           <h2 className="mb-4 text-3xl font-extrabold text-slate-900 sm:text-4xl">Ready to start recognising?</h2>
           <p className="mb-8 text-lg text-slate-500">Join thousands of teams building healthier, happier cultures with Kudos.</p>
           <Link href="/auth/login">
-            <Button size="lg" className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-10 h-12">
+            <Button size="lg" className="gap-2 bg-action hover:bg-action-hover text-white px-10 h-12">
               Sign in <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>

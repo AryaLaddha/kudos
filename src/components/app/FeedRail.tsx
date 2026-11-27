@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { getSampleRail, isSampleId } from "@/components/app/feedRailSample"; // sample (temporary, kudosdev only)
 
 const TOP_PEOPLE = 5;
 const TOP_TAGS = 8;
@@ -67,12 +68,12 @@ export default async function FeedRail({ orgId, currentUserId }: FeedRailProps) 
     }
   }
 
-  const top = [...points.entries()]
+  let top = [...points.entries()]
     .filter(([, p]) => p > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, TOP_PEOPLE);
 
-  const tags = [...tagCounts.entries()]
+  let tags = [...tagCounts.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, TOP_TAGS);
 
@@ -84,13 +85,26 @@ export default async function FeedRail({ orgId, currentUserId }: FeedRailProps) 
       .in("id", top.map(([id]) => id));
     people = data ?? [];
   }
+
+  // sample: DEV-only placeholder while this month has no real data
+  const sample = await getSampleRail(supabase, currentUserId, top.length > 0);
+  if (sample) ({ top, tags, people } = sample);
+
   const byId = new Map(people.map((p) => [p.id, p]));
 
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="mb-3 flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold text-slate-900">Most recognised in {monthLabel}</h2>
+          <h2 className="text-sm font-semibold text-slate-900">
+            Most recognised in {monthLabel}
+            {/* sample */}
+            {sample && (
+              <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 align-middle text-[13px] font-medium text-amber-700">
+                Sample data
+              </span>
+            )}
+          </h2>
           <Link href="/leaderboard" className="text-[13px] font-medium text-indigo-600 hover:underline">
             Leaderboard
           </Link>
@@ -108,7 +122,7 @@ export default async function FeedRail({ orgId, currentUserId }: FeedRailProps) 
               return (
                 <li key={id}>
                   <Link
-                    href={`/profile/${id}`}
+                    href={isSampleId(id) ? "/leaderboard" : `/profile/${id}`} // sample
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50",
                       isMe && "bg-slate-50"

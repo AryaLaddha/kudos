@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
-import { Sparkles, LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck, Zap, Users, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, User, LogOut, Heart, Coins, Loader2, Trophy, Target, Menu, X, ShieldCheck, Zap, Users, ClipboardCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { GlobalSearch } from "@/components/app/GlobalSearch";
+import { BrandMark } from "@/components/app/BrandMark";
 
 const navItems = [
   { href: "/feed", label: "Feed", icon: LayoutDashboard },
@@ -31,6 +32,11 @@ interface Props {
   profile: Profile | null;
   canManageUsers: boolean;
   canManageSprints: boolean;
+}
+
+/** TLCo Big Apple dot: the brand's "you are here" marker for the active nav item. */
+function YouAreHereDot() {
+  return <span className="ml-auto h-1.5 w-1.5 flex-shrink-0 rounded-full bg-big-apple" aria-hidden="true" />;
 }
 
 export default function AppSidebar({ user, profile, canManageUsers, canManageSprints }: Props) {
@@ -72,12 +78,7 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600">
-            <Sparkles className="h-3.5 w-3.5 text-white" />
-          </div>
-          <span className="text-sm font-bold text-slate-900">Kudos</span>
-        </div>
+        <BrandMark className="text-lg" />
       </header>
 
       {/* Mobile backdrop */}
@@ -95,10 +96,7 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
       )}>
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-100">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-base font-bold text-slate-900">Kudos</span>
+          <BrandMark className="text-xl" endorsed />
           <button
             onClick={() => setMobileOpen(false)}
             className="ml-auto rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors md:hidden"
@@ -143,15 +141,17 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
                 className={cn(
                   "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   active
-                    ? "bg-indigo-50 text-indigo-700"
+                    ? "bg-slate-100 text-slate-900"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 )}
+                aria-current={active ? "page" : undefined}
               >
                 {loading
-                  ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
-                  : <item.icon className={cn("h-4 w-4", active ? "text-indigo-600" : "text-slate-400")} />
+                  ? <Loader2 className="h-4 w-4 text-slate-500 animate-spin" />
+                  : <item.icon className={cn("h-4 w-4", active ? "text-slate-900" : "text-slate-400")} />
                 }
                 {label}
+                {active && <YouAreHereDot />}
               </button>
             );
           })}
@@ -161,15 +161,17 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
             className={cn(
               "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
               pathname.startsWith("/profile") || pendingHref?.startsWith("/profile")
-                ? "bg-indigo-50 text-indigo-700"
+                ? "bg-slate-100 text-slate-900"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             )}
+            aria-current={pathname.startsWith("/profile") ? "page" : undefined}
           >
             {isPending && pendingHref?.startsWith("/profile")
-              ? <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />
-              : <User className={cn("h-4 w-4", pathname.startsWith("/profile") ? "text-indigo-600" : "text-slate-400")} />
+              ? <Loader2 className="h-4 w-4 text-slate-500 animate-spin" />
+              : <User className={cn("h-4 w-4", pathname.startsWith("/profile") ? "text-slate-900" : "text-slate-400")} />
             }
             My Profile
+            {pathname.startsWith("/profile") && <YouAreHereDot />}
           </button>
 
           {/* Scoped nav items */}
@@ -193,15 +195,17 @@ export default function AppSidebar({ user, profile, canManageUsers, canManageSpr
                       className={cn(
                         "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                         active
-                          ? "bg-violet-50 text-violet-700"
+                          ? "bg-slate-100 text-slate-900"
                           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                       )}
+                      aria-current={active ? "page" : undefined}
                     >
                       {loading
-                        ? <Loader2 className="h-4 w-4 text-violet-500 animate-spin" />
-                        : <item.icon className={cn("h-4 w-4", active ? "text-violet-600" : "text-slate-400")} />
+                        ? <Loader2 className="h-4 w-4 text-slate-500 animate-spin" />
+                        : <item.icon className={cn("h-4 w-4", active ? "text-slate-900" : "text-slate-400")} />
                       }
                       {item.label}
+                      {active && <YouAreHereDot />}
                     </button>
                   );
                 })}

@@ -212,7 +212,7 @@ export default function GoalsManagementClient({ initialGoals, isAdmin }: Props) 
           <button
             onClick={openAddForm}
             disabled={isPending || isAdding}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-action text-white font-bold hover:bg-action-hover transition-all shadow-lg shadow-action/20 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
             New Goal
@@ -344,7 +344,7 @@ export default function GoalsManagementClient({ initialGoals, isAdmin }: Props) 
             <button
               onClick={() => editingId ? handleUpdate(editingId) : handleAdd()}
               disabled={isPending}
-              className="flex items-center gap-2 px-8 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
+              className="flex items-center gap-2 px-8 py-2.5 rounded-xl bg-action text-white font-bold hover:bg-action-hover transition-all shadow-lg shadow-action/20 disabled:opacity-50"
             >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {editingId ? "Update Goal" : "Create Goal"}

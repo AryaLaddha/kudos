@@ -725,7 +725,7 @@ export default function AdminDashboardClient({
                           <span>{p.recPct.toFixed(1)}%</span>
                         </div>
                         <div className="h-2.5 bg-violet-50 rounded-full overflow-hidden">
-                          <div style={{ width: `${p.recPct}%` }} className="h-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.3)] transition-all duration-700" />
+                          <div style={{ width: `${p.recPct}%` }} className="h-full bg-violet-500 shadow-[0_0_8px_rgba(255,168,168,0.35)] transition-all duration-700" />
                         </div>
                       </div>
                     </div>

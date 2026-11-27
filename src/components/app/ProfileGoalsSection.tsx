@@ -85,7 +85,7 @@ export default function ProfileGoalsSection({
           <Button
             size="sm"
             onClick={() => setPickerOpen(true)}
-            className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="gap-1.5 bg-action hover:bg-action-hover text-white"
           >
             <Plus className="h-3.5 w-3.5" />
             Add Goal
@@ -381,7 +381,7 @@ function AdminGoalsPicker({
           <Button
             onClick={handleConfirm}
             disabled={!selectedGoal || !description.trim() || isPending}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="bg-action hover:bg-action-hover text-white"
           >
             {isPending ? "Saving…" : "Log Achievement"}
           </Button>

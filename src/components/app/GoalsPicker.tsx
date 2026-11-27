@@ -202,7 +202,7 @@ export default function GoalsPicker({
           <Button
             onClick={handleConfirm}
             disabled={!selectedGoal || !description.trim() || isPending}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="bg-action hover:bg-action-hover text-white"
           >
             {isPending
               ? "Saving…"

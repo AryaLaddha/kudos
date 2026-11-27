@@ -74,11 +74,13 @@ function ResetPasswordContent() {
       <div className="w-full max-w-[360px]">
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 mb-10">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-lg font-bold text-slate-900">Kudos</span>
+        {/* Wordmark inlined (not <BrandMark />) so this file's imports stay
+            untouched: main reworked them, and an import edit here would
+            conflict when feature/tlc-branding merges into main. */}
+        <Link href="/" className="flex items-center mb-10">
+          <span className="text-2xl font-semibold tracking-tight text-plum">
+            Kudos<span className="text-big-apple">.</span>
+          </span>
         </Link>
 
         <div className="mb-8">
@@ -179,8 +181,8 @@ function ResetPasswordContent() {
             className={cn(
               "h-12 w-full rounded-xl text-[15px] font-semibold text-white transition-all",
               loading
-                ? "bg-indigo-400 cursor-not-allowed"
-                : "bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-200 active:translate-y-0"
+                ? "bg-action/60 cursor-not-allowed"
+                : "bg-action hover:bg-action-hover hover:-translate-y-0.5 hover:shadow-lg hover:shadow-action/20 active:translate-y-0"
             )}
           >
             {loading ? "Updating…" : "Update password"}

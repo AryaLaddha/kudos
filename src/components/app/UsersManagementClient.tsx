@@ -254,7 +254,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
           <button
             id="add-user-btn"
             onClick={() => setShowInvite(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-bold shadow-sm transition-all duration-150"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-action hover:bg-action-hover active:bg-action-hover text-white text-sm font-bold shadow-sm transition-all duration-150"
           >
             <UserPlus className="h-4 w-4" />
             Add User
@@ -519,7 +519,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                   </div>
                   <button
                     onClick={handleCopyLoginLink}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-indigo-100 shadow-lg hover:bg-indigo-700 transition-all"
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-action text-white font-bold text-sm shadow-action/20 shadow-lg hover:bg-action-hover transition-all"
                   >
                     {linkCopied ? "Copied!" : "Copy Link"}
                   </button>
@@ -638,7 +638,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                         </div>
                         <button
                           onClick={handleCopyLink}
-                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-indigo-100 shadow-lg hover:bg-indigo-700 transition-all"
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-action text-white font-bold text-sm shadow-action/20 shadow-lg hover:bg-action-hover transition-all"
                         >
                           {copied ? "Copied Link!" : "Copy Setup Link"}
                         </button>
@@ -744,7 +744,7 @@ export default function UsersManagementClient({ initialUsers, currentUserId }: P
                     id="invite-submit-btn"
                     type="submit"
                     disabled={invitePending}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-sm shadow-sm transition-all duration-150"
+                    className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-action hover:bg-action-hover disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-sm shadow-sm transition-all duration-150"
                   >
                     {invitePending ? (
                       <><Loader2 className="h-4 w-4 animate-spin" /> Creating account…</>

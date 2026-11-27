@@ -5,12 +5,13 @@ export const dynamic = "force-dynamic";
 import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Sparkles, Eye, EyeOff, ArrowRight, Heart, Zap, Star, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Heart, Zap, Star, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { WorkstationLoader } from "@/components/app/WorkstationLoader";
+import { BrandMark } from "@/components/app/BrandMark";
 
 const RECENT_KUDOS = [
   {
@@ -98,29 +99,17 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen bg-white">
-      {/* ── Left panel: animated dark gradient ── */}
-      <div className="relative hidden w-[52%] overflow-hidden lg:flex flex-col justify-between p-12"
-        style={{
-          background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4338ca 60%, #6366f1 100%)",
-        }}
-      >
-        {/* Decorative blobs */}
-        <div className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-indigo-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 rounded-full bg-violet-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute top-1/2 left-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-300/10 blur-2xl" />
-
+      {/* ── Left panel: solid Plum block (TLCo: no gradients) ── */}
+      <div className="relative hidden w-[52%] overflow-hidden bg-plum lg:flex flex-col justify-between p-12">
         {/* Logo */}
-        <Link href="/" className="relative z-10 flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm border border-white/20">
-            <Sparkles className="h-4.5 w-4.5 text-white" />
-          </div>
-          <span className="text-xl font-bold text-white tracking-tight">Kudos</span>
+        <Link href="/" className="relative z-10 flex items-center">
+          <BrandMark className="text-3xl" tone="light" endorsed />
         </Link>
 
         {/* Live feed preview */}
         <div className="relative z-10 flex flex-col gap-3">
           <div className="mb-2 flex items-center gap-2">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
+            <div className="h-2 w-2 animate-pulse rounded-full bg-big-apple" />
             <span className="text-xs font-medium text-white/50 uppercase tracking-widest">Live recognition feed</span>
           </div>
 
@@ -170,11 +159,8 @@ export default function LoginPage() {
         <div className="w-full max-w-[360px]">
 
           {/* Mobile logo */}
-          <Link href="/" className="flex items-center gap-2 mb-10 lg:hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-slate-900">Kudos</span>
+          <Link href="/" className="flex items-center mb-10 lg:hidden">
+            <BrandMark className="text-2xl" endorsed />
           </Link>
 
           {/* Inactive account banner */}
@@ -282,8 +268,8 @@ export default function LoginPage() {
               className={cn(
                 "relative h-12 w-full rounded-xl text-[15px] font-semibold text-white transition-all",
                 loading
-                  ? "bg-indigo-400 cursor-not-allowed"
-                  : "bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-200 active:translate-y-0"
+                  ? "bg-action/60 cursor-not-allowed"
+                  : "bg-action hover:bg-action-hover hover:-translate-y-0.5 hover:shadow-lg hover:shadow-action/20 active:translate-y-0"
               )}
             >
               {loading ? (

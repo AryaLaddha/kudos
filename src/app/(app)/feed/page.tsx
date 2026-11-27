@@ -1,9 +1,11 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RecognitionCard from "@/components/app/RecognitionCard";
 import Pagination from "@/components/app/Pagination";
+import FeedRail, { FeedRailSkeleton } from "@/components/app/FeedRail";
 import type { Recognition, Profile } from "@/types";
 
 // Pages using cookies() are already dynamic — no need for force-dynamic
@@ -87,7 +89,9 @@ export default async function FeedPage({ searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil((totalCount ?? 0) / PER_PAGE));
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    // Single readable column on smaller screens; from xl the feed keeps a
+    // readable width and the FeedRail fills the space beside it.
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-8 xl:max-w-[1120px] 2xl:max-w-[1200px]">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -102,30 +106,44 @@ export default async function FeedPage({ searchParams }: Props) {
         </Link>
       </div>
 
-      {/* Feed */}
-      <div className="space-y-4">
-        {recognitionsWithReceivers.length === 0 && (
-          <div className="text-center py-16 text-slate-400 text-sm">
-            No recognitions yet — be the first to give kudos!
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-8 2xl:grid-cols-[minmax(0,1fr)_340px] 2xl:gap-10">
+        <div className="min-w-0">
+          {/* Feed */}
+          <div className="space-y-4">
+            {recognitionsWithReceivers.length === 0 && (
+              <div className="text-center py-16 text-slate-400 text-sm">
+                No recognitions yet — be the first to give kudos!
+              </div>
+            )}
+            {recognitionsWithReceivers.map((recognition) => (
+              <RecognitionCard
+                key={recognition.id}
+                recognition={recognition}
+                currentUserId={user.id}
+              />
+            ))}
           </div>
-        )}
-        {recognitionsWithReceivers.map((recognition) => (
-          <RecognitionCard
-            key={recognition.id}
-            recognition={recognition}
-            currentUserId={user.id}
-          />
-        ))}
-      </div>
 
-      {/* Pagination */}
-      {(totalCount ?? 0) > 0 && (
-        <Pagination
-          page={pageNum}
-          totalPages={totalPages}
-          buildHref={(p) => `/feed?page=${p}`}
-        />
-      )}
+          {/* Pagination */}
+          {(totalCount ?? 0) > 0 && (
+            <Pagination
+              page={pageNum}
+              totalPages={totalPages}
+              buildHref={(p) => `/feed?page=${p}`}
+            />
+          )}
+        </div>
+
+        {/* Wide screens: this month at a glance. Streams in on its own so it
+            never holds up the feed. */}
+        {profile?.org_id && (
+          <aside className="hidden xl:block" aria-label="This month">
+            <Suspense fallback={<FeedRailSkeleton />}>
+              <FeedRail orgId={profile.org_id} currentUserId={user.id} />
+            </Suspense>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
